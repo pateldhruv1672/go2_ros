@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>go2_agentic_system</name>
+  <version>0.1.0</version>
+  <description>Top-level launches for Sparky agentic overlay.</description>
+  <maintainer email="user@example.com">User</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <depend>rclpy</depend>
+  <exec_depend>go2_agentic_multiagent_voice_nav</exec_depend>
+  <exec_depend>go2_agentic_motion_skills</exec_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

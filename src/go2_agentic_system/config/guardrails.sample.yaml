@@ -1,0 +1,10 @@
+guardrails:
+  min_front_clearance_m: 0.75
+  min_rear_clearance_m: 0.45
+  front_arc_deg: 40.0
+  rear_arc_deg: 50.0
+  localization_timeout_sec: 2.0
+  require_localization_for_navigation: true
+  allow_manual_without_localization: true
+  capture_distance_m: 1.5
+  capture_interval_sec: 8.0

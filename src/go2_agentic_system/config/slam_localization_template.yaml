@@ -1,0 +1,14 @@
+slam_toolbox:
+  ros__parameters:
+    mode: localization
+    use_scan_matching: true
+    map_frame: map
+    odom_frame: odom
+    base_frame: base_link
+    scan_topic: /scan
+    transform_publish_period: 0.05
+    resolution: 0.05
+    minimum_travel_distance: 0.2
+    minimum_travel_heading: 0.2
+    max_laser_range: 20.0
+    minimum_time_interval: 0.5

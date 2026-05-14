@@ -1,0 +1,58 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.7
+      Class: rviz_default_plugins/Map
+      Name: Map
+      Topic:
+        Value: /map
+      Enabled: true
+    - Class: rviz_default_plugins/RobotModel
+      Enabled: true
+      Name: RobotModel
+    - Class: rviz_default_plugins/TF
+      Enabled: true
+      Name: TF
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Places
+      Marker Topic: /semantic_nav/places_markers
+      Topic:
+        Value: /semantic_nav/places_markers
+    - Class: rviz_default_plugins/Path
+      Enabled: true
+      Name: GlobalPlan
+      Topic:
+        Value: /plan
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Name: Camera
+      Image Topic:
+        Value: /camera/image_raw
+      Reliability Policy: Best Effort
+  Global Options:
+    Fixed Frame: map
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic:
+        Value: /initialpose
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Value: /goal_pose
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Name: TopDown View
+      Scale: 35
+Window Geometry:
+  Height: 900
+  Width: 1400

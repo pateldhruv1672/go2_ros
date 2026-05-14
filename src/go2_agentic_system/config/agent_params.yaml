@@ -1,0 +1,58 @@
+command_console_node:
+  ros__parameters:
+    input_topic: /agent/input_text
+    status_topic: /agent/status
+    stdin_enabled: true
+    show_status: true
+
+keyboard_teleop_node:
+  ros__parameters:
+    input_topic: /agent/input_text
+    mode_topic: /agent/mode
+
+supervisor_node:
+  ros__parameters:
+    input_topic: /agent/input_text
+    status_topic: /agent/status
+    mode_topic: /agent/mode
+    speak_topic: /agent/speak_text
+    capture_request_topic: /agent/capture_semantic
+    cmd_vel_topic: /cmd_vel_nav
+    goal_pose_topic: /goal_pose
+    scan_topic: /scan
+    odom_topic: /odom
+    map_topic: /map
+    save_map_service: /map_saver/save_map
+    map_frame: map
+    base_frame: base_link
+    tf_poll_sec: 0.2
+    control_period_sec: 0.05
+    nav_feedback_sec: 1.0
+    manual_linear_speed_mps: 0.25
+    manual_angular_speed_rps: 0.70
+    default_manual_duration_sec: 0.9
+    autostart_nav2_wait: false
+
+semantic_memory_node:
+  ros__parameters:
+    mode_topic: /agent/mode
+    status_topic: /agent/status
+    capture_request_topic: /agent/capture_semantic
+    image_topic: /camera/front/image_raw
+    compressed_image_topic: ""
+    map_frame: map
+    base_frame: base_link
+    auto_capture_enabled: true
+    auto_capture_modes: [survey, manual, idle]
+    capture_timer_sec: 1.0
+    max_image_side: 1024
+
+semantic_map_visualizer_node:
+  ros__parameters:
+    marker_topic: /agent/semantic_markers
+    refresh_sec: 1.0
+
+speech_output_node:
+  ros__parameters:
+    speak_topic: /agent/speak_text
+    use_espeak: false

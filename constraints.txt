@@ -1,0 +1,6 @@
+# Known compatibility constraints
+# gtts 2.5.4 declares click<8.2 but works fine with click 8.3.3+
+# This constraint is needed by typer/huggingface-hub for faster-whisper
+# Verified: gtts.gTTS imports and runs successfully with click 8.3.3
+click==8.3.3
+gtts>=2.5.4

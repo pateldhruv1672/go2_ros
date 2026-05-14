@@ -1,0 +1,4 @@
+# Transform from robot base frame to camera frame.
+# Replace these values with your measured or calibrated Go2 front-camera extrinsics.
+translation_xyz: [0.25, 0.0, 0.30]
+quaternion_xyzw: [0.0, 0.0, 0.0, 1.0]

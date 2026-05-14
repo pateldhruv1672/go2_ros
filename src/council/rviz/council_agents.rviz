@@ -1,0 +1,67 @@
+Panels:
+- Class: rviz_common/Displays
+  Help Height: 78
+  Name: Displays
+- Class: rviz_common/Selection
+  Name: Selection
+- Class: rviz_common/Tool Properties
+  Name: Tool Properties
+- Class: rviz_common/Views
+  Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.7
+      Class: rviz_default_plugins/Map
+      Name: Map
+      Topic: /map
+    - Class: rviz_default_plugins/TF
+      Name: TF
+    - Class: rviz_default_plugins/PointCloud2
+      Name: PointCloud
+      Topic: /point_cloud2
+      Queue Size: 2
+    - Class: rviz_default_plugins/Image
+      Name: Camera (processed)
+      Topic: /council/viz/camera_processed
+    - Class: rviz_default_plugins/Image
+      Name: LiDAR BEV
+      Topic: /council/viz/lidar_bev
+    - Class: rviz_default_plugins/Image
+      Name: Nav Map (image)
+      Topic: /council/viz/nav_map_image
+    - Class: rviz_default_plugins/Image
+      Name: Nav Local Patch
+      Topic: /council/viz/nav_local_patch
+    - Class: rviz_default_plugins/Image
+      Name: Local Costmap (image)
+      Topic: /council/viz/local_costmap_image
+    - Class: rviz_default_plugins/Image
+      Name: Global Costmap (image)
+      Topic: /council/viz/global_costmap_image
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Agent Markers
+      Topic: /council/viz/agent_markers
+  Global Options:
+    Fixed Frame: map
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic: /initialpose
+    - Class: rviz_default_plugins/SetGoal
+      Topic: /goal_pose
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 10
+      Name: Current View
+      Pitch: 0.785
+      Target Frame: base_link
+      Yaw: 0
+Window Geometry:
+  Height: 900
+  Width: 1400

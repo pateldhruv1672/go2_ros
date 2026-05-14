@@ -1,0 +1,9 @@
+Known-good baseline package restored from the working v5 zip.
+
+This zip is a cleaned copy of the uploaded working package, with __pycache__ and .pyc files removed.
+It keeps the semantic nav command/status interface expected by the voice/orchestrator layer.
+
+Recommended install:
+1. Backup current source package.
+2. Replace ~/ros2_ws/src/go2_semantic_nav_agent with this package.
+3. Rebuild only go2_semantic_nav_agent.

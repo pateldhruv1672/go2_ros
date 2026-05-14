@@ -1,0 +1,36 @@
+local_omi_stt_node:
+  ros__parameters:
+    omi_mac: "EF:1C:34:C6:25:92"
+    omi_char_uuid: "19B10001-E8F2-537E-4F6C-D104768A1214"
+    sample_rate: 16000
+    chunk_seconds: 1.2
+    whisper_model: "small.en"
+    compute_type: "int8"
+    language: "en"
+    vad_filter: true
+    connection_retry_sec: 5.0
+    scan_timeout_sec: 8.0
+
+dialogue_orchestrator_node:
+  ros__parameters:
+    session_root: "~/.ros/go2_semantic_nav_sessions"
+    session_name: ""
+    wake_words: ["sparky", "hey sparky", "okay sparky", "robot"]
+    use_chat_fallback: true
+    openrouter_model: "google/gemini-2.5-flash"
+    openrouter_base_url: "https://openrouter.ai/api/v1/chat/completions"
+
+camera_agent_node:
+  ros__parameters:
+    camera_image_topic: "/camera/image_raw"
+    camera_compressed_topic: "/camera/image_raw/compressed"
+    openrouter_model: "google/gemini-2.5-flash"
+    openrouter_base_url: "https://openrouter.ai/api/v1/chat/completions"
+
+speaker_tts_node:
+  ros__parameters:
+    enabled: false
+    voice: "en-us"
+    rate_wpm: 170
+    pitch: 50
+    volume: 100
