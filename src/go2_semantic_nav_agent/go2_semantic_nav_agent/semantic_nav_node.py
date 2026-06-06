@@ -14,7 +14,6 @@ from typing import Optional
 
 import numpy as np
 from PIL import Image as PILImage
-import requests
 import yaml
 
 import rclpy
@@ -24,6 +23,7 @@ from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import (
     DurabilityPolicy,
@@ -38,7 +38,12 @@ from std_msgs.msg import String
 from tf2_ros import Buffer, TransformException, TransformListener
 from visualization_msgs.msg import Marker, MarkerArray
 
+from go2_agentic_system.openrouter_client import OpenRouterClient
+from go2_agentic_system.patrol_events import PatrolEvent
+from go2_agentic_system.storage import MemoryStore as SharedMemoryStore
+
 from .place_store import Place, PlaceStore
+from .route_store import RoutePlan, RouteStop, RouteStore, slugify as route_slugify
 from .session_store import SessionStore
 from .semantic_memory import SemanticMemory, slugify
 
@@ -95,10 +100,21 @@ class SemanticNavNode(Node):
         self.session_store = SessionStore(str(self.get_parameter('session_root').value))
         self.session = self._choose_session()
         self.place_store = PlaceStore(self.session.places_path)
+        for _p in self.place_store.places.values():
+            _p.frame_id = (getattr(_p, 'frame_id', '') or self.map_frame or 'map').strip() or 'map'
         self.memory = SemanticMemory()
+        self.agent_memory = SharedMemoryStore(str(self.get_parameter('agent_memory_root').value))
+        self.openrouter = OpenRouterClient(
+            model=str(self.get_parameter('openrouter_model').value),
+            base_url=str(self.get_parameter('openrouter_base_url').value),
+        )
+        self.route_store = RouteStore(self.session.session_dir)
+        self.route = self._load_or_create_route()
         if self.mode == 'teach' and bool(self.get_parameter('clear_places_on_start').value):
             self.place_store.places = {}
             self.place_store.save()
+            self.route = RoutePlan(name=route_slugify(self.session.session_name), mode='teach')
+            self.route_store.save(self.route)
 
         self.latest_image_bytes: Optional[bytes] = None
         self.latest_scan: Optional[LaserScan] = None
@@ -114,6 +130,14 @@ class SemanticNavNode(Node):
         self._motion_twist = Twist()
         self._motion_end_ns = 0
         self._motion_retry_place: Optional[Place] = None
+        self._motion_retry_route_goal = False
+        self._tour_pause_until_ns = 0
+        self._stop_announced: set[str] = set()
+        self._recovery_retries = 0
+        self._route_goal_active = False
+        self._active_goal_handle = None
+        self._pending_recovery_goal: Optional[Place] = None
+        self._teach_auto_save_count = sum(1 for p in self.place_store.places.values() if getattr(p, 'source', '') == 'vlm_auto')
 
         self.buffer = Buffer(node=self)
         self.listener = TransformListener(self.buffer, self, spin_thread=True)
@@ -128,6 +152,8 @@ class SemanticNavNode(Node):
         cmd_qos = QoSProfile(history=HistoryPolicy.KEEP_LAST, depth=1, reliability=ReliabilityPolicy.RELIABLE)
 
         self.status_pub = self.create_publisher(String, '/semantic_nav/status', status_qos)
+        self.reply_pub = self.create_publisher(String, '/agent/reply', 20)
+        self.event_pub = self.create_publisher(String, '/semantic_nav/event', status_qos)
         self.marker_pub = self.create_publisher(MarkerArray, '/semantic_nav/places_markers', marker_qos)
         self.preview_pub = self.create_publisher(MarkerArray, '/semantic_nav/route_preview', marker_qos)
         self.initialpose_pub = self.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
@@ -141,6 +167,7 @@ class SemanticNavNode(Node):
 
         self.create_timer(1.0, self.publish_markers)
         self.create_timer(0.05, self.motion_tick)
+        self.create_timer(0.5, self.route_tick)
         self.auto_save_timer = None
         if self.mode == 'teach' and bool(self.get_parameter('auto_save_places').value):
             self.auto_save_timer = self.create_timer(float(self.get_parameter('auto_save_interval_sec').value), self.auto_save_tick)
@@ -151,6 +178,8 @@ class SemanticNavNode(Node):
         self.publish_status(
             f'ready | mode={self.mode} | session={self.session.session_name} | '
             f'places_file={self.session.places_path} | places_loaded={len(self.place_store.places)} | '
+            f'route={self.route.name} | route_mode={self.route.mode} | route_state={self.route.state} | '
+            f'stops={len(self.route.stops)} | tour_mode={"on" if bool(self.get_parameter("tour_mode").value) else "off"} | '
             f'auto_save={"on" if bool(self.get_parameter("auto_save_places").value) and self.mode=="teach" else "off"} '
             f'every={float(self.get_parameter("auto_save_interval_sec").value):.1f}s | '
             f'vlm={"on" if bool(self.get_parameter("auto_save_use_vlm").value) else "off"} | '
@@ -163,6 +192,7 @@ class SemanticNavNode(Node):
         self.declare_parameter('session_root', '~/.ros/go2_semantic_nav_sessions')
         self.declare_parameter('session_name', '')
         self.declare_parameter('map_label', 'session')
+        self.declare_parameter('agent_memory_root', '~/.ros/go2_agent_memory')
         self.declare_parameter('save_map_on_shutdown', True)
         self.declare_parameter('map_saver_cmd', 'ros2 run nav2_map_server map_saver_cli')
         self.declare_parameter('map_frame', 'map')
@@ -171,11 +201,16 @@ class SemanticNavNode(Node):
         self.declare_parameter('camera_compressed_topic', '/camera/image_raw/compressed')
         self.declare_parameter('openrouter_model', 'google/gemini-2.5-flash')
         self.declare_parameter('openrouter_base_url', 'https://openrouter.ai/api/v1/chat/completions')
+        self.declare_parameter('tour_mode', True)
+        self.declare_parameter('tour_default_pause_sec', 4.0)
+        self.declare_parameter('route_name', '')
         self.declare_parameter('auto_save_places', True)
         self.declare_parameter('auto_save_interval_sec', 5.0)
         self.declare_parameter('auto_save_use_vlm', True)
         self.declare_parameter('auto_save_min_distance_m', 1.5)
         self.declare_parameter('auto_save_merge_distance_m', 1.5)
+        self.declare_parameter('auto_save_target_samples', 0)
+        self.declare_parameter('auto_save_allow_repeat_samples', False)
         self.declare_parameter('auto_save_min_confidence', 0.55)
         self.declare_parameter('clear_places_on_start', False)
         self.declare_parameter('restore_spawn_on_start', True)
@@ -187,6 +222,7 @@ class SemanticNavNode(Node):
         self.declare_parameter('fallback_forward_distance', 0.25)
         self.declare_parameter('fallback_backup_distance', 0.18)
         self.declare_parameter('fallback_rotate_deg', 18.0)
+        self.declare_parameter('recovery_max_retries', 3)
 
     def _choose_session(self):
         requested = str(self.get_parameter('session_name').value).strip()
@@ -202,6 +238,43 @@ class SemanticNavNode(Node):
             return latest
         return usable
 
+    def _load_or_create_route(self) -> RoutePlan:
+        route_name = str(self.get_parameter('route_name').value).strip() or self.session.session_name
+        stops = []
+        for p in sorted(self.place_store.places.values(), key=lambda x: x.name):
+            stops.append({
+                'stop_name': p.name,
+                'place_name': p.name,
+                'script': p.description or '',
+                'fact': p.description or '',
+                'pause_seconds': float(self.get_parameter('tour_default_pause_sec').value),
+                'safe_anchor': 'spawn' if p.category == 'spawn' or p.name == 'spawn' else '',
+                'kind': 'tour' if bool(self.get_parameter('tour_mode').value) else self.mode,
+                'confidence': float(getattr(p, 'confidence', 1.0) or 1.0),
+                'aliases': list(getattr(p, 'aliases', []) or []),
+                'tags': list(getattr(p, 'tags', []) or []),
+            })
+        route = self.route_store.load_or_create(name=route_name, mode='tour' if bool(self.get_parameter('tour_mode').value) else self.mode, stop_candidates=stops)
+        if not route.stops and self.place_store.places:
+            for p in sorted(self.place_store.places.values(), key=lambda x: x.name):
+                stop = RouteStop(
+                    name=route_slugify(p.name),
+                    place_name=p.name,
+                    script=p.description or '',
+                    fact=p.description or '',
+                    pause_seconds=float(self.get_parameter('tour_default_pause_sec').value),
+                    safe_anchor='spawn' if p.name == 'spawn' else '',
+                    kind='tour',
+                    confidence=float(getattr(p, 'confidence', 1.0) or 1.0),
+                    aliases=list(getattr(p, 'aliases', []) or []),
+                    tags=list(getattr(p, 'tags', []) or []),
+                )
+                self.route_store.upsert_stop(route, stop)
+        if route.mode not in {'tour', 'patrol', 'resume', 'teach'}:
+            route.mode = 'tour' if bool(self.get_parameter('tour_mode').value) else self.mode
+        self.route_store.save(route)
+        return route
+
     def publish_status(self, text: str) -> None:
         if text == self._last_status:
             return
@@ -210,7 +283,29 @@ class SemanticNavNode(Node):
         self.status_pub.publish(msg)
         self.get_logger().info(text)
 
+    def publish_reply(self, text: str) -> None:
+        if not text:
+            return
+        msg = String()
+        msg.data = text
+        self.reply_pub.publish(msg)
+        self.get_logger().info(f'reply: {text}')
+
+    def publish_event(self, event: PatrolEvent) -> None:
+        payload = event.to_dict()
+        msg = String()
+        msg.data = json.dumps(payload, ensure_ascii=False)
+        self.event_pub.publish(msg)
+        self.route_store.append_event(event)
+        self.agent_memory.log_event('patrol_event', payload)
+        if event.speech:
+            self.publish_reply(event.speech)
+        if event.status:
+            self.publish_status(event.status)
+
     def goal_cb(self, msg: PoseStamped) -> None:
+        if not (msg.header.frame_id or '').strip():
+            msg.header.frame_id = self.map_frame
         self.latest_goal = msg
         self.publish_status(f'cached_last_goal frame={msg.header.frame_id or self.map_frame}')
 
@@ -224,6 +319,34 @@ class SemanticNavNode(Node):
 
     def scan_cb(self, msg: LaserScan) -> None:
         self.latest_scan = msg
+
+    def scan_summary(self) -> dict:
+        if self.latest_scan is None:
+            return {'available': False}
+        ranges = [float(r) for r in self.latest_scan.ranges if math.isfinite(r) and float(r) > 0.0]
+        if not ranges:
+            return {'available': True, 'range_count': 0}
+        front = ranges[:20]
+        rear = ranges[-20:]
+        return {
+            'available': True,
+            'range_count': len(ranges),
+            'min_range': min(ranges),
+            'mean_range': float(sum(ranges) / len(ranges)),
+            'front_clear': min(front) > 0.75 if front else True,
+            'rear_clear': min(rear) > 0.45 if rear else True,
+        }
+
+    def pose_summary(self) -> dict:
+        pose = self.lookup_current_pose()
+        if pose is None:
+            return {'available': False}
+        return {
+            'available': True,
+            'x': float(pose.pose.position.x),
+            'y': float(pose.pose.position.y),
+            'frame_id': pose.header.frame_id or self.map_frame,
+        }
 
     def odom_tf_ready(self) -> bool:
         try:
@@ -240,12 +363,17 @@ class SemanticNavNode(Node):
             return
         meta = self.session_store.load_session_yaml(self.session)
         spawn = meta.get('spawn')
+        if not spawn and self.route.safe_anchors:
+            anchor_name = self.route.safe_anchors.get('spawn') or next(iter(self.route.safe_anchors.values()))
+            anchor_place = self.resolve_place(anchor_name) or self.place_store.get(anchor_name)
+            if anchor_place:
+                spawn = {'x': anchor_place.x, 'y': anchor_place.y, 'yaw': anchor_place.yaw, 'frame_id': anchor_place.frame_id or self.map_frame}
         if not spawn:
             self.publish_status('resume_no_spawn_found')
             self._restore_done = True
             return
         msg = PoseWithCovarianceStamped()
-        msg.header.frame_id = spawn.get('frame_id', self.map_frame)
+        msg.header.frame_id = (spawn.get('frame_id') or self.map_frame or 'map').strip() or 'map'
         msg.header.stamp = BuiltinTime(sec=0, nanosec=0)
         msg.pose.pose.position.x = float(spawn.get('x', 0.0))
         msg.pose.pose.position.y = float(spawn.get('y', 0.0))
@@ -283,7 +411,7 @@ class SemanticNavNode(Node):
 
     def build_pose(self, place: Place) -> PoseStamped:
         pose = PoseStamped()
-        pose.header.frame_id = self.map_frame
+        pose.header.frame_id = (getattr(place, 'frame_id', '') or self.map_frame or 'map').strip() or 'map'
         pose.header.stamp = self.get_clock().now().to_msg()
         pose.pose.position.x = float(place.x)
         pose.pose.position.y = float(place.y)
@@ -334,6 +462,77 @@ class SemanticNavNode(Node):
             arr.markers.append(label)
         self.marker_pub.publish(arr)
 
+        route_arr = MarkerArray()
+        for idx, stop in enumerate(self.route.stops):
+            place = self._resolve_stop_place(stop)
+            if place is None:
+                continue
+            marker = Marker()
+            marker.header.frame_id = self.map_frame
+            marker.header.stamp = t
+            marker.ns = 'route_stops'
+            marker.id = idx * 2
+            marker.type = Marker.SPHERE
+            marker.action = Marker.ADD
+            marker.scale.x = 0.22
+            marker.scale.y = 0.22
+            marker.scale.z = 0.22
+            marker.pose = self.build_pose(place).pose
+            marker.color.a = 0.9
+            if idx == self.route.current_stop_index:
+                marker.color.r, marker.color.g, marker.color.b = (1.0, 0.25, 0.2)
+            elif stop.status == 'complete':
+                marker.color.r, marker.color.g, marker.color.b = (0.2, 0.95, 0.3)
+            elif stop.status in {'paused', 'blocked', 'recovering'}:
+                marker.color.r, marker.color.g, marker.color.b = (1.0, 0.65, 0.1)
+            else:
+                marker.color.r, marker.color.g, marker.color.b = (0.35, 0.65, 1.0)
+            route_arr.markers.append(marker)
+
+            label = Marker()
+            label.header.frame_id = self.map_frame
+            label.header.stamp = t
+            label.ns = 'route_stop_labels'
+            label.id = idx * 2 + 1
+            label.type = Marker.TEXT_VIEW_FACING
+            label.action = Marker.ADD
+            label.scale.z = 0.4
+            label.pose.position.x = place.x
+            label.pose.position.y = place.y
+            label.pose.position.z = 0.75
+            label.color.a = 1.0
+            label.color.r = 1.0
+            label.color.g = 0.9
+            label.color.b = 0.3
+            label.text = f'{idx + 1}. {stop.name} [{stop.status}]'
+            route_arr.markers.append(label)
+        self.preview_pub.publish(route_arr)
+
+    def nearest_route_stop(self, *, include_complete: bool = False) -> Optional[tuple[int, RouteStop]]:
+        pose = self.lookup_current_pose()
+        if pose is None or not self.route.stops:
+            return None
+        best_idx: Optional[int] = None
+        best_stop: Optional[RouteStop] = None
+        best_dist = float('inf')
+        for idx, stop in enumerate(self.route.stops):
+            if not include_complete and stop.status == 'complete':
+                continue
+            place = self._resolve_stop_place(stop)
+            if place is None:
+                continue
+            dist = math.hypot(pose.pose.position.x - place.x, pose.pose.position.y - place.y)
+            if dist < best_dist:
+                best_dist = dist
+                best_idx = idx
+                best_stop = stop
+        if best_idx is None or best_stop is None:
+            return None
+        self.route.current_stop_index = best_idx
+        self.route_store.save(self.route)
+        self.publish_status(f'resume_selected_stop index={best_idx} stop={best_stop.name} dist={best_dist:.2f}')
+        return best_idx, best_stop
+
     def parse_kv(self, parts):
         kwargs = {'room': '', 'category': '', 'tags': [], 'aliases': [], 'description': ''}
         for part in parts:
@@ -354,10 +553,94 @@ class SemanticNavNode(Node):
             meta['spawn'] = {'x': place.x, 'y': place.y, 'yaw': place.yaw, 'frame_id': self.map_frame}
         self.session_store.save_session_yaml(self.session, meta)
 
+    def _place_memory_payload(self, place: Place) -> dict:
+        confidence = getattr(place, 'confidence', 1.0)
+        try:
+            confidence = float(confidence)
+        except Exception:
+            confidence = 1.0
+        return {
+            'x': float(place.x),
+            'y': float(place.y),
+            'yaw': float(place.yaw),
+            'frame_id': place.frame_id or self.map_frame,
+            'summary': place.summary or place.description or '',
+            'description': place.description or '',
+            'tour_fact': place.tour_fact or place.summary or place.description or '',
+            'navigation_hint': place.navigation_hint or '',
+            'resume_hook': place.resume_hook or '',
+            'safety_notes': place.safety_notes or '',
+            'scene_context': place.scene_context or '',
+            'capture_kind': place.capture_kind or '',
+            'sample_index': int(place.sample_index or 0),
+            'sample_group': place.sample_group or '',
+            'captured_at': place.captured_at or '',
+            'aliases': list(place.aliases or []),
+            'tags': list(place.tags or []),
+            'confidence': confidence,
+            'source': place.source,
+        }
+
     def save_place(self, place: Place, source_text: str = 'manual') -> None:
         self.place_store.upsert(place)
         self.place_store.save()
         self.persist_spawn_if_needed(place)
+        memory_payload = self._place_memory_payload(place)
+        self.agent_memory.remember_place(self.route.name, place.name, memory_payload)
+        self.agent_memory.add_observation({
+            'id': f'{route_slugify(self.route.name)}_{route_slugify(place.name)}_{place.sample_index or len(self.place_store.places)}',
+            'map_name': self.route.name,
+            'label': place.name,
+            'summary': place.summary or place.description or place.tour_fact or place.name,
+            'tour_fact': place.tour_fact or place.summary or place.description or '',
+            'navigation_hint': place.navigation_hint or '',
+            'resume_hook': place.resume_hook or '',
+            'safety_notes': place.safety_notes or '',
+            'scene_context': place.scene_context or '',
+            'pose': {'x': place.x, 'y': place.y, 'yaw': place.yaw, 'frame_id': place.frame_id or self.map_frame},
+            'aliases': list(place.aliases or []),
+            'objects': list(place.tags or []),
+            'sample_index': int(place.sample_index or 0),
+            'sample_group': place.sample_group or '',
+            'source': place.source,
+        })
+        self.agent_memory.add_voxel_snapshot({
+            'map_name': self.route.name,
+            'place_name': place.name,
+            'sample_index': int(place.sample_index or 0),
+            'front_clear': self.scan_summary().get('front_clear'),
+            'rear_clear': self.scan_summary().get('rear_clear'),
+            'min_range': self.scan_summary().get('min_range'),
+            'frame_id': place.frame_id or self.map_frame,
+        })
+        if place.name == 'spawn' or place.category == 'spawn':
+            self.route_store.ensure_safe_anchor(self.route, 'spawn', place.name)
+        if bool(self.get_parameter('tour_mode').value):
+            confidence = getattr(place, 'confidence', 1.0)
+            try:
+                confidence = float(confidence)
+            except Exception:
+                confidence = 1.0
+            stop = RouteStop(
+                name=route_slugify(place.name),
+                place_name=place.name,
+                script=place.tour_fact or place.summary or place.description or '',
+                fact=place.summary or place.description or place.tour_fact or '',
+                navigation_hint=place.navigation_hint or '',
+                resume_hook=place.resume_hook or '',
+                safety_notes=place.safety_notes or '',
+                scene_context=place.scene_context or '',
+                capture_kind=place.capture_kind or '',
+                sample_index=int(place.sample_index or 0),
+                sample_group=place.sample_group or '',
+                pause_seconds=float(self.get_parameter('tour_default_pause_sec').value),
+                safe_anchor='spawn' if place.name == 'spawn' or place.category == 'spawn' else '',
+                kind='tour',
+                confidence=confidence,
+                aliases=list(getattr(place, 'aliases', []) or []),
+                tags=list(getattr(place, 'tags', []) or []),
+            )
+            self.route_store.upsert_stop(self.route, stop)
         self.publish_status(f'saved_place name={place.name} source={source_text} x={place.x:.2f} y={place.y:.2f} yaw={place.yaw:.2f}')
         self.publish_markers()
 
@@ -372,8 +655,19 @@ class SemanticNavNode(Node):
             aliases=extra.get('aliases', []),
             tags=extra.get('tags', []),
             description=extra.get('description', ''),
+            summary=extra.get('summary', '') or extra.get('description', ''),
+            tour_fact=extra.get('tour_fact', ''),
+            navigation_hint=extra.get('navigation_hint', ''),
+            resume_hook=extra.get('resume_hook', ''),
+            safety_notes=extra.get('safety_notes', ''),
+            scene_context=extra.get('scene_context', ''),
+            capture_kind=extra.get('capture_kind', ''),
+            sample_index=int(extra.get('sample_index', 0) or 0),
+            sample_group=extra.get('sample_group', ''),
+            captured_at=str(extra.get('captured_at', '')),
             confidence=float(confidence),
             source=source,
+            frame_id=(pose.header.frame_id or self.map_frame or 'map').strip() or 'map',
         )
 
     def choose_place_name(self, meta: dict, pose: PoseStamped) -> str:
@@ -381,7 +675,8 @@ class SemanticNavNode(Node):
         label = slugify(str(meta.get('label', '')))
         room = slugify(str(meta.get('room', '')))
         category = slugify(str(meta.get('category', '')))
-        candidates = [c for c in [label, f'{room}_{category}' if room and category else '', room, category] if c and c != 'unknown']
+        capture_kind = slugify(str(meta.get('capture_kind', '') or meta.get('sample_kind', '') or ''))
+        candidates = [c for c in [label, f'{label}_{capture_kind}' if label and capture_kind else '', f'{room}_{category}' if room and category else '', room, category, capture_kind] if c and c != 'unknown']
         base = candidates[0] if candidates else 'labeled_place'
         near = self.place_store.nearest_within(float(pose.pose.position.x), float(pose.pose.position.y), float(self.get_parameter('auto_save_merge_distance_m').value))
         if near:
@@ -402,48 +697,57 @@ class SemanticNavNode(Node):
         except Exception:
             return None
 
-    def _call_openrouter(self, prompt: str) -> Optional[dict]:
+    def _call_openrouter(self, prompt: str, *, max_tokens: int = 350) -> Optional[dict]:
         if not self.latest_image_bytes:
             self.publish_status('No camera frame received yet.')
             return None
-        key = os.environ.get('OPENROUTER_API_KEY', '')
-        if not key:
+        if not self.openrouter.available:
             self.publish_status('VLM is disabled or OPENROUTER_API_KEY is missing.')
             return None
         try:
             b64 = base64.b64encode(self.latest_image_bytes).decode('ascii')
-            payload = {
-                'model': self.get_parameter('openrouter_model').value,
-                'messages': [{
-                    'role': 'user',
-                    'content': [
-                        {'type': 'text', 'text': prompt},
-                        {'type': 'image_url', 'image_url': {'url': f'data:image/jpeg;base64,{b64}'}},
-                    ],
-                }],
-                'temperature': 0.1,
-            }
-            headers = {'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'}
-            resp = requests.post(str(self.get_parameter('openrouter_base_url').value), headers=headers, json=payload, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-            text = data['choices'][0]['message']['content']
-            if isinstance(text, list):
-                text = ' '.join(str(x.get('text', '')) for x in text if isinstance(x, dict))
-            return self.extract_json(str(text).strip())
+            result = self.openrouter.complete_json(
+                prompt,
+                image_data_urls=[f'data:image/jpeg;base64,{b64}'],
+                temperature=0.1,
+                max_tokens=max_tokens,
+                default={},
+            )
+            if not result.get('ok'):
+                self.publish_status(f'VLM call failed: {result.get("error")}')
+                return None
+            parsed = result.get('parsed')
+            if isinstance(parsed, dict):
+                return parsed
         except Exception as exc:
             self.publish_status(f'VLM call failed: {exc}')
-            return None
+        return None
 
     def vlm_label_current_view(self) -> Optional[dict]:
-        existing = [asdict(p) for p in list(self.place_store.places.values())[:12]]
+        existing = [
+            {
+                'name': p.name,
+                'room': p.room,
+                'category': p.category,
+                'capture_kind': getattr(p, 'capture_kind', ''),
+            }
+            for p in list(self.place_store.places.values())[:12]
+        ]
         prompt = (
             'Look at this indoor robot camera view and return ONLY JSON with keys: '
-            'label, room, category, aliases, tags, description, confidence. '
+            'label, room, category, aliases, tags, summary, description, tour_fact, navigation_hint, resume_hook, '
+            'safety_notes, scene_context, capture_kind, confidence. '
             'Use human-friendly snake_case labels and keep names stable with prior places when appropriate. '
+            'Keep every string short and concrete. Use at most 12 words per field and at most 3 aliases/tags. '
+            'summary should explain why the place matters to navigation, resume, and tours. '
+            'tour_fact should be a short visitor-facing fact grounded in the visible scene. '
+            'navigation_hint should tell Sparky how to approach or re-find this spot. '
+            'resume_hook should describe what to remember when resuming between nearby nodes. '
+            'capture_kind should be one of place, landmark, transition, safe_anchor, obstacle, viewpoint. '
+            'confidence must be a float between 0.0 and 1.0. '
             f'Existing places for naming context: {json.dumps(existing)}'
         )
-        meta = self._call_openrouter(prompt)
+        meta = self._call_openrouter(prompt, max_tokens=700)
         if not meta:
             return None
         meta['label'] = slugify(str(meta.get('label', '')))
@@ -451,11 +755,22 @@ class SemanticNavNode(Node):
         meta['category'] = slugify(str(meta.get('category', '')))
         meta['aliases'] = [slugify(str(x)) for x in meta.get('aliases', []) if slugify(str(x))]
         meta['tags'] = [slugify(str(x)) for x in meta.get('tags', []) if slugify(str(x))]
+        meta['summary'] = str(meta.get('summary', '') or meta.get('description', '')).strip()
         meta['description'] = str(meta.get('description', '')).strip()
+        meta['tour_fact'] = str(meta.get('tour_fact', '')).strip()
+        meta['navigation_hint'] = str(meta.get('navigation_hint', '')).strip()
+        meta['resume_hook'] = str(meta.get('resume_hook', '')).strip()
+        meta['safety_notes'] = str(meta.get('safety_notes', '')).strip()
+        meta['scene_context'] = str(meta.get('scene_context', '')).strip()
+        meta['capture_kind'] = slugify(str(meta.get('capture_kind', '')).strip())
+        meta['sample_group'] = str(meta.get('sample_group', '')).strip()
+        meta['sample_index'] = int(meta.get('sample_index', 0) or 0)
+        meta['captured_at'] = str(meta.get('captured_at', '')).strip()
         try:
             meta['confidence'] = float(meta.get('confidence', 0.0))
         except Exception:
             meta['confidence'] = 0.0
+        meta['confidence'] = max(0.0, min(1.0, meta['confidence']))
         if not meta['label']:
             meta['label'] = '_'.join([x for x in [meta['room'], meta['category']] if x]) or 'labeled_place'
         return meta
@@ -465,7 +780,12 @@ class SemanticNavNode(Node):
         if pose is None:
             return
         self.publish_status('auto_save_tick: running')
-        if self.last_auto_save_xy is not None:
+        target_samples = max(0, int(self.get_parameter('auto_save_target_samples').value))
+        allow_repeat_samples = bool(self.get_parameter('auto_save_allow_repeat_samples').value)
+        if target_samples and self._teach_auto_save_count >= target_samples:
+            self.publish_status(f'auto_save_tick: target_samples_reached count={self._teach_auto_save_count}')
+            return
+        if self.last_auto_save_xy is not None and not allow_repeat_samples:
             dx = pose.pose.position.x - self.last_auto_save_xy[0]
             dy = pose.pose.position.y - self.last_auto_save_xy[1]
             if math.hypot(dx, dy) < float(self.get_parameter('auto_save_min_distance_m').value):
@@ -479,23 +799,33 @@ class SemanticNavNode(Node):
         if float(meta.get('confidence', 0.0)) < float(self.get_parameter('auto_save_min_confidence').value):
             self.publish_status(f'vlm_low_confidence skipped confidence={float(meta.get("confidence", 0.0)):.2f}')
             return
+        if int(meta.get('sample_index', 0) or 0) <= 0:
+            meta['sample_index'] = self._teach_auto_save_count + 1
+        if not str(meta.get('sample_group', '') or '').strip():
+            meta['sample_group'] = self.route.name
+        if not str(meta.get('captured_at', '') or '').strip():
+            meta['captured_at'] = str(self.get_clock().now().nanoseconds)
         name = self.choose_place_name(meta, pose)
+        if allow_repeat_samples or (target_samples and self._teach_auto_save_count < target_samples):
+            name = self.place_store.unique_name(name)
         place = self.make_place(name, pose, meta, source='vlm_auto', confidence=float(meta.get('confidence', 1.0)))
         near = self.place_store.nearest_within(place.x, place.y, float(self.get_parameter('auto_save_merge_distance_m').value))
-        if near and near.name == name:
+        if near and near.name == name and not allow_repeat_samples:
             place.name = near.name
         self.save_place(place, source_text='vlm_auto')
         self.last_auto_save_xy = (place.x, place.y)
+        self._teach_auto_save_count += 1
         self.publish_status(
             f'vlm_labeled_place name={place.name} confidence={place.confidence:.2f} room={place.room or "-"} '
-            f'category={place.category or "-"} tags={place.tags} desc={place.description or "-"}'
+            f'category={place.category or "-"} tags={place.tags} summary={place.summary or place.description or "-"} '
+            f'hint={place.navigation_hint or "-"} resume={place.resume_hook or "-"}'
         )
 
     def describe(self) -> None:
         meta = self.vlm_label_current_view()
         if not meta:
             return
-        self.publish_status(f'describe: {meta.get("description", "") or meta.get("label", "")}'.strip())
+        self.publish_status(f'describe: {meta.get("summary", "") or meta.get("description", "") or meta.get("label", "")}'.strip())
 
     def resolve_place(self, query: str) -> Optional[Place]:
         exact = self.place_store.get(query)
@@ -505,6 +835,35 @@ class SemanticNavNode(Node):
         if best and score >= 20.0:
             self.publish_status(f'semantic_match query={query} -> {best.name} score={score:.1f} why={why}')
             return best
+        map_name = self.route.name if self.route else None
+        if map_name:
+            resolved = self.agent_memory.resolve_destination(map_name, query)
+            if resolved and resolved.get('pose'):
+                pose = resolved['pose']
+                return Place(
+                    name=str(resolved.get('name') or resolved.get('label') or query),
+                    x=float(pose.get('x', 0.0)),
+                    y=float(pose.get('y', 0.0)),
+                    yaw=float(pose.get('yaw', 0.0)),
+                    room='',
+                    category='',
+                    aliases=list(pose.get('aliases', []) or []),
+                    tags=list(pose.get('tags', []) or []),
+                    description=str(resolved.get('summary', '')),
+                    summary=str(resolved.get('summary', '')),
+                    tour_fact=str(resolved.get('tour_fact', '')),
+                    navigation_hint=str(resolved.get('navigation_hint', '')),
+                    resume_hook=str(resolved.get('resume_hook', '')),
+                    safety_notes=str(resolved.get('safety_notes', '')),
+                    scene_context=str(resolved.get('scene_context', '')),
+                    capture_kind=str(resolved.get('capture_kind', '')),
+                    sample_index=int(resolved.get('sample_index', 0) or 0),
+                    sample_group=str(resolved.get('sample_group', '')),
+                    captured_at=str(resolved.get('captured_at', '')),
+                    confidence=float(resolved.get('score', 0.0)) / 100.0 if resolved.get('score') else 0.5,
+                    source='event_memory',
+                    frame_id='map',
+                )
         return None
 
     def list_synonyms(self, token: str) -> None:
@@ -519,18 +878,404 @@ class SemanticNavNode(Node):
         graph = self.memory.build_relationships(list(self.place_store.places.values()))
         self.publish_status(f'related {p.name}: {graph.get(p.name, {})}')
 
-    def send_goal(self, place: Place) -> None:
+    def route_summary(self) -> dict:
+        return self.route_store.summary(self.route)
+
+    def current_route_stop(self) -> Optional[RouteStop]:
+        return self.route_store.current_stop(self.route)
+
+    def _resolve_stop_place(self, stop: RouteStop) -> Optional[Place]:
+        if not stop:
+            return None
+        place = self.place_store.get(stop.place_name)
+        if place:
+            return place
+        place = self.resolve_place(stop.place_name)
+        if place:
+            return place
+        if stop.fact:
+            best, score, _why = self.memory.resolve(stop.fact, list(self.place_store.places.values()))
+            if best and score >= 20.0:
+                return best
+        resolved = self.agent_memory.resolve_destination(self.route.name, stop.place_name or stop.fact or stop.name)
+        if resolved and resolved.get('pose'):
+            pose = resolved['pose']
+            return Place(
+                name=str(resolved.get('name') or resolved.get('label') or stop.name),
+                x=float(pose.get('x', 0.0)),
+                y=float(pose.get('y', 0.0)),
+                yaw=float(pose.get('yaw', 0.0)),
+                room='',
+                category='',
+                aliases=list(pose.get('aliases', []) or []),
+                tags=list(pose.get('tags', []) or []),
+                description=str(resolved.get('summary', '')),
+                summary=str(resolved.get('summary', '')),
+                tour_fact=str(resolved.get('tour_fact', '')),
+                navigation_hint=str(resolved.get('navigation_hint', '')),
+                resume_hook=str(resolved.get('resume_hook', '')),
+                safety_notes=str(resolved.get('safety_notes', '')),
+                scene_context=str(resolved.get('scene_context', '')),
+                capture_kind=str(resolved.get('capture_kind', '')),
+                sample_index=int(resolved.get('sample_index', 0) or 0),
+                sample_group=str(resolved.get('sample_group', '')),
+                captured_at=str(resolved.get('captured_at', '')),
+                confidence=float(resolved.get('score', 0.0)) / 100.0 if resolved.get('score') else 0.5,
+                source='event_memory',
+                frame_id='map',
+            )
+        return None
+
+    def _tour_fact_for_stop(self, stop: RouteStop) -> str:
+        parts = [x.strip() for x in [stop.fact, stop.script, stop.navigation_hint, stop.resume_hook] if x and x.strip()]
+        if parts:
+            return ' '.join(parts)
+        if stop.place_name:
+            return f'This is {stop.place_name.replace("_", " ")}.'
+        return 'This is one of Sparky’s tour stops.'
+
+    def _publish_tour_explanation(self, stop: RouteStop, prefix: str = 'tour') -> None:
+        fact = self._tour_fact_for_stop(stop)
+        speech = f'{prefix}: {stop.name.replace("_", " ")}. {fact}'
+        event = PatrolEvent(
+            location={'place_name': stop.place_name or stop.name, 'route_name': self.route.name},
+            confidence=float(stop.confidence or 1.0),
+            request='tour_explain',
+            status='tour_stop',
+            completion=0.0,
+            event_worthy=True,
+            label=stop.name,
+            replay_variations=[stop.fact] if stop.fact else [],
+            update_strength=0.2 if stop.fact else 0.0,
+            route_name=self.route.name,
+            stop_name=stop.name,
+            speech=speech,
+            details={'fact': fact, 'script': stop.script, 'kind': stop.kind, 'pause_seconds': stop.pause_seconds},
+        )
+        self.publish_event(event)
+
+    def start_tour(self, reset_index: bool = True) -> None:
+        self.route.mode = 'tour'
+        self.route.state = 'touring'
+        self.route.current_stop_index = 0 if reset_index else self.route.current_stop_index
+        if reset_index:
+            for stop in self.route.stops:
+                stop.status = 'pending'
+            self._stop_announced.clear()
+        self.route_store.save(self.route)
+        stop = self.current_route_stop()
+        self.publish_status(f'tour_started route={self.route.name} stop={stop.name if stop else "-"}')
+        self.publish_event(PatrolEvent(
+            location=self.pose_summary(),
+            confidence=1.0,
+            request='start_tour',
+            status='tour_started',
+            completion=0.0,
+            event_worthy=True,
+            label=self.route.name,
+            route_name=self.route.name,
+            stop_name=stop.name if stop else '',
+            speech='tour: Starting the guest tour now.',
+            details=self.route_summary(),
+        ))
+        if stop:
+            self.send_stop(stop, reason='tour_start')
+
+    def pause_tour(self, speech: str = 'tour: Pausing here for a moment.') -> None:
+        self.cancel_active_goal('tour_pause')
+        self.route.state = 'paused'
+        self._tour_pause_until_ns = 0
+        self.route_store.save(self.route)
+        self.publish_event(PatrolEvent(
+            location=self.pose_summary(),
+            confidence=1.0,
+            request='pause_tour',
+            status='tour_paused',
+            completion=float(self.route.current_stop_index) / max(1.0, float(len(self.route.stops))),
+            event_worthy=True,
+            label=self.route.name,
+            route_name=self.route.name,
+            stop_name=self.current_route_stop().name if self.current_route_stop() else '',
+            speech=speech,
+            details=self.route_summary(),
+        ))
+
+    def resume_tour(self, speech: str = 'tour: Resuming the tour.') -> None:
+        self.route.state = 'touring'
+        self.route_store.save(self.route)
+        self.publish_event(PatrolEvent(
+            location=self.pose_summary(),
+            confidence=1.0,
+            request='resume_tour',
+            status='tour_resumed',
+            completion=float(self.route.current_stop_index) / max(1.0, float(len(self.route.stops))),
+            event_worthy=True,
+            label=self.route.name,
+            route_name=self.route.name,
+            stop_name=self.current_route_stop().name if self.current_route_stop() else '',
+            speech=speech,
+            details=self.route_summary(),
+        ))
+        stop = self.current_route_stop()
+        if stop and stop.status != 'complete':
+            self.publish_status(f'resume_current_stop stop={stop.name}')
+            self.send_stop(stop, reason='resume')
+            return
+        selected = self.nearest_route_stop(include_complete=False)
+        if selected is not None:
+            _, selected_stop = selected
+            self.publish_status(f'resume_pose_selected_stop stop={selected_stop.name}')
+            self.send_stop(selected_stop, reason='resume_pose_select')
+            return
+        if stop and stop.status == 'complete' and self.route.current_stop_index < len(self.route.stops) - 1:
+            self.advance_tour()
+        elif stop and stop.status == 'complete':
+            self.on_route_complete()
+
+    def advance_tour(self) -> None:
+        next_stop = self.route_store.advance(self.route)
+        if next_stop is None:
+            self.on_route_complete()
+            return
+        self.publish_status(f'tour_advance next_stop={next_stop.name}')
+        self.send_stop(next_stop, reason='advance')
+
+    def send_stop(self, stop: RouteStop, reason: str = 'route') -> None:
+        place = self._resolve_stop_place(stop)
+        if place is None:
+            self.publish_status(f'route_stop_unresolved stop={stop.name} reason={reason}')
+            self.handle_goal_failure(f'unresolved_stop:{stop.name}')
+            return
+        self._route_goal_active = True
+        self.route.state = 'moving_to_stop'
+        self.route_store.save(self.route)
+        self._goal_place = place
+        self._pending_recovery_goal = None
+        self.publish_event(PatrolEvent(
+            location={'x': place.x, 'y': place.y, 'yaw': place.yaw, 'frame_id': place.frame_id or self.map_frame, 'place_name': place.name},
+            confidence=float(getattr(place, 'confidence', 1.0) or 1.0),
+            request=reason,
+            status='sending_goal',
+            completion=float(self.route.current_stop_index) / max(1.0, float(len(self.route.stops))),
+            event_worthy=True,
+            label=stop.name,
+            route_name=self.route.name,
+            stop_name=stop.name,
+            speech=f'tour: Heading to {stop.name.replace("_", " ")}.',
+            details={'place': asdict(place), 'stop': asdict(stop)},
+        ))
+        self.send_goal(place)
+
+    def on_stop_reached(self) -> None:
+        stop = self.current_route_stop()
+        if stop:
+            stop.status = 'complete'
+            self.route_store.save(self.route)
+            self._publish_tour_explanation(stop, prefix='tour')
+            pause_until = self.get_clock().now().nanoseconds + int(max(0.1, float(stop.pause_seconds or self.get_parameter('tour_default_pause_sec').value)) * 1e9)
+            self._tour_pause_until_ns = pause_until
+            self.publish_status(f'tour_stop_complete stop={stop.name} pause_sec={stop.pause_seconds:.1f}')
+            pose = self.pose_summary()
+            self.agent_memory.add_observation({
+                'id': f'tour_stop_{route_slugify(stop.name)}_{self.get_clock().now().nanoseconds}',
+                'map_name': self.route.name,
+                'label': stop.name,
+                'summary': stop.fact or stop.script or stop.place_name,
+                'pose': pose if pose.get('available') else {},
+                'aliases': list(stop.aliases or []),
+                'objects': list(stop.tags or []),
+            })
+        self._goal_place = None
+        self._active_goal_handle = None
+        if bool(self.get_parameter('tour_mode').value) and self.route.current_stop_index < len(self.route.stops) - 1:
+            self.route.state = 'tour_pause'
+            self.route_store.save(self.route)
+        else:
+            self.on_route_complete()
+
+    def on_route_complete(self) -> None:
+        self.route.state = 'complete'
+        self.route_store.save(self.route)
+        self._goal_place = None
+        self._active_goal_handle = None
+        self._pending_recovery_goal = None
+        self._route_goal_active = False
+        self.publish_event(PatrolEvent(
+            location=self.pose_summary(),
+            confidence=1.0,
+            request='route_complete',
+            status='route_complete',
+            completion=1.0,
+            event_worthy=True,
+            label=self.route.name,
+            route_name=self.route.name,
+            speech='tour: The route is complete. Thank you for joining me.',
+            details=self.route_summary(),
+        ))
+
+    def handle_goal_failure(self, reason: str) -> None:
+        if not bool(self.get_parameter('fallback_enable').value):
+            self.publish_status(f'route_failure fallback_disabled reason={reason}')
+            self.route.state = 'blocked'
+            self.route_store.save(self.route)
+            self.cancel_active_goal(reason)
+            return
+        self._last_goal_failed = True
+        self._route_goal_active = False
+        self.cancel_active_goal(reason)
+        self.route.last_failure = {'reason': reason, 'attempts': self._recovery_retries}
+        self.route_store.set_last_failure(self.route, self.route.last_failure)
+        self.route.state = 'blocked'
+        self.route_store.save(self.route)
+        self.recover_from_failure(reason)
+
+    def route_tick(self) -> None:
+        if self._tour_pause_until_ns and self.get_clock().now().nanoseconds >= self._tour_pause_until_ns:
+            self._tour_pause_until_ns = 0
+            if self.route.state == 'tour_pause':
+                if self.route.current_stop_index < len(self.route.stops) - 1:
+                    self.advance_tour()
+                else:
+                    self.on_route_complete()
+        if self.route.state == 'touring' and self._goal_place is None and self.current_route_stop() is not None:
+            self.send_stop(self.current_route_stop(), reason='resume_tick')
+
+    def recover_from_failure(self, reason: str) -> None:
+        if self._goal_place is None and self.current_route_stop() is None:
+            self.publish_status('recovery_without_goal')
+            self.pause_tour('tour: I am pausing because I do not have a target to recover.')
+            return
+        self._recovery_retries += 1
+        scan = self.scan_summary()
+        pose = self.pose_summary()
+        goal = asdict(self._goal_place) if self._goal_place else {}
+        meta = self.openrouter.analyze_navigation_failure(
+            reason=reason,
+            goal=goal,
+            route_summary=self.route_summary(),
+            scan_summary=scan,
+            pose_summary=pose,
+        )
+        failure_type = str(meta.get('failure_type', 'unknown')).strip()
+        action = str(meta.get('action', 'retry_nav')).strip()
+        safe_anchor_name = str(meta.get('safe_anchor', '')).strip()
+        alternate_query = str(meta.get('alternate_query', '')).strip()
+        speech = str(meta.get('speech', '')).strip() or f'recovery: {meta.get("note", "recovering from a navigation failure")}'
+        self.publish_event(PatrolEvent(
+            location=pose,
+            confidence=float(meta.get('confidence', 0.2) or 0.2),
+            request='route_recovery',
+            status='recovery_started',
+            completion=float(self.route.current_stop_index) / max(1.0, float(len(self.route.stops))),
+            event_worthy=True,
+            label=failure_type,
+            replay_variations=[failure_type, action],
+            update_strength=0.5,
+            route_name=self.route.name,
+            stop_name=self.current_route_stop().name if self.current_route_stop() else '',
+            speech=speech,
+            details={'failure_type': failure_type, 'action': action, 'safe_anchor': safe_anchor_name, 'alternate_query': alternate_query, 'reason': reason, 'scan': scan},
+        ))
+        self.publish_status(f'recovery_analysis failure_type={failure_type} action={action} retries={self._recovery_retries}')
+        if self._recovery_retries > int(self.get_parameter('recovery_max_retries').value):
+            self.publish_status('recovery_exhausted')
+            self.publish_reply('tour: I need help recovering from this route failure.')
+            self.pause_tour('tour: I’m pausing the route and asking for help.')
+            return
+        if action in {'rotate_left', 'rotate_right', 'backup', 'creep_forward', 'wait', 'stop'}:
+            if action == 'rotate_left':
+                self.start_motion(0.0, float(self.get_parameter('fallback_angular_speed').value), 2.0, self._goal_place, route_goal_active=True)
+            elif action == 'rotate_right':
+                self.start_motion(0.0, -float(self.get_parameter('fallback_angular_speed').value), 2.0, self._goal_place, route_goal_active=True)
+            elif action == 'backup':
+                self.start_motion(-float(self.get_parameter('fallback_linear_speed').value), 0.0, 2.5, self._goal_place, route_goal_active=True)
+            elif action == 'creep_forward':
+                if scan.get('front_clear', True):
+                    self.start_motion(float(self.get_parameter('fallback_linear_speed').value), 0.0, 2.0, self._goal_place, route_goal_active=True)
+                else:
+                    self.publish_status('recovery_creep_blocked')
+            else:
+                self.cmd_vel_pub.publish(Twist())
+        elif action in {'safe_anchor', 'relocalize', 'retry_nav', 'alternate_goal'}:
+            original_goal = self._goal_place or (self.current_route_stop() and self._resolve_stop_place(self.current_route_stop()))
+            anchor = None
+            if safe_anchor_name:
+                anchor = self.resolve_place(safe_anchor_name) or self.place_store.get(safe_anchor_name)
+            if anchor is None and alternate_query:
+                anchor = self.resolve_place(alternate_query)
+            if anchor is None and self.route.safe_anchors:
+                for candidate in self.route.safe_anchors.values():
+                    anchor = self.resolve_place(candidate) or self.place_store.get(candidate)
+                    if anchor:
+                        break
+            if anchor:
+                self.publish_status(f'recovery_anchor {anchor.name}')
+                self.route.state = 'recovering'
+                self.route_store.save(self.route)
+                self._pending_recovery_goal = original_goal
+                self.send_goal(anchor, route_goal_active=False)
+                return
+            if action == 'retry_nav' and self._goal_place is not None:
+                self.publish_status('recovery_retry_goal')
+                self.send_goal(self._goal_place, route_goal_active=True)
+                return
+            self.pause_tour('tour: I am re-checking the route before continuing.')
+        else:
+            waypoint = self.openrouter.propose_waypoint(
+                context={'route': self.route_summary(), 'scan': scan, 'pose': pose, 'reason': reason},
+                image_data_url=f'data:image/jpeg;base64,{base64.b64encode(self.latest_image_bytes).decode("ascii")}' if self.latest_image_bytes else None,
+            )
+            if waypoint.get('action') in {'forward', 'turn_left', 'turn_right', 'backup'}:
+                action2 = waypoint.get('action')
+                if action2 == 'forward':
+                    self.start_motion(float(self.get_parameter('fallback_linear_speed').value), 0.0, 2.0, self._goal_place, route_goal_active=True)
+                elif action2 == 'backup':
+                    self.start_motion(-float(self.get_parameter('fallback_linear_speed').value), 0.0, 2.0, self._goal_place, route_goal_active=True)
+                elif action2 == 'turn_left':
+                    self.start_motion(0.0, float(self.get_parameter('fallback_angular_speed').value), 2.0, self._goal_place, route_goal_active=True)
+                elif action2 == 'turn_right':
+                    self.start_motion(0.0, -float(self.get_parameter('fallback_angular_speed').value), 2.0, self._goal_place, route_goal_active=True)
+                self.publish_reply(str(waypoint.get('speech') or 'tour: I am making a small visual recovery move.'))
+                return
+            self.pause_tour('tour: I am pausing to recover localization.')
+
+    def validate_goal_pose(self, pose: PoseStamped) -> bool:
+        frame = (pose.header.frame_id or '').strip()
+        if not frame:
+            self.publish_status('refusing_goal empty_frame_id')
+            return False
+        return True
+
+    def send_goal(self, place: Place, route_goal_active: bool = False) -> None:
         self._goal_place = place
         self._last_goal_failed = False
+        self._route_goal_active = route_goal_active
         pose = self.build_pose(place)
+        if not self.validate_goal_pose(pose):
+            return
         goal = NavigateToPose.Goal()
         goal.pose = pose
-        self.publish_status(f'sending_goal {place.name} -> ({place.x:.2f}, {place.y:.2f}, yaw={place.yaw:.2f})')
+        self.publish_status(
+            f'sending_goal {place.name} -> ({place.x:.2f}, {place.y:.2f}, yaw={place.yaw:.2f}, frame={pose.header.frame_id})'
+        )
         if not self.nav_client.wait_for_server(timeout_sec=2.0):
             self.publish_status('navigate_to_pose server not available')
             return
         future = self.nav_client.send_goal_async(goal, feedback_callback=self.feedback_cb)
         future.add_done_callback(self.goal_response_cb)
+
+    def cancel_active_goal(self, reason: str = 'cancelled') -> None:
+        goal_handle = self._active_goal_handle
+        if goal_handle is None:
+            return
+        try:
+            self.publish_status(f'cancelling_goal reason={reason}')
+            goal_handle.cancel_goal_async()
+        except Exception as exc:
+            self.publish_status(f'cancel_goal_failed reason={reason} error={exc}')
+        finally:
+            self._active_goal_handle = None
+            self._route_goal_active = False
 
     def feedback_cb(self, feedback_msg) -> None:
         fb = feedback_msg.feedback
@@ -541,9 +1286,9 @@ class SemanticNavNode(Node):
         goal_handle = future.result()
         if not goal_handle.accepted:
             self.publish_status('goal rejected')
-            self._last_goal_failed = True
-            self.try_fallback_recovery('rejected')
+            self.handle_goal_failure('rejected')
             return
+        self._active_goal_handle = goal_handle
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self.goal_result_cb)
 
@@ -554,10 +1299,31 @@ class SemanticNavNode(Node):
             self.publish_status('goal succeeded')
             self._fallback_attempts = 0
             self._last_goal_failed = False
+            self._recovery_retries = 0
+            self._active_goal_handle = None
+            if self.route.state == 'recovering':
+                if self._pending_recovery_goal is not None:
+                    next_goal = self._pending_recovery_goal
+                    self._pending_recovery_goal = None
+                    self.publish_status(f'recovery_anchor_reached retrying_goal={next_goal.name}')
+                    self.route.state = 'moving_to_stop'
+                    self.route_store.save(self.route)
+                    self.send_goal(next_goal, route_goal_active=True)
+                    return
+                self.route.state = 'paused'
+                self.route_store.save(self.route)
+                self.publish_status('recovery_anchor_reached_no_retry')
+            if self._route_goal_active:
+                self._route_goal_active = False
+                self.on_stop_reached()
+        elif status == GoalStatus.STATUS_CANCELED:
+            self.publish_status('goal canceled')
+            self._active_goal_handle = None
+            if self.route.state in {'paused', 'tour_pause'}:
+                return
         else:
             self.publish_status(f'goal failed status={status}')
-            self._last_goal_failed = True
-            self.try_fallback_recovery(f'status_{status}')
+            self.handle_goal_failure(f'status_{status}')
 
     def scan_clear(self, forward: bool = True) -> bool:
         if self.latest_scan is None:
@@ -591,13 +1357,14 @@ class SemanticNavNode(Node):
             meta['confidence'] = 0.0
         return meta
 
-    def start_motion(self, linear_x: float, angular_z: float, duration_sec: float, retry_place: Optional[Place]) -> None:
+    def start_motion(self, linear_x: float, angular_z: float, duration_sec: float, retry_place: Optional[Place], route_goal_active: bool = False) -> None:
         self._motion_active = True
         self._motion_twist = Twist()
         self._motion_twist.linear.x = float(linear_x)
         self._motion_twist.angular.z = float(angular_z)
         self._motion_end_ns = self.get_clock().now().nanoseconds + int(duration_sec * 1e9)
         self._motion_retry_place = retry_place
+        self._motion_retry_route_goal = route_goal_active
 
     def motion_tick(self) -> None:
         if not self._motion_active:
@@ -608,67 +1375,71 @@ class SemanticNavNode(Node):
             self._motion_active = False
             if self._motion_retry_place is not None:
                 place = self._motion_retry_place
+                route_goal_active = self._motion_retry_route_goal
                 self._motion_retry_place = None
-                self.send_goal(place)
+                self._motion_retry_route_goal = False
+                self.send_goal(place, route_goal_active=route_goal_active)
             return
         self.cmd_vel_pub.publish(self._motion_twist)
 
     def try_fallback_recovery(self, reason: str) -> None:
         if not bool(self.get_parameter('fallback_enable').value):
             return
-        if self._goal_place is None:
-            return
-        if self._fallback_attempts >= int(self.get_parameter('fallback_max_attempts').value):
-            self.publish_status('fallback_exhausted')
-            return
-        self._fallback_attempts += 1
-        meta = self.classify_failure_with_vlm(reason)
-        action = meta.get('action', 'rotate_left')
-        self.publish_status(f'fallback_decision attempt={self._fallback_attempts} cause={meta.get("cause", "unknown")} action={action} conf={meta.get("confidence", 0.0):.2f}')
-        lin = float(self.get_parameter('fallback_linear_speed').value)
-        ang = float(self.get_parameter('fallback_angular_speed').value)
-        forward_d = float(self.get_parameter('fallback_forward_distance').value)
-        backup_d = float(self.get_parameter('fallback_backup_distance').value)
-        rotate_rad = math.radians(float(self.get_parameter('fallback_rotate_deg').value))
-        if action == 'creep_forward':
-            if not self.scan_clear(True):
-                self.publish_status('fallback_creep_forward_blocked_by_scan')
-                return
-            self.start_motion(lin, 0.0, max(0.1, forward_d / max(lin, 1e-3)), self._goal_place)
-        elif action == 'backup':
-            self.start_motion(-lin, 0.0, max(0.1, backup_d / max(lin, 1e-3)), self._goal_place)
-        elif action == 'rotate_right':
-            self.start_motion(0.0, -ang, max(0.1, rotate_rad / max(ang, 1e-3)), self._goal_place)
-        elif action == 'alternate_place':
-            alt_query = meta.get('alternate_query', '')
-            alt = self.resolve_place(alt_query) if alt_query else None
-            if alt is None:
-                graph = self.memory.build_relationships(list(self.place_store.places.values()))
-                rel = graph.get(self._goal_place.name, {})
-                for cand_name in rel.get('near', []) + rel.get('same_room', []) + rel.get('same_category', []):
-                    alt = self.place_store.get(cand_name)
-                    if alt:
-                        break
-            if alt is None:
-                self.publish_status('fallback_alternate_place_not_found')
-                return
-            self.publish_status(f'fallback_alternate_place {self._goal_place.name} -> {alt.name}')
-            self._goal_place = alt
-            self.send_goal(alt)
-        elif action == 'stop':
-            self.cmd_vel_pub.publish(Twist())
-            self.publish_status('fallback_stop')
-        else:
-            self.start_motion(0.0, ang, max(0.1, rotate_rad / max(ang, 1e-3)), self._goal_place)
+        self.handle_goal_failure(reason)
 
     def cmd_cb(self, msg: String) -> None:
         line = msg.data.strip()
         if not line:
             return
+        event = None
+        if line.startswith('{'):
+            try:
+                event = json.loads(line)
+            except Exception:
+                event = None
         parts = line.split()
-        cmd = parts[0].lower()
+        cmd = str((event or {}).get('type') or parts[0]).lower()
+        event_place = str((event or {}).get('place') or (event or {}).get('target') or '').strip()
         if cmd == 'status':
             self.publish_status('status_ok')
+            return
+        if cmd in {'start_tour', 'tour_start'}:
+            if event and event.get('route_name'):
+                self.route.name = route_slugify(str(event.get('route_name')))
+            self.start_tour(reset_index=bool((event or {}).get('reset_index', True)))
+            return
+        if cmd in {'pause_tour', 'tour_pause'}:
+            self.pause_tour(str((event or {}).get('speech') or 'tour: Pausing the route.'))
+            return
+        if cmd in {'resume_tour', 'tour_resume'}:
+            self.resume_tour(str((event or {}).get('speech') or 'tour: Resuming the route.'))
+            return
+        if cmd in {'advance_tour', 'next_stop'}:
+            self.advance_tour()
+            return
+        if cmd in {'tour_fact_request', 'explain_stop', 'tour_explain'}:
+            stop = self.current_route_stop()
+            if stop:
+                self._publish_tour_explanation(stop, prefix='tour')
+            else:
+                self.publish_reply('tour: I do not have a current stop to explain yet.')
+            return
+        if cmd in {'recover_route', 'route_recover'}:
+            self.handle_goal_failure(str((event or {}).get('reason') or 'route_recovery_requested'))
+            return
+        if cmd in {'handoff_tour', 'tour_handoff'}:
+            self.publish_event(PatrolEvent(
+                location=self.pose_summary(),
+                confidence=1.0,
+                request='handoff_tour',
+                status='tour_handoff',
+                completion=float(self.route.current_stop_index) / max(1.0, float(len(self.route.stops))),
+                event_worthy=True,
+                label=self.route.name,
+                route_name=self.route.name,
+                speech=str((event or {}).get('speech') or 'tour: I am handing off the tour to the next guide or operator.'),
+                details=self.route_summary(),
+            ))
             return
         if cmd == 'save' and len(parts) >= 2:
             pose = self.lookup_current_pose()
@@ -695,16 +1466,16 @@ class SemanticNavNode(Node):
             for line in lines:
                 self.publish_status(line)
             return
-        if cmd in {'go', 'navigate'} and len(parts) >= 2:
-            query = ' '.join(parts[1:]).replace('to ', '').strip()
+        if cmd in {'go', 'navigate'}:
+            query = event_place or ' '.join(parts[1:]).replace('to ', '').strip()
             place = self.resolve_place(query)
             if not place:
                 self.publish_status(f'place not found: {query}')
                 return
             self.send_goal(place)
             return
-        if cmd == 'near' and len(parts) >= 2:
-            query = 'near ' + ' '.join(parts[1:])
+        if cmd == 'near':
+            query = event_place or ('near ' + ' '.join(parts[1:]) if len(parts) >= 2 else '')
             place = self.resolve_place(query)
             if not place:
                 self.publish_status(f'place not found: {query}')
@@ -721,7 +1492,8 @@ class SemanticNavNode(Node):
             self.list_related(' '.join(parts[1:]))
             return
         if cmd == 'cancel':
-            self.publish_status('cancel not implemented in this build')
+            self.cmd_vel_pub.publish(Twist())
+            self.pause_tour('tour: Route cancelled. I am stopping safely.')
             return
         self.publish_status(f'unknown command: {line}')
 
@@ -742,9 +1514,11 @@ class SemanticNavNode(Node):
 
     def on_shutdown(self) -> None:
         try:
+            self.route_store.save(self.route)
             self.place_store.save()
             meta = self.session_store.load_session_yaml(self.session)
             meta['semantic_graph'] = self.memory.build_relationships(list(self.place_store.places.values()))
+            meta['route'] = self.route.to_dict()
             self.session_store.save_session_yaml(self.session, meta)
             if self.mode == 'teach':
                 self.save_map_snapshot()
@@ -757,10 +1531,22 @@ def main(args=None) -> None:
     node = SemanticNavNode()
     try:
         rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
     finally:
-        node.on_shutdown()
-        node.destroy_node()
-        rclpy.shutdown()
+        try:
+            node.on_shutdown()
+        except Exception:
+            pass
+        try:
+            node.destroy_node()
+        except Exception:
+            pass
+        if rclpy.ok():
+            try:
+                rclpy.shutdown()
+            except Exception:
+                pass
 
 
 if __name__ == '__main__':

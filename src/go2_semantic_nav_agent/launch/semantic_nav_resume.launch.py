@@ -1,9 +1,11 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 import glob
 import os
+
 import yaml
 
 
@@ -27,9 +29,9 @@ def launch_setup(context, *args, **kwargs):
     with open(session_yaml, 'r', encoding='utf-8') as f:
         meta = yaml.safe_load(f) or {}
     map_yaml = meta.get('map_yaml') or os.path.join(session_dir, 'map.yaml')
-    pkg_share = os.path.join(os.path.expanduser('~'), 'ros2_ws', 'install', 'go2_semantic_nav_agent', 'share', 'go2_semantic_nav_agent')
-    rviz_cfg = os.path.join(pkg_share, 'config', 'semantic_nav.rviz')
-    amcl_cfg = os.path.join(pkg_share, 'config', 'amcl_params.yaml')
+    package_share = FindPackageShare('go2_semantic_nav_agent')
+    rviz_cfg = PathJoinSubstitution([package_share, 'config', 'semantic_nav.rviz'])
+    amcl_cfg = PathJoinSubstitution([package_share, 'config', 'amcl_params.yaml'])
     nodes = [
         Node(package='nav2_map_server', executable='map_server', name='resume_map_server', output='screen', parameters=[{'yaml_filename': map_yaml}]),
         Node(package='nav2_amcl', executable='amcl', name='amcl', output='screen', parameters=[amcl_cfg]),

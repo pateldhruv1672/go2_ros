@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import threading
@@ -29,9 +30,25 @@ class MotionSkillAgentNode(Node):
         self.declare_parameter('sport_timeout_sec', 10.0)
         self.declare_parameter('motion_switch_timeout_sec', 5.0)
         self.declare_parameter('toggle_duration_sec', 4.0)
+        self.declare_parameter('script_step_pause_sec', 0.35)
 
         self.navigation_active = False
         self._sdk_lock = threading.Lock()
+        self._command_lock = threading.Lock()
+        self._structured_scripts = {
+            'greet': ['stand_up', 'hello', 'stretch', 'balance_stand'],
+            'tour_greet': ['stand_up', 'hello', 'stretch', 'balance_stand'],
+            'tour_attention': ['hello', 'content', 'balance_stand'],
+            'tour_pause': ['balance_stand'],
+            'tour_resume': ['stand_up', 'balance_stand', 'hello'],
+            'tour_handoff': ['stand_up', 'hello', 'content', 'balance_stand'],
+            'blocked_route_recovery': ['recovery_stand', 'stand_up', 'switch_avoid_mode', 'balance_stand'],
+            'visitor_wave': ['hello'],
+            'stand_ready': ['stand_up', 'balance_stand'],
+            'wait': ['balance_stand'],
+            'tour_settle': ['sit'],
+            'tour_ack': ['hello', 'content'],
+        }
         self._init_sdk()
 
         self.create_subscription(String, '/motion_skills/command', self.command_cb, 20)
@@ -80,6 +97,15 @@ class MotionSkillAgentNode(Node):
         t = (text or '').strip().lower().replace('-', ' ').replace('_', ' ')
         t = re.sub(r'\s+', ' ', t)
         alias_map = {
+            'start tour': 'tour_greet',
+            'greet': 'tour_greet',
+            'tour greet': 'tour_greet',
+            'tour attention': 'tour_attention',
+            'pause tour': 'tour_pause',
+            'resume tour': 'tour_resume',
+            'tour handoff': 'tour_handoff',
+            'handoff tour': 'tour_handoff',
+            'blocked route recovery': 'blocked_route_recovery',
             'stand': 'stand_up',
             'stand up': 'stand_up',
             'standdown': 'stand_down',
@@ -111,6 +137,41 @@ class MotionSkillAgentNode(Node):
             'auto recovery off': 'auto_recovery_off',
         }
         return alias_map.get(t, t.replace(' ', '_'))
+
+    def _normalize_command_payload(self, raw: str) -> tuple[str, dict]:
+        payload: dict = {}
+        text = (raw or '').strip()
+        if text.startswith('{'):
+            try:
+                maybe = json.loads(text)
+                if isinstance(maybe, dict):
+                    payload = maybe
+            except Exception:
+                payload = {}
+        cmd = str(payload.get('type') or payload.get('command') or text).strip().lower()
+        return cmd, payload
+
+    def _execute_script(self, label: str, steps: list[str]) -> int:
+        self.publish(self.status_pub, f'executing script {label}')
+        code = 0
+        for step in steps:
+            code = self._execute_skill(step)
+            if code != 0:
+                return code
+            time.sleep(float(self.get_parameter('script_step_pause_sec').value))
+        return code
+
+    def _execute_payload_sequence(self, payload: dict) -> int:
+        sequence = payload.get('sequence')
+        if isinstance(sequence, list) and sequence:
+            steps = [self._normalize(str(step)) for step in sequence if str(step).strip()]
+            return self._execute_script('custom_sequence', steps)
+        script = str(payload.get('script') or payload.get('name') or payload.get('type') or '').strip().lower()
+        if script in self._structured_scripts:
+            return self._execute_script(script, self._structured_scripts[script])
+        if script:
+            return self._execute_skill(self._normalize(script))
+        raise KeyError(script or 'empty_sequence')
 
     def _do_timed_toggle(self, on_call: Callable[[bool], int]) -> int:
         duration = float(self.get_parameter('toggle_duration_sec').value)
@@ -164,22 +225,33 @@ class MotionSkillAgentNode(Node):
         raw = (msg.data or '').strip()
         if not raw:
             return
-        skill = self._normalize(raw)
+        threading.Thread(target=self._handle_command, args=(raw,), daemon=True).start()
+
+    def _handle_command(self, raw: str) -> None:
+        cmd, payload = self._normalize_command_payload(raw)
+        skill = self._normalize(cmd)
 
         if self.navigation_active and not bool(self.get_parameter('allow_during_navigation').value):
             self.publish(self.reply_pub, 'I will not run motion skills while navigation is active.')
             return
 
-        self.publish(self.status_pub, f'executing {skill}')
         try:
-            with self._sdk_lock:
-                code = self._execute_skill(skill)
+            with self._command_lock, self._sdk_lock:
+                if payload and (payload.get('sequence') or payload.get('script') or payload.get('name')):
+                    code = self._execute_payload_sequence(payload)
+                    label = str(payload.get('script') or payload.get('name') or payload.get('type') or 'custom_sequence')
+                elif skill in self._structured_scripts:
+                    code = self._execute_script(skill, self._structured_scripts[skill])
+                    label = skill
+                else:
+                    code = self._execute_skill(skill)
+                    label = skill
             if code == 0:
-                self.publish(self.reply_pub, f'Completed {skill}.')
-                self.publish(self.status_pub, f'completed {skill}')
+                self.publish(self.reply_pub, f'Completed {label}.')
+                self.publish(self.status_pub, f'completed {label}')
             else:
-                self.publish(self.reply_pub, f'Motion skill {skill} returned code {code}.')
-                self.publish(self.status_pub, f'failed {skill}: code {code}')
+                self.publish(self.reply_pub, f'Motion skill {label} returned code {code}.')
+                self.publish(self.status_pub, f'failed {label}: code {code}')
         except KeyError:
             self.publish(self.reply_pub, f'I do not know the motion skill {raw}.')
         except Exception as exc:

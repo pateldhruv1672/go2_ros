@@ -26,6 +26,14 @@ from ..application.services import RobotDataService, RobotControlService
 from ..infrastructure.ros2 import ROS2Publisher
 from ..infrastructure.webrtc import WebRTCAdapter
 
+# Suppress noisy FFmpeg/PyAV software colorspace conversion warnings.
+try:
+    import av
+    av.logging.set_level(av.logging.ERROR)
+except Exception:
+    pass
+
+
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -291,6 +299,10 @@ class Go2DriverNode(Node):
             try:
                 frame = await track.recv()
                 img = frame.to_ndarray(format="bgr24")
+                if img is None or getattr(img, "size", 0) == 0:
+                    logger.warning(f"Skipping empty video frame for robot {robot_id}")
+                    await asyncio.sleep(0)
+                    continue
 
                 # Create camera data
                 camera_data = CameraData(
@@ -311,8 +323,8 @@ class Go2DriverNode(Node):
                 await asyncio.sleep(0)
 
             except Exception as e:
-                logger.error(f"Error processing video frame: {e}")
-                break
+                logger.warning(f"Error processing video frame for robot {robot_id}: {e!r}")
+                await asyncio.sleep(0.05)
 
     # CycloneDDS callbacks
     def _on_cyclonedds_low_state(self, msg: LowState) -> None:

@@ -66,7 +66,20 @@ class SemanticMemory:
         best_score = 0.0
         why = ''
         for p in places:
-            fields = [p.name, p.room, p.category, p.description, *(p.aliases or []), *(p.tags or [])]
+            fields = [
+                p.name,
+                p.room,
+                p.category,
+                p.description,
+                getattr(p, 'summary', ''),
+                getattr(p, 'tour_fact', ''),
+                getattr(p, 'navigation_hint', ''),
+                getattr(p, 'resume_hook', ''),
+                getattr(p, 'safety_notes', ''),
+                getattr(p, 'scene_context', ''),
+                *(p.aliases or []),
+                *(p.tags or []),
+            ]
             score = 0.0
             reasons = []
             for field in fields:

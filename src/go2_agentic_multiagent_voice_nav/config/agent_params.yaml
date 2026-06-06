@@ -2,6 +2,7 @@ local_omi_stt_node:
   ros__parameters:
     omi_mac: "EF:1C:34:C6:25:92"
     omi_char_uuid: "19B10001-E8F2-537E-4F6C-D104768A1214"
+    input_backend: "auto"
     sample_rate: 16000
     chunk_seconds: 1.2
     whisper_model: "small.en"
@@ -10,6 +11,7 @@ local_omi_stt_node:
     vad_filter: true
     connection_retry_sec: 5.0
     scan_timeout_sec: 8.0
+    speech_input_status_topic: "/agent/speech_input_status"
 
 dialogue_orchestrator_node:
   ros__parameters:

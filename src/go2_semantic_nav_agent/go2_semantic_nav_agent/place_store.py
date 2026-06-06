@@ -18,8 +18,19 @@ class Place:
     aliases: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
     description: str = ''
+    summary: str = ''
+    tour_fact: str = ''
+    navigation_hint: str = ''
+    resume_hook: str = ''
+    safety_notes: str = ''
+    scene_context: str = ''
+    capture_kind: str = ''
+    sample_index: int = 0
+    sample_group: str = ''
+    captured_at: str = ''
     confidence: float = 1.0
     source: str = 'manual'
+    frame_id: str = 'map'
 
 
 class PlaceStore:
@@ -35,6 +46,8 @@ class PlaceStore:
         with open(self.path, 'r', encoding='utf-8') as f:
             data = yaml.safe_load(f) or {}
         for row in data.get('places', []) or []:
+            row = dict(row or {})
+            row['frame_id'] = (row.get('frame_id') or 'map').strip() or 'map'
             p = Place(**row)
             self.places[p.name] = p
 
@@ -71,7 +84,8 @@ class PlaceStore:
         out = []
         for p in sorted(self.places.values(), key=lambda z: z.name):
             out.append(
-                f'{p.name} @ ({p.x:.2f}, {p.y:.2f}, yaw={p.yaw:.2f}) '
-                f'[room={p.room or "-"} | category={p.category or "-"} | aliases={",".join(p.aliases) or "-"} | tags={",".join(p.tags) or "-"} | desc={p.description or "-"}]'
+                f'{p.name} @ ({p.x:.2f}, {p.y:.2f}, yaw={p.yaw:.2f}, frame={p.frame_id or "map"}) '
+                f'[room={p.room or "-"} | category={p.category or "-"} | aliases={",".join(p.aliases) or "-"} | tags={",".join(p.tags) or "-"} | '
+                f'summary={p.summary or p.description or "-"} | fact={p.tour_fact or "-"} | hint={p.navigation_hint or "-"} | resume={p.resume_hook or "-"}]'
             )
         return out

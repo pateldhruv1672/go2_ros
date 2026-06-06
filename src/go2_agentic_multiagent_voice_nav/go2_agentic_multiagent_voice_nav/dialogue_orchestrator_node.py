@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from typing import Optional
 
-import requests
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
+
+from go2_agentic_system.openrouter_client import OpenRouterClient
 
 from .place_resolver import PlaceResolver, slugify, norm
 
@@ -27,10 +27,15 @@ class DialogueOrchestratorNode(Node):
             str(self.get_parameter("session_root").value),
             str(self.get_parameter("session_name").value),
         )
+        self.openrouter = OpenRouterClient(
+            model=str(self.get_parameter("openrouter_model").value),
+            base_url=str(self.get_parameter("openrouter_base_url").value),
+        )
         self.pending_camera = False
 
         self.transcript_sub = self.create_subscription(String, "/agent/transcript", self.transcript_cb, 20)
         self.status_sub = self.create_subscription(String, "/semantic_nav/status", self.semantic_status_cb, 20)
+        self.route_event_sub = self.create_subscription(String, "/semantic_nav/event", self.route_event_cb, 20)
         self.cam_resp_sub = self.create_subscription(String, "/agent/camera/response", self.camera_response_cb, 20)
 
         self.reply_pub = self.create_publisher(String, "/agent/reply", 20)
@@ -72,7 +77,25 @@ class DialogueOrchestratorNode(Node):
         return text
 
     def semantic_status_cb(self, msg: String) -> None:
-        self.reply(msg.data)
+        text = (msg.data or "").strip()
+        if not text:
+            return
+        self.get_logger().info(f"semantic_status: {text}")
+
+    def route_event_cb(self, msg: String) -> None:
+        raw = (msg.data or "").strip()
+        if not raw:
+            return
+        try:
+            event = json.loads(raw)
+        except Exception:
+            self.get_logger().info(f"route_event_raw: {raw}")
+            return
+        speech = str(event.get("speech") or "").strip()
+        if speech:
+            self.reply(speech)
+        else:
+            self.get_logger().info(f"route_event: {event}")
 
     def camera_response_cb(self, msg: String) -> None:
         self.pending_camera = False
@@ -90,6 +113,9 @@ class DialogueOrchestratorNode(Node):
         self.command_pub.publish(msg)
         self.get_logger().info(f"nav_command: {text}")
 
+    def publish_event_command(self, payload: dict) -> None:
+        self.publish_command(json.dumps(payload, ensure_ascii=False))
+
     def publish_motion(self, text: str) -> None:
         msg = String()
         msg.data = text
@@ -106,6 +132,41 @@ class DialogueOrchestratorNode(Node):
     def handle_text(self, text: str, raw: str) -> None:
         if text in {"", "hello", "hi"}:
             self.reply("Hi, I am Sparky. You can ask me to navigate, describe the scene, or do a motion skill.")
+            return
+
+        if any(p in text for p in ["start tour", "begin tour", "tour mode on", "give a tour"]):
+            self.publish_event_command({"type": "start_tour", "reset_index": True, "route_name": self.resolver.session_name or ""})
+            self.publish_motion("tour_greet")
+            self.reply("Starting the tour.")
+            return
+
+        if any(p in text for p in ["pause tour", "pause the tour", "stop tour for a moment"]):
+            self.publish_event_command({"type": "pause_tour", "speech": "tour: Pausing the tour for a moment."})
+            self.publish_motion("tour_pause")
+            self.reply("Pausing the tour.")
+            return
+
+        if any(p in text for p in ["resume tour", "continue tour", "keep going on the tour"]):
+            self.publish_event_command({"type": "resume_tour", "speech": "tour: Resuming the tour."})
+            self.publish_motion("tour_resume")
+            self.reply("Resuming the tour.")
+            return
+
+        if any(p in text for p in ["handoff tour", "tour handoff", "take over the tour"]):
+            self.publish_event_command({"type": "handoff_tour", "speech": "tour: I am handing off the tour."})
+            self.publish_motion("tour_handoff")
+            self.reply("Handing off the tour.")
+            return
+
+        if any(p in text for p in ["what is this stop", "tell me about this stop", "explain this stop", "fact about this place", "tour facts", "tell us about this place"]):
+            self.publish_event_command({"type": "tour_fact_request", "query": raw})
+            self.reply("Let me explain this stop.")
+            return
+
+        if any(p in text for p in ["blocked route", "stuck", "route failed", "recover route", "why did you stop"]):
+            self.publish_event_command({"type": "recover_route", "reason": text})
+            self.publish_motion("blocked_route_recovery")
+            self.reply("I am diagnosing the route failure.")
             return
 
         if text in {"stop", "cancel", "halt"}:
@@ -177,14 +238,14 @@ class DialogueOrchestratorNode(Node):
             if place is None:
                 self.reply(f"I could not find a saved place matching {target}.")
                 return
-            self.publish_command(f"go {place.name}")
+            self.publish_event_command({"type": "go", "place": place.name})
             self.reply(f"Heading to {place.name.replace('_', ' ')}.")
             return
 
         # bare place utterance
         place = self.resolver.resolve(text)
         if place is not None:
-            self.publish_command(f"go {place.name}")
+            self.publish_event_command({"type": "go", "place": place.name})
             self.reply(f"Heading to {place.name.replace('_', ' ')}.")
             return
 
@@ -195,33 +256,21 @@ class DialogueOrchestratorNode(Node):
             self.reply("I can navigate, describe what I see, save spawn, list places, or do motion skills.")
 
     def chat_fallback(self, raw: str) -> str:
-        key = os.environ.get("OPENROUTER_API_KEY", "")
-        if not key:
+        if not self.openrouter.available:
             return "I heard you, but I do not have chat fallback configured."
         places = ", ".join(self.resolver.list_names()[:30])
         prompt = (
             "You are Sparky, a helpful robot dog assistant. "
-            "Be concise. Mention navigation capabilities when relevant. "
+            "Be concise, factual, and route-aware. "
+            "If a tour is underway, speak like a guide and preserve the route state. "
             f"Known saved places: {places}. "
             f"User said: {raw}"
         )
         try:
-            payload = {
-                "model": str(self.get_parameter("openrouter_model").value),
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.4,
-            }
-            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-            resp = requests.post(
-                str(self.get_parameter("openrouter_base_url").value),
-                headers=headers, json=payload, timeout=30,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            text = data["choices"][0]["message"]["content"]
-            if isinstance(text, list):
-                text = " ".join(str(x.get("text", "")) for x in text if isinstance(x, dict))
-            return str(text).strip() or "I am not sure how to answer that yet."
+            result = self.openrouter.complete_text(prompt, temperature=0.4, max_tokens=350)
+            if not result.get("ok"):
+                return f"Chat fallback failed: {result.get('error')}"
+            return str(result.get("text", "")).strip() or "I am not sure how to answer that yet."
         except Exception as exc:
             return f"Chat fallback failed: {exc}"
 

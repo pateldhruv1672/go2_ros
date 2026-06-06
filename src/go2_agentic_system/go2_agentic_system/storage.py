@@ -73,6 +73,7 @@ class MemoryStore:
         self.state_path = self.paths.memory / 'state.yaml'
         self.places_path = self.paths.memory / 'places.yaml'
         self.guardrails_path = self.paths.memory / 'guardrails.yaml'
+        self.voxels_path = self.paths.memory / 'voxels.jsonl'
         self.maps_index_path = self.paths.maps / 'index.yaml'
         self.observations_path = self.paths.memory / 'observations.jsonl'
         self.timeline_path = self.paths.logs / 'timeline.jsonl'
@@ -115,6 +116,8 @@ class MemoryStore:
             )
         if not self.observations_path.exists():
             self.observations_path.touch()
+        if not self.voxels_path.exists():
+            self.voxels_path.touch()
 
     def read_state(self) -> Dict[str, Any]:
         return read_yaml(self.state_path, {})
@@ -164,6 +167,32 @@ class MemoryStore:
 
     def add_observation(self, payload: Dict[str, Any]) -> None:
         append_jsonl(self.observations_path, payload)
+
+    def add_voxel_snapshot(self, payload: Dict[str, Any]) -> None:
+        append_jsonl(self.voxels_path, payload)
+
+    def list_voxel_snapshots(self, map_name: Optional[str] = None) -> List[Dict[str, Any]]:
+        items: List[Dict[str, Any]] = []
+        if not self.voxels_path.exists():
+            return items
+        with self.voxels_path.open('r', encoding='utf-8') as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if map_name is None or obj.get('map_name') == map_name:
+                    items.append(obj)
+        return items
+
+    def voxel_summary(self, map_name: Optional[str] = None, limit: int = 8) -> Dict[str, Any]:
+        items = self.list_voxel_snapshots(map_name)[-limit:]
+        if not items:
+            return {'count': 0, 'recent': []}
+        return {'count': len(items), 'recent': items}
 
     def list_observations(self, map_name: Optional[str] = None) -> List[Dict[str, Any]]:
         items: List[Dict[str, Any]] = []
@@ -240,13 +269,35 @@ class MemoryStore:
 
         places = self.list_places(map_name).get('places', {})
         for name, payload in places.items():
-            score = self._score_text_fields(query, [name] + (payload.get('aliases', []) or []) + [payload.get('summary', '')], 100.0, 60.0, 10.0)
+            fields = [
+                name,
+                payload.get('summary', ''),
+                payload.get('description', ''),
+                payload.get('tour_fact', ''),
+                payload.get('navigation_hint', ''),
+                payload.get('resume_hook', ''),
+                payload.get('safety_notes', ''),
+                payload.get('scene_context', ''),
+                *(payload.get('aliases', []) or []),
+                *(payload.get('tags', []) or []),
+            ]
+            score = self._score_text_fields(query, fields, 100.0, 60.0, 10.0)
             if score > best_score:
                 best_score = score
                 best = {'type': 'place', 'name': name, 'pose': payload, 'score': score}
 
         for obs in self.list_observations(map_name):
-            fields = [obs.get('label', ''), obs.get('summary', ''), ' '.join(obs.get('aliases', []) or []), ' '.join(obs.get('objects', []) or [])]
+            fields = [
+                obs.get('label', ''),
+                obs.get('summary', ''),
+                obs.get('tour_fact', ''),
+                obs.get('navigation_hint', ''),
+                obs.get('resume_hook', ''),
+                obs.get('safety_notes', ''),
+                obs.get('scene_context', ''),
+                ' '.join(obs.get('aliases', []) or []),
+                ' '.join(obs.get('objects', []) or []),
+            ]
             score = self._score_text_fields(query, fields, 85.0, 50.0, 8.0)
             if score > best_score and obs.get('pose'):
                 best_score = score
@@ -256,7 +307,19 @@ class MemoryStore:
     def search_memories(self, query: str, map_name: Optional[str] = None, limit: int = 5) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
         for name, payload in self.list_places(map_name).get('places', {}).items():
-            score = self._score_text_fields(query, [name] + (payload.get('aliases', []) or []) + [payload.get('summary', '')], 100.0, 60.0, 10.0)
+            fields = [
+                name,
+                payload.get('summary', ''),
+                payload.get('description', ''),
+                payload.get('tour_fact', ''),
+                payload.get('navigation_hint', ''),
+                payload.get('resume_hook', ''),
+                payload.get('safety_notes', ''),
+                payload.get('scene_context', ''),
+                *(payload.get('aliases', []) or []),
+                *(payload.get('tags', []) or []),
+            ]
+            score = self._score_text_fields(query, fields, 100.0, 60.0, 10.0)
             if score > 0:
                 results.append(
                     {
@@ -265,11 +328,26 @@ class MemoryStore:
                         'score': score,
                         'summary': payload.get('summary', ''),
                         'aliases': payload.get('aliases', []) or [],
+                        'tour_fact': payload.get('tour_fact', ''),
+                        'navigation_hint': payload.get('navigation_hint', ''),
+                        'resume_hook': payload.get('resume_hook', ''),
+                        'safety_notes': payload.get('safety_notes', ''),
+                        'scene_context': payload.get('scene_context', ''),
                         'pose': {'x': payload.get('x'), 'y': payload.get('y'), 'yaw': payload.get('yaw'), 'frame_id': payload.get('frame_id')},
                     }
                 )
         for obs in self.list_observations(map_name):
-            fields = [obs.get('label', ''), obs.get('summary', ''), ' '.join(obs.get('aliases', []) or []), ' '.join(obs.get('objects', []) or [])]
+            fields = [
+                obs.get('label', ''),
+                obs.get('summary', ''),
+                obs.get('tour_fact', ''),
+                obs.get('navigation_hint', ''),
+                obs.get('resume_hook', ''),
+                obs.get('safety_notes', ''),
+                obs.get('scene_context', ''),
+                ' '.join(obs.get('aliases', []) or []),
+                ' '.join(obs.get('objects', []) or []),
+            ]
             score = self._score_text_fields(query, fields, 85.0, 50.0, 8.0)
             if score > 0:
                 results.append(
@@ -280,6 +358,11 @@ class MemoryStore:
                         'summary': obs.get('summary', ''),
                         'aliases': obs.get('aliases', []) or [],
                         'objects': obs.get('objects', []) or [],
+                        'tour_fact': obs.get('tour_fact', ''),
+                        'navigation_hint': obs.get('navigation_hint', ''),
+                        'resume_hook': obs.get('resume_hook', ''),
+                        'safety_notes': obs.get('safety_notes', ''),
+                        'scene_context': obs.get('scene_context', ''),
                         'image_path': obs.get('image_path'),
                         'pose': obs.get('pose', {}),
                     }

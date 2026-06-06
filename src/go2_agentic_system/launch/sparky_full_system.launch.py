@@ -1,22 +1,88 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    net_if = LaunchConfiguration('network_interface')
+    network_interface_arg = DeclareLaunchArgument(
+        'network_interface',
+        default_value='',
+        description='Network interface for Unitree SDK2 motion skills, e.g. eth0 or wlan0'
+    )
+    session_root_arg = DeclareLaunchArgument(
+        'session_root',
+        default_value='~/.ros/go2_semantic_nav_sessions',
+        description='Semantic navigation session root'
+    )
+    session_name_arg = DeclareLaunchArgument(
+        'session_name',
+        default_value='',
+        description='Semantic navigation session name'
+    )
+    semantic_rviz_arg = DeclareLaunchArgument(
+        'semantic_rviz',
+        default_value='false',
+        description='Open the semantic navigation RViz session'
+    )
+    input_backend_arg = DeclareLaunchArgument(
+        'input_backend',
+        default_value='auto',
+        description='Voice input backend: auto, omi, or mic'
+    )
+
+    semantic_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('go2_semantic_nav_agent'),
+                'launch',
+                'semantic_nav_resume.launch.py',
+            ])
+        ),
+        launch_arguments={
+            'session_root': LaunchConfiguration('session_root'),
+            'session_name': LaunchConfiguration('session_name'),
+            'rviz': LaunchConfiguration('semantic_rviz'),
+            'rviz2': LaunchConfiguration('semantic_rviz'),
+        }.items()
+    )
+
+    voice_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('go2_agentic_multiagent_voice_nav'),
+                'launch',
+                'multiagent_resume.launch.py',
+            ])
+        ),
+        launch_arguments={
+            'session_root': LaunchConfiguration('session_root'),
+            'session_name': LaunchConfiguration('session_name'),
+            'input_backend': LaunchConfiguration('input_backend'),
+        }.items()
+    )
+
+    motion_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('go2_agentic_motion_skills'),
+                'launch',
+                'motion_skills.launch.py',
+            ])
+        ),
+        launch_arguments={
+            'network_interface': LaunchConfiguration('network_interface'),
+        }.items()
+    )
+
     return LaunchDescription([
-        DeclareLaunchArgument('network_interface', default_value=''),
-        Node(package='go2_agentic_multiagent_voice_nav', executable='local_omi_stt_node',
-             name='local_omi_stt_node', output='screen'),
-        Node(package='go2_agentic_multiagent_voice_nav', executable='dialogue_orchestrator_node',
-             name='dialogue_orchestrator_node', output='screen'),
-        Node(package='go2_agentic_multiagent_voice_nav', executable='camera_agent_node',
-             name='camera_agent_node', output='screen'),
-        Node(package='go2_agentic_multiagent_voice_nav', executable='speaker_tts_node',
-             name='speaker_tts_node', output='screen'),
-        Node(package='go2_agentic_motion_skills', executable='motion_skill_agent_node',
-             name='motion_skill_agent_node', output='screen',
-             parameters=[{'network_interface': net_if}]),
+        network_interface_arg,
+        session_root_arg,
+        session_name_arg,
+        semantic_rviz_arg,
+        input_backend_arg,
+        semantic_launch,
+        voice_launch,
+        motion_launch,
     ])

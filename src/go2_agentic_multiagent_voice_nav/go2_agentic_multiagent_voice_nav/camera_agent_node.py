@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import base64
 import io
-import os
 from typing import Optional
 
 import numpy as np
 from PIL import Image as PILImage
-import requests
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CompressedImage, Image
 from std_msgs.msg import String
+
+from go2_agentic_system.openrouter_client import OpenRouterClient
 
 
 def image_msg_to_jpeg_bytes(msg: Image) -> Optional[bytes]:
@@ -48,6 +48,10 @@ class CameraAgentNode(Node):
         self.declare_parameter("openrouter_base_url", "https://openrouter.ai/api/v1/chat/completions")
 
         self.latest_image_bytes: Optional[bytes] = None
+        self.openrouter = OpenRouterClient(
+            model=str(self.get_parameter("openrouter_model").value),
+            base_url=str(self.get_parameter("openrouter_base_url").value),
+        )
         self.req_sub = self.create_subscription(String, "/agent/camera/request", self.request_cb, 10)
         self.resp_pub = self.create_publisher(String, "/agent/camera/response", 10)
         self.create_subscription(Image, str(self.get_parameter("camera_image_topic").value), self.image_cb, qos_profile_sensor_data)
@@ -75,8 +79,7 @@ class CameraAgentNode(Node):
     def describe_scene(self, user_prompt: str) -> str:
         if not self.latest_image_bytes:
             return "I do not have a camera frame yet."
-        key = os.environ.get("OPENROUTER_API_KEY", "")
-        if not key:
+        if not self.openrouter.available:
             return "OPENROUTER_API_KEY is missing, so I cannot use the camera agent yet."
 
         prompt = (
@@ -87,31 +90,15 @@ class CameraAgentNode(Node):
         )
         try:
             b64 = base64.b64encode(self.latest_image_bytes).decode("ascii")
-            payload = {
-                "model": str(self.get_parameter("openrouter_model").value),
-                "messages": [{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
-                    ],
-                }],
-                "temperature": 0.2,
-            }
-            headers = {
-                "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json",
-            }
-            resp = requests.post(
-                str(self.get_parameter("openrouter_base_url").value),
-                headers=headers, json=payload, timeout=30,
+            result = self.openrouter.complete_text(
+                prompt,
+                image_data_urls=[f"data:image/jpeg;base64,{b64}"],
+                temperature=0.2,
+                max_tokens=350,
             )
-            resp.raise_for_status()
-            data = resp.json()
-            text = data["choices"][0]["message"]["content"]
-            if isinstance(text, list):
-                text = " ".join(str(x.get("text", "")) for x in text if isinstance(x, dict))
-            return str(text).strip() or "I could not describe the scene."
+            if not result.get("ok"):
+                return f"Camera agent failed: {result.get('error')}"
+            return str(result.get("text", "")).strip() or "I could not describe the scene."
         except Exception as exc:
             return f"Camera agent failed: {exc}"
 
