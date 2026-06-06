@@ -317,8 +317,8 @@ class Go2NodeFactory:
             # Nav2
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([
-                    os.path.join(get_package_share_directory('nav2_bringup'),
-                                'launch', 'navigation_launch.py')
+                    os.path.join(get_package_share_directory('go2_robot_sdk'),
+                                'launch', 'navigation_no_docking.launch.py')
                 ]),
                 condition=IfCondition(with_nav2),
                 launch_arguments={
