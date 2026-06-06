@@ -37,7 +37,7 @@ from openai import OpenAI
 # ---------------- CONFIG ----------------
 CLIENT = OpenAI(
     base_url="https://openrouter.ai/api/v1",
-    api_key="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",
+    api_key="API-KEY",
 )
 
 MODEL = "google/gemini-2.5-flash"  # Fast, multimodal vision model
