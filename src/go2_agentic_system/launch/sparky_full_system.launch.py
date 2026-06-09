@@ -23,8 +23,13 @@ def generate_launch_description():
     )
     semantic_rviz_arg = DeclareLaunchArgument(
         'semantic_rviz',
-        default_value='false',
+        default_value='true',
         description='Open the semantic navigation RViz session'
+    )
+    speaker_tts_enabled_arg = DeclareLaunchArgument(
+        'speaker_tts_enabled',
+        default_value='true',
+        description='Enable on-device speaker TTS'
     )
     input_backend_arg = DeclareLaunchArgument(
         'input_backend',
@@ -60,6 +65,7 @@ def generate_launch_description():
             'session_root': LaunchConfiguration('session_root'),
             'session_name': LaunchConfiguration('session_name'),
             'input_backend': LaunchConfiguration('input_backend'),
+            'speaker_tts_enabled': LaunchConfiguration('speaker_tts_enabled'),
         }.items()
     )
 
@@ -81,6 +87,7 @@ def generate_launch_description():
         session_root_arg,
         session_name_arg,
         semantic_rviz_arg,
+        speaker_tts_enabled_arg,
         input_backend_arg,
         semantic_launch,
         voice_launch,

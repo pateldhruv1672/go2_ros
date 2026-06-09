@@ -12,6 +12,7 @@ def generate_launch_description():
         DeclareLaunchArgument('session_root', default_value='~/.ros/go2_semantic_nav_sessions'),
         DeclareLaunchArgument('session_name', default_value=''),
         DeclareLaunchArgument('input_backend', default_value='auto'),
+        DeclareLaunchArgument('speaker_tts_enabled', default_value='true'),
         Node(package='go2_agentic_multiagent_voice_nav', executable='local_omi_stt_node',
              name='local_omi_stt_node', output='screen', parameters=[cfg, {
                  'session_root': LaunchConfiguration('session_root'),
@@ -26,5 +27,7 @@ def generate_launch_description():
         Node(package='go2_agentic_multiagent_voice_nav', executable='camera_agent_node',
              name='camera_agent_node', output='screen', parameters=[cfg]),
         Node(package='go2_agentic_multiagent_voice_nav', executable='speaker_tts_node',
-             name='speaker_tts_node', output='screen', parameters=[cfg]),
+             name='speaker_tts_node', output='screen', parameters=[cfg, {
+                 'enabled': LaunchConfiguration('speaker_tts_enabled'),
+             }]),
     ])

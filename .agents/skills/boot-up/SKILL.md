@@ -26,7 +26,6 @@ Recommended runtime environment:
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export ROS_DOMAIN_ID=7
 export ROS_LOCALHOST_ONLY=0
-export CYCLONEDDS_URI='<CycloneDDS><Domain><Discovery><ParticipantIndex>none</ParticipantIndex></Discovery></Domain></CycloneDDS>'
 ```
 
 Use the same `ROS_DOMAIN_ID` in every terminal. If one terminal uses `0` and another uses `7`, nodes will not see each other.
@@ -48,8 +47,6 @@ source src/.venv/bin/activate
 source install/setup.bash
 ```
 
-If ROS CLI discovery behaves strangely, use `--disable-daemon` for inspection commands.
-
 ---
 
 ## 2. Clean stale ROS processes before boot
@@ -61,14 +58,6 @@ pkill -9 -f "rviz2|go2_rviz2|robot.launch.py|go2_driver_node|bt_navigator|planne
 
 ros2 daemon stop || true
 ros2 daemon start
-```
-
-For live robot debugging, it is often safer to use temp ROS log locations:
-
-```bash
-export ROS_HOME=/tmp/ros_home_sparky
-export ROS_LOG_DIR=/tmp/ros_logs_sparky
-mkdir -p "$ROS_HOME" "$ROS_LOG_DIR"
 ```
 
 ---
@@ -86,15 +75,6 @@ source src/.venv/bin/activate
 python -m colcon build --symlink-install \
   --cmake-args -DPython3_EXECUTABLE=$VIRTUAL_ENV/bin/python -Wno-dev
 
-source install/setup.bash
-```
-
-If only the semantic-nav or agentic packages changed, a narrower build is fine:
-
-```bash
-python -m colcon build --symlink-install \
-  --packages-select go2_semantic_nav_agent go2_agentic_multiagent_voice_nav go2_agentic_motion_skills go2_agentic_system \
-  --cmake-args -DPython3_EXECUTABLE=$VIRTUAL_ENV/bin/python -Wno-dev
 source install/setup.bash
 ```
 
@@ -249,34 +229,6 @@ Verify it installs correctly:
 ls -l install/go2_robot_sdk/share/go2_robot_sdk/launch/navigation_no_docking.launch.py
 ```
 
-### 4.5 Use the correct launch order for Sparky
-
-Known-good order on the live robot:
-
-1. Bring up the base robot stack first.
-2. Wait for the driver and Nav2 lifecycle nodes to settle.
-3. Launch semantic teach/resume or the full agentic stack.
-4. Avoid starting a second RViz unless the overlay explicitly disables it.
-
-Teach mode example:
-
-```bash
-ros2 launch go2_robot_sdk robot.launch.py foxglove:=false slam:=true nav2:=false
-ros2 launch go2_semantic_nav_agent semantic_nav_teach.launch.py map_label:=digital_twin_lab auto_save_places:=true auto_save_interval_sec:=5.0 auto_save_use_vlm:=true clear_places_on_start:=false
-```
-
-Resume mode example:
-
-```bash
-SESSION=$(basename "$(ls -td ~/.ros/go2_semantic_nav_sessions/* | head -1)")
-ros2 launch go2_robot_sdk robot.launch.py foxglove:=false slam:=false nav2:=true
-ros2 launch go2_semantic_nav_agent semantic_nav_resume.launch.py session_name:=$SESSION rviz2:=false
-```
-
-If the session is missing `map.yaml`, the resume launcher should fall back to the live `/map` topic.
-
-If `/bt_navigator` or `/controller_server` is inactive, do not keep retrying goals. Inspect lifecycle state first.
-
 ---
 
 ## 5. Boot command
@@ -292,10 +244,6 @@ conda deactivate 2>/dev/null || true
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export ROS_DOMAIN_ID=7
 export ROS_LOCALHOST_ONLY=0
-export CYCLONEDDS_URI='<CycloneDDS><Domain><Discovery><ParticipantIndex>none</ParticipantIndex></Discovery></Domain></CycloneDDS>'
-export ROS_HOME=/tmp/ros_home_sparky
-export ROS_LOG_DIR=/tmp/ros_logs_sparky
-mkdir -p "$ROS_HOME" "$ROS_LOG_DIR"
 
 source /opt/ros/jazzy/setup.bash
 source src/.venv/bin/activate
@@ -307,27 +255,6 @@ ros2 daemon stop || true
 ros2 daemon start
 
 ros2 launch go2_robot_sdk robot.launch.py 2>&1 | tee /tmp/go2_nav2.log
-```
-
-## 6. Fast live checks
-
-After the robot comes up:
-
-```bash
-ros2 node list --disable-daemon
-ros2 topic list --disable-daemon
-ros2 lifecycle get /bt_navigator --disable-daemon
-ros2 lifecycle get /controller_server --disable-daemon
-ros2 action info /navigate_to_pose --disable-daemon
-```
-
-If goal debugging is needed:
-
-```bash
-ros2 topic echo --once /goal_pose
-SESSION=$(basename "$(ls -td ~/.ros/go2_semantic_nav_sessions/* | head -1)")
-sed -n '1,220p' ~/.ros/go2_semantic_nav_sessions/$SESSION/session.yaml
-sed -n '1,220p' ~/.ros/go2_semantic_nav_sessions/$SESSION/route.yaml
 ```
 
 ---
@@ -451,29 +378,6 @@ source_timeout: 3.0
 ```
 
 for collision monitor.
-# ros2-clean-restart
-
-## When to use
-Use when ROS state is stale, nodes are duplicated, or launches are behaving inconsistently.
-
-## Steps
-```bash
-pkill -f "go2_driver_node|robot_state_publisher|slam_toolbox|amcl|map_server|rviz2|semantic_nav|bt_navigator|planner_server|controller_server|lifecycle_manager|foxglove_bridge|local_omi_stt_node|dialogue_orchestrator_node|camera_agent_node|speaker_tts_node" || true
-sleep 3
-
-cd ~/ros2_ws
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-
-ros2 daemon stop
-ros2 daemon start
-ros2 node list
-ros2 topic list
-```
-
-## Success check
-- old nodes are gone
-- `ros2 node list` and `ros2 topic list` reflect only the current run
 
 ---
 

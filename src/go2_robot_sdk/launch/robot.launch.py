@@ -166,7 +166,7 @@ class Go2NodeFactory:
                 executable='pointcloud_to_laserscan_node',
                 name='go2_pointcloud_to_laserscan',
                 remappings=[
-                    ('cloud_in', 'point_cloud2'),
+                    ('cloud_in', '/pointcloud/filtered'),
                     ('scan', 'scan'),
                 ],
                 parameters=[{

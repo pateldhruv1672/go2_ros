@@ -1,0 +1,20 @@
+UPDATED FULL SYSTEM BUNDLE
+
+Included packages:
+- go2_semantic_nav_agent
+- go2_agentic_multiagent_voice_nav
+- go2_agentic_motion_skills
+- go2_agentic_system
+
+Changes in this updated bundle:
+- keeps the grounded full-system bundle as the base
+- overlays the fixed go2_agentic_system wrapper package so sparky_full_system.launch.py installs correctly
+- patches semantic navigation place handling so saved places carry frame_id
+- defaults missing place/session goal frame_id to map
+- rejects navigation goals with empty frame_id before they are sent to Nav2
+- logs the frame with each sent goal
+
+Important:
+- this bundle does not claim to solve every upstream TF or Bluetooth runtime issue
+- it specifically fixes the empty-frame navigation goal path in the semantic nav package
+- Omi, local STT, camera agent, TTS, and motion skills are included in the bundle

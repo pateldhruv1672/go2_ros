@@ -1,7 +1,9 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
@@ -15,7 +17,14 @@ def generate_launch_description():
         DeclareLaunchArgument('auto_save_allow_repeat_samples', default_value='true'),
         DeclareLaunchArgument('auto_save_min_distance_m', default_value='0.0'),
         DeclareLaunchArgument('clear_places_on_start', default_value='true'),
-        DeclareLaunchArgument('save_map_on_shutdown', default_value='false'),
+        DeclareLaunchArgument('save_map_on_shutdown', default_value='true'),
+        DeclareLaunchArgument('semantic_rviz', default_value='true'),
+        DeclareLaunchArgument('semantic_rviz_config',
+                              default_value=PathJoinSubstitution([
+                                  FindPackageShare('go2_semantic_nav_agent'),
+                                  'config',
+                                  'semantic_nav.rviz',
+                              ])),
         Node(
             package='go2_semantic_nav_agent',
             executable='scan_retimestamp_node',
@@ -41,5 +50,14 @@ def generate_launch_description():
                 'save_map_on_shutdown': LaunchConfiguration('save_map_on_shutdown'),
                 'restore_spawn_on_start': False,
             }],
+        ),
+        Node(
+            package='rviz2',
+            executable='rviz2',
+            name='semantic_nav_rviz2',
+            output='screen',
+            arguments=['-d', LaunchConfiguration('semantic_rviz_config')],
+            additional_env={'LIBGL_ALWAYS_SOFTWARE': '1'},
+            condition=IfCondition(LaunchConfiguration('semantic_rviz')),
         ),
     ])

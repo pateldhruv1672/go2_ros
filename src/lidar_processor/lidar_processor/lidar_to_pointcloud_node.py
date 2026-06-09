@@ -117,7 +117,9 @@ class LidarToPointCloudNode(Node):
     
     def _declare_parameters(self) -> None:
         """Declare all node parameters"""
-        self.declare_parameter('robot_ip_lst', [])
+        # Use a one-element string sentinel so ROS infers the parameter as a
+        # string array instead of defaulting an empty list to BYTE_ARRAY.
+        self.declare_parameter('robot_ip_lst', [''])
         self.declare_parameter('map_name', '3d_map')
         self.declare_parameter('map_save', 'true')
         self.declare_parameter('save_interval', 10.0)
@@ -126,7 +128,11 @@ class LidarToPointCloudNode(Node):
     
     def _load_configuration(self) -> LidarConfig:
         """Load configuration from parameters"""
-        robot_ip_lst = self.get_parameter('robot_ip_lst').get_parameter_value().string_array_value
+        robot_ip_lst = [
+            str(ip).strip()
+            for ip in self.get_parameter('robot_ip_lst').get_parameter_value().string_array_value
+            if str(ip).strip()
+        ]
         map_name = self.get_parameter('map_name').get_parameter_value().string_value
         save_map_str = self.get_parameter('map_save').get_parameter_value().string_value
         save_interval = self.get_parameter('save_interval').get_parameter_value().double_value
@@ -144,17 +150,17 @@ class LidarToPointCloudNode(Node):
     
     def _setup_subscriptions(self) -> None:
         """Setup LiDAR data subscriptions"""
-        self.subscriptions = []
+        self._subscriptions = []
         
         if len(self.config.robot_ip_list) == 1:
             # Single robot mode
             subscription = self.create_subscription(
                 PointCloud2,
-                '/robot0/point_cloud2',
+                '/point_cloud2',
                 self._lidar_callback,
                 self.qos_profile
             )
-            self.subscriptions.append(subscription)
+            self._subscriptions.append(subscription)
         else:
             # Multi-robot mode
             for i, _ in enumerate(self.config.robot_ip_list):
@@ -164,7 +170,7 @@ class LidarToPointCloudNode(Node):
                     self._lidar_callback,
                     self.qos_profile
                 )
-                self.subscriptions.append(subscription)
+                self._subscriptions.append(subscription)
     
     def _setup_publishers(self) -> None:
         """Setup publishers for processed data"""
@@ -268,4 +274,4 @@ def main(args=None):
 
 
 if __name__ == '__main__':
-    main() 
+    main()

@@ -7,6 +7,7 @@ import json
 import math
 import os
 import re
+import zlib
 import shlex
 import subprocess
 from dataclasses import asdict
@@ -21,6 +22,8 @@ from action_msgs.msg import GoalStatus
 from builtin_interfaces.msg import Time as BuiltinTime
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
 from nav2_msgs.action import NavigateToPose
+from lifecycle_msgs.msg import State as LifecycleState
+from lifecycle_msgs.srv import GetState
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException
@@ -57,6 +60,11 @@ def yaw_from_quat(q) -> float:
 def quaternion_from_yaw(yaw: float):
     half = yaw * 0.5
     return 0.0, 0.0, math.sin(half), math.cos(half)
+
+
+def stable_marker_id(name: str, salt: int = 0) -> int:
+    payload = f'{name}:{salt}'.encode('utf-8', errors='ignore')
+    return int(zlib.crc32(payload) & 0x7fffffff)
 
 
 def image_msg_to_jpeg_bytes(msg: Image) -> Optional[bytes]:
@@ -110,6 +118,9 @@ class SemanticNavNode(Node):
         )
         self.route_store = RouteStore(self.session.session_dir)
         self.route = self._load_or_create_route()
+        self._last_status = ''
+        self._rehydrate_places_from_memory()
+        self._normalize_route_stops()
         if self.mode == 'teach' and bool(self.get_parameter('clear_places_on_start').value):
             self.place_store.places = {}
             self.place_store.save()
@@ -120,12 +131,19 @@ class SemanticNavNode(Node):
         self.latest_scan: Optional[LaserScan] = None
         self.latest_goal: Optional[PoseStamped] = None
         self.last_auto_save_xy: Optional[tuple[float, float]] = None
-        self._last_status = ''
         self._goal_place: Optional[Place] = None
         self._fallback_attempts = 0
         self._last_goal_failed = False
+        self._goal_send_retry_ns = 0
+        self._goal_send_retry_count = 0
         self._restore_count = 0
         self._restore_done = False
+        self._restore_next_attempt_ns = 0
+        self._spawn_persisted = False
+        self._amcl_active = False
+        self._amcl_state_client = self.create_client(GetState, '/amcl/get_state')
+        self._amcl_state_last_check_ns = 0
+        self._amcl_state_check_pending = False
         self._motion_active = False
         self._motion_twist = Twist()
         self._motion_end_ns = 0
@@ -171,6 +189,8 @@ class SemanticNavNode(Node):
         self.auto_save_timer = None
         if self.mode == 'teach' and bool(self.get_parameter('auto_save_places').value):
             self.auto_save_timer = self.create_timer(float(self.get_parameter('auto_save_interval_sec').value), self.auto_save_tick)
+        if self.mode == 'teach' and bool(self.get_parameter('save_spawn_on_start').value):
+            self.create_timer(0.5, self.persist_spawn_when_tf_ready)
         if self.mode == 'resume' and bool(self.get_parameter('restore_spawn_on_start').value):
             self.create_timer(0.5, self.restore_spawn_when_tf_ready)
 
@@ -209,11 +229,18 @@ class SemanticNavNode(Node):
         self.declare_parameter('auto_save_use_vlm', True)
         self.declare_parameter('auto_save_min_distance_m', 1.5)
         self.declare_parameter('auto_save_merge_distance_m', 1.5)
+        self.declare_parameter('route_stop_merge_distance_m', 0.25)
         self.declare_parameter('auto_save_target_samples', 0)
         self.declare_parameter('auto_save_allow_repeat_samples', False)
         self.declare_parameter('auto_save_min_confidence', 0.55)
         self.declare_parameter('clear_places_on_start', False)
         self.declare_parameter('restore_spawn_on_start', True)
+        self.declare_parameter('restore_spawn_retry_interval_sec', 5.0)
+        self.declare_parameter('restore_spawn_position_tolerance_m', 0.75)
+        self.declare_parameter('restore_spawn_yaw_tolerance_rad', 0.75)
+        self.declare_parameter('restore_spawn_position_covariance', 0.5)
+        self.declare_parameter('restore_spawn_yaw_covariance', 0.5)
+        self.declare_parameter('save_spawn_on_start', True)
         self.declare_parameter('fallback_enable', True)
         self.declare_parameter('fallback_max_attempts', 3)
         self.declare_parameter('fallback_cmd_topic', '/cmd_vel')
@@ -222,7 +249,9 @@ class SemanticNavNode(Node):
         self.declare_parameter('fallback_forward_distance', 0.25)
         self.declare_parameter('fallback_backup_distance', 0.18)
         self.declare_parameter('fallback_rotate_deg', 18.0)
+        self.declare_parameter('tf_max_age_sec', 5.0)
         self.declare_parameter('recovery_max_retries', 3)
+        self.declare_parameter('restore_spawn_only_once', True)
 
     def _choose_session(self):
         requested = str(self.get_parameter('session_name').value).strip()
@@ -272,15 +301,96 @@ class SemanticNavNode(Node):
                 self.route_store.upsert_stop(route, stop)
         if route.mode not in {'tour', 'patrol', 'resume', 'teach'}:
             route.mode = 'tour' if bool(self.get_parameter('tour_mode').value) else self.mode
+        if self.mode == 'resume':
+            route.mode = 'resume'
+            if route.state in {'moving_to_stop', 'touring', 'recovering', 'blocked'}:
+                route.state = 'paused'
         self.route_store.save(route)
         return route
+
+    def _rehydrate_places_from_memory(self) -> None:
+        if self.mode != 'resume' or self.place_store.places:
+            return
+        payload = self.agent_memory.list_places(self.route.name)
+        places = dict((payload or {}).get('places') or {})
+        if not places:
+            return
+        restored = 0
+        for name, item in places.items():
+            pose = item or {}
+            try:
+                place = Place(
+                    name=str(name),
+                    x=float(pose.get('x', 0.0)),
+                    y=float(pose.get('y', 0.0)),
+                    yaw=float(pose.get('yaw', 0.0)),
+                    room=str(pose.get('room', '')),
+                    category=str(pose.get('category', '')),
+                    aliases=[str(x) for x in (pose.get('aliases') or [])],
+                    tags=[str(x) for x in (pose.get('tags') or [])],
+                    description=str(pose.get('description', '')),
+                    summary=str(pose.get('summary', '')),
+                    tour_fact=str(pose.get('tour_fact', '')),
+                    navigation_hint=str(pose.get('navigation_hint', '')),
+                    resume_hook=str(pose.get('resume_hook', '')),
+                    safety_notes=str(pose.get('safety_notes', '')),
+                    scene_context=str(pose.get('scene_context', '')),
+                    capture_kind=str(pose.get('capture_kind', '')),
+                    sample_index=int(pose.get('sample_index', 0) or 0),
+                    sample_group=str(pose.get('sample_group', '')),
+                    captured_at=str(pose.get('captured_at', '')),
+                    confidence=float(pose.get('confidence', 1.0) or 1.0),
+                    source=str(pose.get('source', 'event_memory')),
+                    frame_id=str(pose.get('frame_id', self.map_frame) or self.map_frame),
+                )
+            except Exception:
+                continue
+            self.place_store.upsert(place)
+            restored += 1
+        if restored:
+            self.place_store.save()
+            self.publish_status(f'restored_places_from_memory count={restored}')
+
+    def _normalize_route_stops(self) -> None:
+        if not self.route.stops:
+            return
+        merge_radius = float(self.get_parameter('route_stop_merge_distance_m').value)
+        if merge_radius <= 0.0:
+            return
+        unique_stops: List[RouteStop] = []
+        unique_places: List[Optional[Place]] = []
+        changed = False
+        for stop in self.route.stops:
+            place = self._resolve_stop_place(stop)
+            duplicate = False
+            if place is not None:
+                for kept_place in unique_places:
+                    if kept_place is None:
+                        continue
+                    if math.hypot(place.x - kept_place.x, place.y - kept_place.y) <= merge_radius:
+                        duplicate = True
+                        break
+            if duplicate:
+                changed = True
+                continue
+            unique_stops.append(stop)
+            unique_places.append(place)
+        if changed:
+            self.route.stops = unique_stops
+            if self.route.stops:
+                self.route.current_stop_index = max(0, min(self.route.current_stop_index, len(self.route.stops) - 1))
+            else:
+                self.route.current_stop_index = 0
+            self.route_store.save(self.route)
+            self.publish_status(f'route_normalized merged_duplicates kept={len(self.route.stops)}')
 
     def publish_status(self, text: str) -> None:
         if text == self._last_status:
             return
         self._last_status = text
         msg = String(); msg.data = text
-        self.status_pub.publish(msg)
+        if hasattr(self, 'status_pub') and self.status_pub is not None:
+            self.status_pub.publish(msg)
         self.get_logger().info(text)
 
     def publish_reply(self, text: str) -> None:
@@ -355,44 +465,176 @@ class SemanticNavNode(Node):
         except TransformException:
             return False
 
+    def amcl_ready_for_initialpose(self) -> bool:
+        if self._amcl_active:
+            return True
+        now_ns = self.get_clock().now().nanoseconds
+        if self._amcl_state_check_pending or now_ns < self._amcl_state_last_check_ns:
+            return False
+        if not self._amcl_state_client.service_is_ready():
+            self.publish_status('waiting_for_amcl_lifecycle_service')
+            self._amcl_state_last_check_ns = now_ns + int(1.0 * 1e9)
+            return False
+        future = self._amcl_state_client.call_async(GetState.Request())
+        self._amcl_state_check_pending = True
+        self._amcl_state_last_check_ns = now_ns + int(1.0 * 1e9)
+        future.add_done_callback(self._amcl_state_cb)
+        return self._amcl_active
+
+    def _amcl_state_cb(self, future) -> None:
+        self._amcl_state_check_pending = False
+        try:
+            response = future.result()
+            state_id = int(getattr(getattr(response, 'current_state', None), 'id', 0))
+            self._amcl_active = state_id == LifecycleState.PRIMARY_STATE_ACTIVE
+        except Exception:
+            self._amcl_active = False
+
+    def tf_age_seconds(self, target_frame: str, source_frame: str) -> Optional[float]:
+        try:
+            transform = self.buffer.lookup_transform(target_frame, source_frame, Time(), timeout=Duration(seconds=0.4))
+        except TransformException:
+            return None
+        stamp = getattr(transform, 'header', None)
+        if stamp is None:
+            return None
+        try:
+            stamp_ns = int(stamp.stamp.sec) * 1_000_000_000 + int(stamp.stamp.nanosec)
+        except Exception:
+            return None
+        if stamp_ns <= 0:
+            return None
+        now_ns = self.get_clock().now().nanoseconds
+        return max(0.0, float(now_ns - stamp_ns) / 1_000_000_000.0)
+
     def restore_spawn_when_tf_ready(self) -> None:
+        """
+        Resume-mode startup localization restore.
+
+        This intentionally publishes /initialpose only ONCE per semantic_nav_node start.
+        The timer may call this function repeatedly, but after one successful publish,
+        self._restore_done is set to True and all future calls return immediately.
+
+        We do NOT keep checking whether map->base_link already equals spawn, because
+        that caused repeated AMCL resets when the current TF estimate stayed far from
+        the saved spawn pose.
+        """
         if self._restore_done:
             return
+
         if not self.odom_tf_ready():
             self.publish_status('waiting_for_odom_tf_before_spawn_restore')
             return
+
+        if not self.amcl_ready_for_initialpose():
+            self.publish_status('waiting_for_amcl_active_before_spawn_restore')
+            return
+
         meta = self.session_store.load_session_yaml(self.session)
         spawn = meta.get('spawn')
+
         if not spawn and self.route.safe_anchors:
             anchor_name = self.route.safe_anchors.get('spawn') or next(iter(self.route.safe_anchors.values()))
             anchor_place = self.resolve_place(anchor_name) or self.place_store.get(anchor_name)
             if anchor_place:
-                spawn = {'x': anchor_place.x, 'y': anchor_place.y, 'yaw': anchor_place.yaw, 'frame_id': anchor_place.frame_id or self.map_frame}
+                spawn = {
+                    'x': anchor_place.x,
+                    'y': anchor_place.y,
+                    'yaw': anchor_place.yaw,
+                    'frame_id': anchor_place.frame_id or self.map_frame,
+                }
+
         if not spawn:
             self.publish_status('resume_no_spawn_found')
             self._restore_done = True
             return
+
+        subscriber_count = 0
+        try:
+            subscriber_count = int(self.initialpose_pub.get_subscription_count())
+        except Exception:
+            subscriber_count = 0
+
+        if subscriber_count <= 0:
+            self.publish_status('waiting_for_initialpose_subscriber')
+            return
+
         msg = PoseWithCovarianceStamped()
         msg.header.frame_id = (spawn.get('frame_id') or self.map_frame or 'map').strip() or 'map'
-        msg.header.stamp = BuiltinTime(sec=0, nanosec=0)
+        msg.header.stamp = self.get_clock().now().to_msg()
+
         msg.pose.pose.position.x = float(spawn.get('x', 0.0))
         msg.pose.pose.position.y = float(spawn.get('y', 0.0))
+
         qx, qy, qz, qw = quaternion_from_yaw(float(spawn.get('yaw', 0.0)))
         msg.pose.pose.orientation.x = qx
         msg.pose.pose.orientation.y = qy
         msg.pose.pose.orientation.z = qz
         msg.pose.pose.orientation.w = qw
-        msg.pose.covariance[0] = 0.10
-        msg.pose.covariance[7] = 0.10
-        msg.pose.covariance[35] = 0.10
+
+        pos_cov = max(0.05, float(self.get_parameter('restore_spawn_position_covariance').value))
+        yaw_cov = max(0.05, float(self.get_parameter('restore_spawn_yaw_covariance').value))
+        msg.pose.covariance[0] = pos_cov
+        msg.pose.covariance[7] = pos_cov
+        msg.pose.covariance[35] = yaw_cov
+
         self.initialpose_pub.publish(msg)
         self._restore_count += 1
+
+        # Critical fix:
+        # Publish /initialpose once at startup, then never restore spawn again
+        # during this semantic_nav_node process.
+        self._restore_done = True
+
         self.publish_status(
-            f'restored_spawn_initialpose name=spawn x={msg.pose.pose.position.x:.2f} '
-            f'y={msg.pose.pose.position.y:.2f} yaw={float(spawn.get("yaw", 0.0)):.2f} count={self._restore_count}'
+            f'restored_spawn_initialpose_once name=spawn '
+            f'x={msg.pose.pose.position.x:.2f} '
+            f'y={msg.pose.pose.position.y:.2f} '
+            f'yaw={float(spawn.get("yaw", 0.0)):.2f} '
+            f'count={self._restore_count} subscribers={subscriber_count}'
         )
-        if self._restore_count >= 3:
-            self._restore_done = True
+
+    def current_pose_matches_spawn(self, current_pose: PoseStamped, spawn: dict) -> tuple[bool, float, float]:
+        spawn_x = float(spawn.get('x', 0.0))
+        spawn_y = float(spawn.get('y', 0.0))
+        spawn_yaw = float(spawn.get('yaw', 0.0))
+        dx = float(current_pose.pose.position.x) - spawn_x
+        dy = float(current_pose.pose.position.y) - spawn_y
+        pose_dist = math.hypot(dx, dy)
+        pose_yaw = float(yaw_from_quat(current_pose.pose.orientation))
+        yaw_err = abs(math.atan2(math.sin(pose_yaw - spawn_yaw), math.cos(pose_yaw - spawn_yaw)))
+        pos_tol = max(0.05, float(self.get_parameter('restore_spawn_position_tolerance_m').value))
+        yaw_tol = max(0.05, float(self.get_parameter('restore_spawn_yaw_tolerance_rad').value))
+        return pose_dist <= pos_tol and yaw_err <= yaw_tol, pose_dist, yaw_err
+
+    def persist_spawn_when_tf_ready(self) -> None:
+        if self._spawn_persisted:
+            return
+        meta = self.session_store.load_session_yaml(self.session)
+        if meta.get('spawn'):
+            self._spawn_persisted = True
+            return
+        if not self.odom_tf_ready():
+            self.publish_status('waiting_for_odom_tf_before_spawn_persist')
+            return
+        pose = self.lookup_current_pose()
+        if pose is None:
+            self.publish_status('waiting_for_current_pose_before_spawn_persist')
+            return
+        spawn = {
+            'x': float(pose.pose.position.x),
+            'y': float(pose.pose.position.y),
+            'yaw': float(yaw_from_quat(pose.pose.orientation)),
+            'frame_id': pose.header.frame_id or self.map_frame,
+        }
+        meta.update({'session_name': self.session.session_name, 'map_yaml': self.session.map_prefix + '.yaml'})
+        meta['spawn'] = spawn
+        meta.setdefault('semantic_graph', self.memory.build_relationships(list(self.place_store.places.values())))
+        self.session_store.save_session_yaml(self.session, meta)
+        self._spawn_persisted = True
+        self.publish_status(
+            f'saved_session_spawn name=spawn x={spawn["x"]:.2f} y={spawn["y"]:.2f} yaw={spawn["yaw"]:.2f} frame={spawn["frame_id"]}'
+        )
 
     def lookup_current_pose(self) -> Optional[PoseStamped]:
         try:
@@ -430,7 +672,7 @@ class SemanticNavNode(Node):
             arrow.header.frame_id = self.map_frame
             arrow.header.stamp = t
             arrow.ns = 'places'
-            arrow.id = idx * 2
+            arrow.id = stable_marker_id(p.name, 0)
             arrow.type = Marker.ARROW
             arrow.action = Marker.ADD
             arrow.scale.x = 0.35
@@ -447,13 +689,13 @@ class SemanticNavNode(Node):
             label.header.frame_id = self.map_frame
             label.header.stamp = t
             label.ns = 'place_labels'
-            label.id = idx * 2 + 1
+            label.id = stable_marker_id(p.name, 1)
             label.type = Marker.TEXT_VIEW_FACING
             label.action = Marker.ADD
             label.scale.z = 0.5
             label.pose.position.x = p.x
             label.pose.position.y = p.y
-            label.pose.position.z = 0.55
+            label.pose.position.z = 0.60
             label.color.a = 1.0
             label.color.r = 1.0
             label.color.g = 1.0
@@ -471,7 +713,7 @@ class SemanticNavNode(Node):
             marker.header.frame_id = self.map_frame
             marker.header.stamp = t
             marker.ns = 'route_stops'
-            marker.id = idx * 2
+            marker.id = stable_marker_id(stop.name, 10)
             marker.type = Marker.SPHERE
             marker.action = Marker.ADD
             marker.scale.x = 0.22
@@ -493,13 +735,13 @@ class SemanticNavNode(Node):
             label.header.frame_id = self.map_frame
             label.header.stamp = t
             label.ns = 'route_stop_labels'
-            label.id = idx * 2 + 1
+            label.id = stable_marker_id(stop.name, 11)
             label.type = Marker.TEXT_VIEW_FACING
             label.action = Marker.ADD
             label.scale.z = 0.4
             label.pose.position.x = place.x
             label.pose.position.y = place.y
-            label.pose.position.z = 0.75
+            label.pose.position.z = 0.86
             label.color.a = 1.0
             label.color.r = 1.0
             label.color.g = 0.9
@@ -549,8 +791,9 @@ class SemanticNavNode(Node):
         meta = self.session_store.load_session_yaml(self.session)
         meta.update({'session_name': self.session.session_name, 'map_yaml': self.session.map_prefix + '.yaml'})
         meta.setdefault('semantic_graph', self.memory.build_relationships(list(self.place_store.places.values())))
-        if place.name.lower() == 'spawn':
+        if place.name.lower() == 'spawn' or place.category.lower() == 'spawn':
             meta['spawn'] = {'x': place.x, 'y': place.y, 'yaw': place.yaw, 'frame_id': self.map_frame}
+            self._spawn_persisted = True
         self.session_store.save_session_yaml(self.session, meta)
 
     def _place_memory_payload(self, place: Place) -> dict:
@@ -680,8 +923,7 @@ class SemanticNavNode(Node):
         base = candidates[0] if candidates else 'labeled_place'
         near = self.place_store.nearest_within(float(pose.pose.position.x), float(pose.pose.position.y), float(self.get_parameter('auto_save_merge_distance_m').value))
         if near:
-            if base in near.name or near.name in base or (near.category and near.category == category):
-                return near.name
+            return near.name
         return self.place_store.unique_name(base)
 
     def extract_json(self, text: str) -> Optional[dict]:
@@ -738,6 +980,7 @@ class SemanticNavNode(Node):
             'label, room, category, aliases, tags, summary, description, tour_fact, navigation_hint, resume_hook, '
             'safety_notes, scene_context, capture_kind, confidence. '
             'Use human-friendly snake_case labels and keep names stable with prior places when appropriate. '
+            'If this scene appears to be the same physical location as an existing place, reuse that place identity instead of inventing a new one. '
             'Keep every string short and concrete. Use at most 12 words per field and at most 3 aliases/tags. '
             'summary should explain why the place matters to navigation, resume, and tours. '
             'tour_fact should be a short visitor-facing fact grounded in the visible scene. '
@@ -806,15 +1049,20 @@ class SemanticNavNode(Node):
         if not str(meta.get('captured_at', '') or '').strip():
             meta['captured_at'] = str(self.get_clock().now().nanoseconds)
         name = self.choose_place_name(meta, pose)
+        merged_existing = name in self.place_store.places
         if allow_repeat_samples or (target_samples and self._teach_auto_save_count < target_samples):
-            name = self.place_store.unique_name(name)
+            if not merged_existing:
+                name = self.place_store.unique_name(name)
         place = self.make_place(name, pose, meta, source='vlm_auto', confidence=float(meta.get('confidence', 1.0)))
         near = self.place_store.nearest_within(place.x, place.y, float(self.get_parameter('auto_save_merge_distance_m').value))
         if near and near.name == name and not allow_repeat_samples:
             place.name = near.name
         self.save_place(place, source_text='vlm_auto')
         self.last_auto_save_xy = (place.x, place.y)
-        self._teach_auto_save_count += 1
+        if not merged_existing:
+            self._teach_auto_save_count += 1
+        else:
+            self.publish_status(f'vlm_merged_duplicate_place name={place.name} sample_index={place.sample_index}')
         self.publish_status(
             f'vlm_labeled_place name={place.name} confidence={place.confidence:.2f} room={place.room or "-"} '
             f'category={place.category or "-"} tags={place.tags} summary={place.summary or place.description or "-"} '
@@ -1100,6 +1348,7 @@ class SemanticNavNode(Node):
         self._active_goal_handle = None
         self._pending_recovery_goal = None
         self._route_goal_active = False
+        self._goal_send_retry_ns = 0
         self.publish_event(PatrolEvent(
             location=self.pose_summary(),
             confidence=1.0,
@@ -1119,10 +1368,12 @@ class SemanticNavNode(Node):
             self.route.state = 'blocked'
             self.route_store.save(self.route)
             self.cancel_active_goal(reason)
+            self._goal_send_retry_ns = 0
             return
         self._last_goal_failed = True
         self._route_goal_active = False
         self.cancel_active_goal(reason)
+        self._goal_send_retry_ns = 0
         self.route.last_failure = {'reason': reason, 'attempts': self._recovery_retries}
         self.route_store.set_last_failure(self.route, self.route.last_failure)
         self.route.state = 'blocked'
@@ -1137,6 +1388,14 @@ class SemanticNavNode(Node):
                     self.advance_tour()
                 else:
                     self.on_route_complete()
+        if self._goal_place is not None and self._active_goal_handle is None and self._goal_send_retry_ns:
+            if self.get_clock().now().nanoseconds >= self._goal_send_retry_ns:
+                retry_goal = self._goal_place
+                route_goal_active = self._route_goal_active
+                self._goal_send_retry_ns = 0
+                self.publish_status(f'retrying_goal_send target={retry_goal.name}')
+                self.send_goal(retry_goal, route_goal_active=route_goal_active)
+                return
         if self.route.state == 'touring' and self._goal_place is None and self.current_route_stop() is not None:
             self.send_stop(self.current_route_stop(), reason='resume_tick')
 
@@ -1156,6 +1415,18 @@ class SemanticNavNode(Node):
             scan_summary=scan,
             pose_summary=pose,
         )
+        tf_age = self.tf_age_seconds(self.map_frame, self.base_frame)
+        tf_max_age = float(self.get_parameter('tf_max_age_sec').value)
+        if tf_age is None:
+            meta['failure_type'] = 'missing_tf'
+            meta['action'] = 'relocalize'
+            meta['safe_anchor'] = meta.get('safe_anchor') or 'spawn'
+            meta['alternate_query'] = meta.get('alternate_query') or 'spawn'
+            meta['note'] = 'Localization transform is unavailable.'
+        elif tf_age > tf_max_age:
+            meta['failure_type'] = 'stale_tf'
+            meta['action'] = 'wait'
+            meta['note'] = f'Localization transform is stale by {tf_age:.1f}s.'
         failure_type = str(meta.get('failure_type', 'unknown')).strip()
         action = str(meta.get('action', 'retry_nav')).strip()
         safe_anchor_name = str(meta.get('safe_anchor', '')).strip()
@@ -1181,6 +1452,12 @@ class SemanticNavNode(Node):
             self.publish_status('recovery_exhausted')
             self.publish_reply('tour: I need help recovering from this route failure.')
             self.pause_tour('tour: I’m pausing the route and asking for help.')
+            return
+        if failure_type in {'stale_tf', 'missing_tf'}:
+            if self._recovery_retries <= 1:
+                self.publish_status('recovery_waiting_for_fresh_tf')
+                return
+            self.pause_tour('tour: I need a fresh localization estimate before I can continue.')
             return
         if action in {'rotate_left', 'rotate_right', 'backup', 'creep_forward', 'wait', 'stop'}:
             if action == 'rotate_left':
@@ -1259,14 +1536,19 @@ class SemanticNavNode(Node):
             f'sending_goal {place.name} -> ({place.x:.2f}, {place.y:.2f}, yaw={place.yaw:.2f}, frame={pose.header.frame_id})'
         )
         if not self.nav_client.wait_for_server(timeout_sec=2.0):
-            self.publish_status('navigate_to_pose server not available')
+            self._goal_send_retry_count += 1
+            self._goal_send_retry_ns = self.get_clock().now().nanoseconds + int(2.0 * 1e9)
+            self.publish_status(f'navigate_to_pose server not available retry={self._goal_send_retry_count}')
             return
+        self._goal_send_retry_ns = 0
+        self._goal_send_retry_count = 0
         future = self.nav_client.send_goal_async(goal, feedback_callback=self.feedback_cb)
         future.add_done_callback(self.goal_response_cb)
 
     def cancel_active_goal(self, reason: str = 'cancelled') -> None:
         goal_handle = self._active_goal_handle
         if goal_handle is None:
+            self._goal_send_retry_ns = 0
             return
         try:
             self.publish_status(f'cancelling_goal reason={reason}')
@@ -1276,6 +1558,7 @@ class SemanticNavNode(Node):
         finally:
             self._active_goal_handle = None
             self._route_goal_active = False
+            self._goal_send_retry_ns = 0
 
     def feedback_cb(self, feedback_msg) -> None:
         fb = feedback_msg.feedback
@@ -1288,6 +1571,8 @@ class SemanticNavNode(Node):
             self.publish_status('goal rejected')
             self.handle_goal_failure('rejected')
             return
+        self._goal_send_retry_ns = 0
+        self._goal_send_retry_count = 0
         self._active_goal_handle = goal_handle
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self.goal_result_cb)
@@ -1300,6 +1585,8 @@ class SemanticNavNode(Node):
             self._fallback_attempts = 0
             self._last_goal_failed = False
             self._recovery_retries = 0
+            self._goal_send_retry_ns = 0
+            self._goal_send_retry_count = 0
             self._active_goal_handle = None
             if self.route.state == 'recovering':
                 if self._pending_recovery_goal is not None:
@@ -1319,6 +1606,8 @@ class SemanticNavNode(Node):
         elif status == GoalStatus.STATUS_CANCELED:
             self.publish_status('goal canceled')
             self._active_goal_handle = None
+            self._goal_send_retry_ns = 0
+            self._goal_send_retry_count = 0
             if self.route.state in {'paused', 'tour_pause'}:
                 return
         else:
@@ -1448,6 +1737,23 @@ class SemanticNavNode(Node):
             place = self.make_place(parts[1], pose, self.parse_kv(parts[2:]), source='manual')
             self.save_place(place, source_text='manual')
             return
+        if cmd in {'save_spawn', 'spawn-save', 'save-spawn'}:
+            pose = self.lookup_current_pose()
+            if pose is None:
+                self.publish_status('spawn_save_failed_no_pose')
+                return
+            place = self.make_place(
+                'spawn',
+                pose,
+                {'room': 'spawn', 'category': 'spawn', 'aliases': ['origin', 'start'], 'tags': ['spawn', 'initial_pose']},
+                source='manual',
+            )
+            self.save_place(place, source_text='spawn_save')
+            self.publish_status('spawn_saved_from_current_pose')
+            return
+        if cmd in {'save_map', 'save-map', 'savemap'}:
+            self.save_map_snapshot(force=True)
+            return
         if cmd == 'goal-save' and len(parts) >= 2:
             if self.latest_goal is None:
                 self.publish_status('No cached /goal_pose yet.')
@@ -1497,9 +1803,11 @@ class SemanticNavNode(Node):
             return
         self.publish_status(f'unknown command: {line}')
 
-    def save_map_snapshot(self) -> None:
+    def save_map_snapshot(self, force: bool = False) -> None:
         cmd = str(self.get_parameter('map_saver_cmd').value)
-        if not cmd or not bool(self.get_parameter('save_map_on_shutdown').value):
+        if not cmd:
+            return
+        if not force and not bool(self.get_parameter('save_map_on_shutdown').value):
             return
         prefix = self.session.map_prefix
         try:
@@ -1519,9 +1827,18 @@ class SemanticNavNode(Node):
             meta = self.session_store.load_session_yaml(self.session)
             meta['semantic_graph'] = self.memory.build_relationships(list(self.place_store.places.values()))
             meta['route'] = self.route.to_dict()
+            if self.mode == 'teach' and not meta.get('spawn'):
+                pose = self.lookup_current_pose()
+                if pose is not None:
+                    meta['spawn'] = {
+                        'x': float(pose.pose.position.x),
+                        'y': float(pose.pose.position.y),
+                        'yaw': float(yaw_from_quat(pose.pose.orientation)),
+                        'frame_id': pose.header.frame_id or self.map_frame,
+                    }
             self.session_store.save_session_yaml(self.session, meta)
             if self.mode == 'teach':
-                self.save_map_snapshot()
+                self.save_map_snapshot(force=False)
         except Exception:
             pass
 
