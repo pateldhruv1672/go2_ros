@@ -25,15 +25,15 @@ def _build_semantic_nav2_params(source_path: str) -> str:
         params = yaml.safe_load(f) or {}
 
     try:
-        params['local_costmap']['local_costmap']['ros__parameters']['voxel_layer']['scan']['topic'] = '/scan_fixed'
+        params['local_costmap']['local_costmap']['ros__parameters']['obstacle_layer']['scan']['topic'] = '/scan'
     except Exception:
         pass
     try:
-        params['global_costmap']['global_costmap']['ros__parameters']['voxel_layer']['scan']['topic'] = '/scan_fixed'
+        params['global_costmap']['global_costmap']['ros__parameters']['obstacle_layer']['scan']['topic'] = '/scan'
     except Exception:
         pass
     try:
-        params['collision_monitor']['ros__parameters']['scan']['topic'] = '/scan_fixed'
+        params['collision_monitor']['ros__parameters']['scan']['topic'] = '/scan'
     except Exception:
         pass
 
@@ -48,6 +48,7 @@ def launch_setup(context, *args, **kwargs):
     session_name = LaunchConfiguration('session_name').perform(context).strip()
     rviz = LaunchConfiguration('rviz').perform(context).lower() in ('1', 'true', 'yes')
     rviz2 = LaunchConfiguration('rviz2').perform(context).lower() in ('1', 'true', 'yes')
+    restore_spawn_on_start = LaunchConfiguration('restore_spawn_on_start').perform(context).lower() in ('1', 'true', 'yes')
     if not session_name:
         session_name = _latest_usable(session_root)
     session_dir = os.path.join(session_root, session_name)
@@ -92,14 +93,15 @@ def launch_setup(context, *args, **kwargs):
         )
     )
     nodes += [
-        Node(package='go2_semantic_nav_agent', executable='scan_retimestamp_node', name='scan_retimestamp_node', output='screen'),
         Node(package='go2_semantic_nav_agent', executable='semantic_nav_node', name='semantic_nav_node', output='screen', parameters=[{
             'mode': 'resume',
             'session_root': session_root,
             'session_name': session_name,
             'auto_save_places': False,
             'auto_save_use_vlm': False,
-            'restore_spawn_on_start': True,
+            'restore_spawn_on_start': restore_spawn_on_start,
+            'allow_manual_initialpose_override': True,
+            'scan_topic': '/scan',
         }]),
     ]
     if rviz or rviz2:
@@ -113,5 +115,6 @@ def generate_launch_description():
         DeclareLaunchArgument('session_name', default_value=''),
         DeclareLaunchArgument('rviz', default_value='false'),
         DeclareLaunchArgument('rviz2', default_value='false'),
+        DeclareLaunchArgument('restore_spawn_on_start', default_value='true'),
         OpaqueFunction(function=launch_setup),
     ])

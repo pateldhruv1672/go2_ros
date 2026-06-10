@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-pkill -f "go2_driver_node|robot_state_publisher|slam_toolbox|amcl|map_server|rviz2|semantic_nav|bt_navigator|planner_server|controller_server|lifecycle_manager|foxglove_bridge|local_omi_stt_node|dialogue_orchestrator_node|camera_agent_node|speaker_tts_node|pointcloud_aggregator|pointcloud_to_laserscan_node|go2_pointcloud_to_laserscan|lidar_to_pointcloud|scan_retimestamp_node" || true
+pkill -f "go2_driver_node|robot_state_publisher|slam_toolbox|amcl|map_server|rviz2|bt_navigator|planner_server|controller_server|lifecycle_manager|foxglove_bridge|local_omi_stt_node|dialogue_orchestrator_node|camera_agent_node|speaker_tts_node|pointcloud_aggregator|pointcloud_to_laserscan_node|go2_pointcloud_to_laserscan|lidar_to_pointcloud|scan_retimestamp_node|semantic_nav_node|semantic_nav_rviz2|resume_map_server|resume_map_lifecycle_manager|behavior_server|opennav_docking" || true
 sleep 3
 
 export ROS_HOME=/tmp/ros_home_sparky
@@ -20,8 +20,14 @@ set -u
 export ROBOT_IP=192.168.12.1
 export CONN_TYPE=webrtc
 
-BASE_MODE="${BASE_MODE:-teach}"
+
+BASE_MODE="${BASE_MODE:-base}"
 case "$BASE_MODE" in
+  base|normal)
+    SLAM="${SLAM:-false}"
+    NAV2="${NAV2:-false}"
+    RVIZ2="${RVIZ2:-false}"
+    ;;
   teach)
     SLAM="${SLAM:-true}"
     NAV2="${NAV2:-false}"
@@ -29,11 +35,11 @@ case "$BASE_MODE" in
     ;;
   resume)
     SLAM="${SLAM:-false}"
-    NAV2="${NAV2:-false}"
+    NAV2="${NAV2:-true}"
     RVIZ2="${RVIZ2:-false}"
     ;;
   *)
-    echo "BASE_MODE must be 'teach' or 'resume' (got: $BASE_MODE)" >&2
+    echo "BASE_MODE must be one of: base, normal, teach, resume (got: $BASE_MODE)" >&2
     exit 2
     ;;
 esac
@@ -42,6 +48,7 @@ FOXGLOVE="${FOXGLOVE:-false}"
 ros2 daemon stop || true
 ros2 daemon start || true
 
+# Keep the base bringup minimal and switch only the navigation subsystem per mode.
 exec ros2 launch go2_robot_sdk robot.launch.py \
   foxglove:="$FOXGLOVE" \
   slam:="$SLAM" \

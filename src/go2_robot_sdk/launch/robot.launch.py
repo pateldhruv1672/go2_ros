@@ -166,7 +166,7 @@ class Go2NodeFactory:
                 executable='pointcloud_to_laserscan_node',
                 name='go2_pointcloud_to_laserscan',
                 remappings=[
-                    ('cloud_in', '/pointcloud/filtered'),
+                    ('cloud_in', 'point_cloud2'),
                     ('scan', 'scan'),
                 ],
                 parameters=[{
@@ -188,7 +188,8 @@ class Go2NodeFactory:
                 parameters=[{
                     'robot_ip': self.config.robot_ip,
                     'token': self.config.robot_token,
-                    'conn_type': self.config.conn_type
+                    'conn_type': self.config.conn_type,
+                    'obstacle_avoidance': True,
                 }],
             ),
             # LiDAR processing node (new separate package)
@@ -295,6 +296,11 @@ class Go2NodeFactory:
             get_package_share_directory('foxglove_bridge'),
             'launch', 'foxglove_bridge_launch.xml'
         )
+        nav2_launch = os.path.join(
+            self.config.package_dir,
+            'launch',
+            'navigation_no_docking.launch.py',
+        )
         
         return [
             # Foxglove Bridge
@@ -316,14 +322,15 @@ class Go2NodeFactory:
             ),
             # Nav2
             IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([
-                    os.path.join(get_package_share_directory('go2_robot_sdk'),
-                                'launch', 'navigation_no_docking.launch.py')
-                ]),
+                PythonLaunchDescriptionSource([nav2_launch]),
                 condition=IfCondition(with_nav2),
                 launch_arguments={
                     'params_file': self.config.config_paths['nav2'],
                     'use_sim_time': use_sim_time,
+                    'autostart': 'true',
+                    'use_composition': 'False',
+                    'use_respawn': 'False',
+                    'log_level': 'info',
                 }.items(),
             ),
         ]

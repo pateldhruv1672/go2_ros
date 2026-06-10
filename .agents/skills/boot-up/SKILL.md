@@ -246,9 +246,10 @@ export ROS_DOMAIN_ID=7
 export ROS_LOCALHOST_ONLY=0
 
 source /opt/ros/jazzy/setup.bash
-source src/.venv/bin/activate
+set +u
+source /opt/ros/jazzy/setup.bash
 source install/setup.bash
-
+set -u
 pkill -9 -f "rviz2|go2_rviz2|robot.launch.py|go2_driver_node|bt_navigator|planner_server|controller_server|behavior_server|lifecycle_manager|nav2|collision_monitor|docking_server|slam_toolbox|foxglove_bridge|pointcloud|lidar" || true
 
 ros2 daemon stop || true

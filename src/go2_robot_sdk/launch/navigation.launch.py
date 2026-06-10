@@ -86,7 +86,8 @@ def generate_launch_description():
             parameters=[{
                 'robot_ip': robot_ip,
                 'token': robot_token,
-                'conn_type': conn_type
+                'conn_type': conn_type,
+                'obstacle_avoidance': True,
             }],
         ),
         # LiDAR processing node
@@ -123,7 +124,7 @@ def generate_launch_description():
             executable='pointcloud_to_laserscan_node',
             name='go2_pointcloud_to_laserscan',
             remappings=[
-                ('cloud_in', '/pointcloud/filtered'),
+                ('cloud_in', '/pointcloud/aggregated'),
                 ('scan', '/scan'),
             ],
             parameters=[{
@@ -141,21 +142,27 @@ def generate_launch_description():
             }],
             output='screen',
         ),
-        # TTS Node
-        Node(
-            package='speech_processor',
-            executable='tts_node',
-            name='tts_node',
-            parameters=[{
-                'api_key': os.getenv('ELEVENLABS_API_KEY', ''),
-                'provider': 'elevenlabs',
-                'voice_name': 'XrExE9yKIg1WjnnlVkGX',
-                'local_playback': False,
-                'use_cache': True,
-                'audio_quality': 'standard'
-            }],
-        ),
     ]
+
+    elevenlabs_api_key = os.getenv('ELEVENLABS_API_KEY', '').strip()
+    if elevenlabs_api_key:
+        core_nodes.append(
+            Node(
+                package='speech_processor',
+                executable='tts_node',
+                name='tts_node',
+                parameters=[{
+                    'api_key': elevenlabs_api_key,
+                    'provider': 'elevenlabs',
+                    'voice_name': 'XrExE9yKIg1WjnnlVkGX',
+                    'local_playback': False,
+                    'use_cache': True,
+                    'audio_quality': 'standard'
+                }],
+            )
+        )
+    else:
+        print('[go2_robot_sdk] Skipping speech_processor tts_node because ELEVENLABS_API_KEY is not set')
     
     # Teleop nodes
     teleop_nodes = [
@@ -203,29 +210,44 @@ def generate_launch_description():
         'launch', 'foxglove_bridge_launch.xml'
     )
     
+    localization_nodes = [
+        Node(
+            package='nav2_map_server',
+            executable='map_server',
+            name='map_server',
+            output='screen',
+            parameters=[config_paths['nav2'], {'yaml_filename': map_arg}],
+        ),
+        Node(
+            package='nav2_amcl',
+            executable='amcl',
+            name='amcl',
+            output='screen',
+            parameters=[config_paths['nav2']],
+        ),
+        Node(
+            package='nav2_lifecycle_manager',
+            executable='lifecycle_manager',
+            name='lifecycle_manager_localization',
+            output='screen',
+            parameters=[{
+                'autostart': True,
+                'node_names': ['map_server', 'amcl'],
+            }],
+        ),
+    ]
+
     include_launches = [
         # Foxglove Bridge
         IncludeLaunchDescription(
             FrontendLaunchDescriptionSource(foxglove_launch),
             condition=IfCondition(with_foxglove),
         ),
-        # AMCL Localization
+        *localization_nodes,
+        # Nav2 Navigation without docking
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
-                os.path.join(get_package_share_directory('nav2_bringup'),
-                            'launch', 'localization_launch.py')
-            ]),
-            launch_arguments={
-                'map': map_arg,
-                'params_file': config_paths['nav2'],
-                'use_sim_time': use_sim_time,
-            }.items(),
-        ),
-        # Nav2 Navigation
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource([
-                os.path.join(get_package_share_directory('nav2_bringup'),
-                            'launch', 'navigation_launch.py')
+                os.path.join(package_dir, 'launch', 'navigation_no_docking.launch.py')
             ]),
             launch_arguments={
                 'params_file': config_paths['nav2'],

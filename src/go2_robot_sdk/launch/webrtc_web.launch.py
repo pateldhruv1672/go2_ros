@@ -86,7 +86,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'obstacle_avoidance',
-            default_value='false',
+            default_value='true',
             description='Enable obstacle avoidance',
         ),
         DeclareLaunchArgument(
@@ -153,16 +153,21 @@ def generate_launch_description():
                 condition=IfCondition(LaunchConfiguration('enable_foxglove_bridge')),
             ),
 
-            # TTS node
+            # TTS node is optional and only launched when ElevenLabs is configured.
             Node(
-                package='go2_robot_sdk',
+                package='speech_processor',
                 executable='tts_node',
                 name='tts_node',
                 parameters=[{
-                    'elevenlabs_api_key': elevenlabs_api_key,
-                    'voice_name': voice_name
+                    'api_key': elevenlabs_api_key,
+                    'provider': 'elevenlabs',
+                    'voice_name': voice_name,
+                    'local_playback': False,
+                    'use_cache': True,
+                    'audio_quality': 'standard',
                 }],
                 on_exit=on_exit,
+                condition=IfCondition(PythonExpression(["'", elevenlabs_api_key, "' != ''"])),
             ),
         ]),
 
