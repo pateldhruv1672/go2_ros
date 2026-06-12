@@ -22,20 +22,24 @@ def _latest_usable(root: str) -> str:
     raise RuntimeError(f'No usable session found in {root}')
 
 
-def _build_semantic_nav2_params(source_path: str) -> str:
+def _build_semantic_nav2_params(source_path: str, scan_topic: str) -> str:
     with open(source_path, 'r', encoding='utf-8') as f:
         params = yaml.safe_load(f) or {}
+    try:
+        params.setdefault('amcl', {}).setdefault('ros__parameters', {})['scan_topic'] = scan_topic
+    except Exception:
+        pass
 
     try:
-        params['local_costmap']['local_costmap']['ros__parameters']['obstacle_layer']['scan']['topic'] = '/scan'
+        params['local_costmap']['local_costmap']['ros__parameters']['obstacle_layer']['scan']['topic'] = scan_topic
     except Exception:
         pass
     try:
-        params['global_costmap']['global_costmap']['ros__parameters']['obstacle_layer']['scan']['topic'] = '/scan'
+        params['global_costmap']['global_costmap']['ros__parameters']['obstacle_layer']['scan']['topic'] = scan_topic
     except Exception:
         pass
     try:
-        params['collision_monitor']['ros__parameters']['scan']['topic'] = '/scan'
+        params['collision_monitor']['ros__parameters']['scan']['topic'] = scan_topic
     except Exception:
         pass
 
@@ -52,6 +56,10 @@ def launch_setup(context, *args, **kwargs):
     rviz2 = LaunchConfiguration('rviz2').perform(context).lower() in ('1', 'true', 'yes')
     restore_spawn_on_start = LaunchConfiguration('restore_spawn_on_start').perform(context).lower() in ('1', 'true', 'yes')
     nav2_start_delay_sec = float(LaunchConfiguration('nav2_start_delay_sec').perform(context))
+    scan_input_topic = LaunchConfiguration('scan_input_topic').perform(context).strip() or '/scan'
+    scan_nav_topic = LaunchConfiguration('scan_nav_topic').perform(context).strip() or '/scan_nav'
+    scan_frame_id = LaunchConfiguration('scan_frame_id').perform(context).strip() or 'base_link'
+    scan_stamp_offset_sec = float(LaunchConfiguration('scan_stamp_offset_sec').perform(context))
     if not session_name:
         session_name = _latest_usable(session_root)
     store = SessionStore(session_root)
@@ -67,11 +75,14 @@ def launch_setup(context, *args, **kwargs):
     rviz_cfg = PathJoinSubstitution([package_share, 'config', 'semantic_nav.rviz'])
     amcl_cfg = PathJoinSubstitution([package_share, 'config', 'amcl_params.yaml'])
     nav2_launch = PathJoinSubstitution([go2_share, 'launch', 'navigation_no_docking.launch.py'])
-    nav2_params = _build_semantic_nav2_params(os.path.join(
-        get_package_share_directory('go2_robot_sdk'),
-        'config',
-        'nav2_params.yaml',
-    ))
+    nav2_params = _build_semantic_nav2_params(
+        os.path.join(
+            get_package_share_directory('go2_robot_sdk'),
+            'config',
+            'nav2_params.yaml',
+        ),
+        scan_nav_topic,
+    )
     if map_yaml is None:
         configured = str(meta.get('map_yaml', '') or '').strip() or os.path.join(session_dir, 'map.yaml')
         raise RuntimeError(
@@ -80,8 +91,20 @@ def launch_setup(context, *args, **kwargs):
         )
     print(f'[semantic_nav_resume] using session={session_name} map={map_yaml}')
     nodes = [
+        Node(
+            package='go2_semantic_nav_agent',
+            executable='scan_retimestamp_node',
+            name='scan_retimestamp_node',
+            output='screen',
+            parameters=[{
+                'input_topic': scan_input_topic,
+                'output_topic': scan_nav_topic,
+                'frame_id': scan_frame_id,
+                'stamp_offset_sec': scan_stamp_offset_sec,
+            }],
+        ),
         Node(package='nav2_map_server', executable='map_server', name='resume_map_server', output='screen', parameters=[{'yaml_filename': map_yaml}]),
-        Node(package='nav2_amcl', executable='amcl', name='amcl', output='screen', parameters=[amcl_cfg]),
+        Node(package='nav2_amcl', executable='amcl', name='amcl', output='screen', parameters=[amcl_cfg, {'scan_topic': scan_nav_topic}]),
         Node(package='nav2_lifecycle_manager', executable='lifecycle_manager', name='resume_map_lifecycle_manager', output='screen', parameters=[{
             'autostart': True,
             'node_names': ['resume_map_server', 'amcl'],
@@ -107,7 +130,7 @@ def launch_setup(context, *args, **kwargs):
             'auto_save_use_vlm': False,
             'restore_spawn_on_start': restore_spawn_on_start,
             'allow_manual_initialpose_override': True,
-            'scan_topic': '/scan',
+            'scan_topic': scan_nav_topic,
         }]),
     ]
     if rviz or rviz2:
@@ -126,5 +149,9 @@ def generate_launch_description():
         DeclareLaunchArgument('rviz2', default_value='false'),
         DeclareLaunchArgument('restore_spawn_on_start', default_value='true'),
         DeclareLaunchArgument('nav2_start_delay_sec', default_value='2.5'),
+        DeclareLaunchArgument('scan_input_topic', default_value='/scan'),
+        DeclareLaunchArgument('scan_nav_topic', default_value='/scan_nav'),
+        DeclareLaunchArgument('scan_frame_id', default_value='base_link'),
+        DeclareLaunchArgument('scan_stamp_offset_sec', default_value='0.30'),
         OpaqueFunction(function=launch_setup),
     ])

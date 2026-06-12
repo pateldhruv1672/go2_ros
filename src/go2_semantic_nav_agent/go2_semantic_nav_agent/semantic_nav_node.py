@@ -158,6 +158,7 @@ class SemanticNavNode(Node):
         self._recovery_retries = 0
         self._route_goal_active = False
         self._active_goal_handle = None
+        self._goal_send_in_flight = False
         self._pending_recovery_goal: Optional[Place] = None
         self._teach_auto_save_count = sum(1 for p in self.place_store.places.values() if getattr(p, 'source', '') == 'vlm_auto')
 
@@ -1592,6 +1593,12 @@ class SemanticNavNode(Node):
         return True
 
     def send_goal(self, place: Place, route_goal_active: bool = False) -> None:
+        if self._goal_send_in_flight:
+            self.publish_status(f'skipping_goal_send_in_flight target={place.name}')
+            return
+        if self._active_goal_handle is not None:
+            self.publish_status(f'skipping_goal_already_active target={place.name}')
+            return
         self._goal_place = place
         self._last_goal_failed = False
         self._route_goal_active = route_goal_active
@@ -1610,10 +1617,12 @@ class SemanticNavNode(Node):
             return
         self._goal_send_retry_ns = 0
         self._goal_send_retry_count = 0
+        self._goal_send_in_flight = True
         future = self.nav_client.send_goal_async(goal, feedback_callback=self.feedback_cb)
         future.add_done_callback(self.goal_response_cb)
 
     def cancel_active_goal(self, reason: str = 'cancelled') -> None:
+        self._goal_send_in_flight = False
         goal_handle = self._active_goal_handle
         if goal_handle is None:
             self._goal_send_retry_ns = 0
@@ -1634,7 +1643,15 @@ class SemanticNavNode(Node):
         self.publish_status(f'navigating target={self._goal_place.name if self._goal_place else "-"} distance_remaining={dist:.2f}')
 
     def goal_response_cb(self, future) -> None:
-        goal_handle = future.result()
+        try:
+            goal_handle = future.result()
+        except Exception as exc:
+            self._goal_send_in_flight = False
+            self._active_goal_handle = None
+            self.publish_status(f'goal_send_failed error={exc}')
+            self.handle_goal_failure('goal_send_failed')
+            return
+        self._goal_send_in_flight = False
         if not goal_handle.accepted:
             self.publish_status('goal rejected')
             self.handle_goal_failure('rejected')
@@ -1646,7 +1663,14 @@ class SemanticNavNode(Node):
         result_future.add_done_callback(self.goal_result_cb)
 
     def goal_result_cb(self, future) -> None:
-        result = future.result()
+        try:
+            result = future.result()
+        except Exception as exc:
+            self._goal_send_in_flight = False
+            self._active_goal_handle = None
+            self.publish_status(f'goal_result_failed error={exc}')
+            self.handle_goal_failure('goal_result_failed')
+            return
         status = result.status
         if status == GoalStatus.STATUS_SUCCEEDED:
             self.publish_status('goal succeeded')

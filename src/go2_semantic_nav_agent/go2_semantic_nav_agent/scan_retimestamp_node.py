@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import rclpy
 from rclpy.executors import ExternalShutdownException
+import rclpy.duration
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import LaserScan
@@ -13,9 +14,11 @@ class ScanRetimestampNode(Node):
         self.declare_parameter('input_topic', '/scan')
         self.declare_parameter('output_topic', '/scan_fixed')
         self.declare_parameter('frame_id', 'base_link')
+        self.declare_parameter('stamp_offset_sec', 0.30)
         input_topic = str(self.get_parameter('input_topic').value)
         output_topic = str(self.get_parameter('output_topic').value)
         self.frame_id = str(self.get_parameter('frame_id').value)
+        self.stamp_offset_sec = float(self.get_parameter('stamp_offset_sec').value)
 
         qos = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
@@ -29,7 +32,8 @@ class ScanRetimestampNode(Node):
 
     def scan_cb(self, msg: LaserScan) -> None:
         out = LaserScan()
-        out.header.stamp = self.get_clock().now().to_msg()
+        stamp = self.get_clock().now() + rclpy.duration.Duration(seconds=self.stamp_offset_sec)
+        out.header.stamp = stamp.to_msg()
         out.header.frame_id = self.frame_id or msg.header.frame_id
         out.angle_min = msg.angle_min
         out.angle_max = msg.angle_max

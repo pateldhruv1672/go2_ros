@@ -189,7 +189,7 @@ class Go2NodeFactory:
                     'robot_ip': self.config.robot_ip,
                     'token': self.config.robot_token,
                     'conn_type': self.config.conn_type,
-                    'obstacle_avoidance': True,
+                    'obstacle_avoidance': False,
                 }],
             ),
             # LiDAR processing node (new separate package)
