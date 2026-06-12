@@ -50,9 +50,51 @@ class SessionStore:
         for d in items:
             if not os.path.isdir(d):
                 continue
-            if all(os.path.isfile(os.path.join(d, f)) for f in ('map.yaml', 'map.pgm', 'places.yaml', 'session.yaml')):
-                return self.for_name(os.path.basename(d))
+            session = self.for_name(os.path.basename(d))
+            if self.is_resume_usable(session):
+                return session
         return None
+
+    def resolve_map_yaml(self, session: SessionPaths) -> str | None:
+        meta = self.load_session_yaml(session)
+        candidates: list[str] = []
+        raw_map_yaml = str(meta.get('map_yaml', '') or '').strip()
+        if raw_map_yaml:
+            candidates.append(raw_map_yaml if os.path.isabs(raw_map_yaml) else os.path.join(session.session_dir, raw_map_yaml))
+        candidates.append(session.map_prefix + '.yaml')
+
+        seen: set[str] = set()
+        for candidate in candidates:
+            path = os.path.abspath(os.path.expanduser(candidate))
+            if path in seen or not os.path.isfile(path):
+                continue
+            seen.add(path)
+            image_path = self._resolve_map_image(path)
+            if image_path is not None:
+                return path
+        return None
+
+    def is_resume_usable(self, session: SessionPaths) -> bool:
+        if not os.path.isfile(session.places_path):
+            return False
+        if not os.path.isfile(session.session_yaml_path):
+            return False
+        return self.resolve_map_yaml(session) is not None
+
+    def _resolve_map_image(self, map_yaml_path: str) -> str | None:
+        try:
+            with open(map_yaml_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f) or {}
+        except Exception:
+            return None
+        image = str(data.get('image', '') or '').strip()
+        if not image:
+            return None
+        image_path = image if os.path.isabs(image) else os.path.join(os.path.dirname(map_yaml_path), image)
+        image_path = os.path.abspath(os.path.expanduser(image_path))
+        if not os.path.isfile(image_path):
+            return None
+        return image_path
 
     def load_session_yaml(self, session: SessionPaths) -> dict:
         if not os.path.isfile(session.session_yaml_path):

@@ -176,7 +176,7 @@ class Go2NodeFactory:
                 executable='pointcloud_to_laserscan_node',
                 name='go2_pointcloud_to_laserscan',
                 remappings=[
-                    ('cloud_in', '/pointcloud/filtered'),
+                    ('cloud_in', '/pointcloud/aggregated'),
                     ('scan', '/scan'),
                 ],
                 parameters=[{
@@ -206,7 +206,8 @@ class Go2NodeFactory:
                 parameters=[{
                     'robot_ip': self.config.robot_ip,
                     'token': self.config.robot_token,
-                    'conn_type': self.config.conn_type
+                    'conn_type': self.config.conn_type,
+                    'obstacle_avoidance': True,
                 }],
             ),
             # LiDAR processing node (C++ implementation)
@@ -237,19 +238,25 @@ class Go2NodeFactory:
                     'publish_rate': 20.0
                 }],
             ),
-            # TTS Node (new separate package)
-            Node(
-                package='speech_processor',
-                executable='tts_node',
-                name='tts_node',
-                parameters=[{
-                    'api_key': os.getenv('ELEVENLABS_API_KEY', ''),
-                    'provider': 'elevenlabs',
-                    'voice_name': 'XrExE9yKIg1WjnnlVkGX',
-                    'local_playback': False,
-                    'use_cache': True,
-                    'audio_quality': 'standard'
-                }],
+            # TTS node is optional and only launched when ElevenLabs is configured.
+            *(
+                [
+                    Node(
+                        package='speech_processor',
+                        executable='tts_node',
+                        name='tts_node',
+                        parameters=[{
+                            'api_key': elevenlabs_api_key,
+                            'provider': 'elevenlabs',
+                            'voice_name': 'XrExE9yKIg1WjnnlVkGX',
+                            'local_playback': False,
+                            'use_cache': True,
+                            'audio_quality': 'standard'
+                        }],
+                    )
+                ]
+                if (elevenlabs_api_key := os.getenv('ELEVENLABS_API_KEY', '').strip())
+                else []
             ),
         ]
     

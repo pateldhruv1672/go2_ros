@@ -17,6 +17,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
 import numpy as np
+from std_msgs.msg import Header
 
 
 @dataclass 
@@ -84,6 +85,7 @@ class PointCloudAggregatorNode(Node):
         
         # Storage for aggregated points
         self.aggregated_points: List[np.ndarray] = []
+        self._latest_header: Header | None = None
         self.last_publish_time = time.time()
         
         # Setup subscriptions and publishers
@@ -145,6 +147,7 @@ class PointCloudAggregatorNode(Node):
     def _pointcloud_callback(self, msg: PointCloud2) -> None:
         """Process incoming aggregated point cloud"""
         try:
+            self._latest_header = msg.header
             # Extract points
             points = []
             for point in point_cloud2.read_points(msg, field_names=("x", "y", "z"), skip_nans=True):
@@ -210,8 +213,12 @@ class PointCloudAggregatorNode(Node):
                 return
             
             # Create header
-            header = self.get_clock().now().to_msg()
-            header.frame_id = "base_link"
+            header = Header()
+            header.stamp = self.get_clock().now().to_msg()
+            header.frame_id = (
+                (self._latest_header.frame_id if self._latest_header is not None else '') or
+                'odom'
+            )
             
             # Publish filtered cloud
             filtered_msg = point_cloud2.create_cloud_xyz32(header, all_points.tolist())

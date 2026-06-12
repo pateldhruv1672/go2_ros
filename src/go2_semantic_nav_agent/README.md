@@ -7,9 +7,9 @@ Full ROS 2 package for Go2 semantic teach/resume navigation with:
 - VLM-supervised fallback recovery using bounded teleop-like motion primitives
 
 ## Resume architecture
-1. Start `go2_robot_sdk robot.launch.py foxglove:=false slam:=false nav2:=true`
+1. Start the base bringup only: `BASE_MODE=base bash scripts/run_robot_live.sh`
 2. Start `semantic_nav_resume.launch.py`
-3. Resume launch starts its own `map_server`, `amcl`, lifecycle manager, `scan_retimestamp_node`, and `semantic_nav_node`
+3. Resume launch starts its own `map_server`, `amcl`, lifecycle manager, and `semantic_nav_node`
 4. `semantic_nav_node` waits for odom TF, then publishes spawn to `/initialpose` with stamp zero
 5. Nav2 handles normal navigation; on goal failure, semantic fallback can run short bounded recoveries and retry
 

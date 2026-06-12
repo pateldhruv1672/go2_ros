@@ -98,7 +98,7 @@ class Go2DriverNode(Node):
                 ('enable_video', True),
                 ('decode_lidar', True),
                 ('publish_raw_voxel', False),
-                ('obstacle_avoidance', False),
+                ('obstacle_avoidance', True),
             ]
         )
 

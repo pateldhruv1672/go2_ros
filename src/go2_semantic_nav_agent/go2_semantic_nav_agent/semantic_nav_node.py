@@ -129,6 +129,7 @@ class SemanticNavNode(Node):
 
         self.latest_image_bytes: Optional[bytes] = None
         self.latest_scan: Optional[LaserScan] = None
+        self._latest_scan_received_ns = 0
         self.latest_goal: Optional[PoseStamped] = None
         self.last_auto_save_xy: Optional[tuple[float, float]] = None
         self._goal_place: Optional[Place] = None
@@ -138,6 +139,9 @@ class SemanticNavNode(Node):
         self._goal_send_retry_count = 0
         self._restore_count = 0
         self._restore_done = False
+        self._restore_spawn_last_publish_ns = 0
+        self._restore_spawn_verified = False
+        self._restore_spawn_last_target: Optional[dict] = None
         self._restore_next_attempt_ns = 0
         self._spawn_persisted = False
         self._amcl_active = False
@@ -179,9 +183,10 @@ class SemanticNavNode(Node):
 
         self.create_subscription(String, '/semantic_nav/command', self.cmd_cb, 10)
         self.create_subscription(PoseStamped, '/goal_pose', self.goal_cb, 10)
+        self.create_subscription(PoseWithCovarianceStamped, '/initialpose', self.initialpose_cb, 10)
         self.create_subscription(Image, str(self.get_parameter('camera_image_topic').value), self.image_cb, qos_profile_sensor_data)
         self.create_subscription(CompressedImage, str(self.get_parameter('camera_compressed_topic').value), self.compressed_cb, qos_profile_sensor_data)
-        self.create_subscription(LaserScan, '/scan_fixed', self.scan_cb, qos_profile_sensor_data)
+        self.create_subscription(LaserScan, str(self.get_parameter('scan_topic').value), self.scan_cb, qos_profile_sensor_data)
 
         self.create_timer(1.0, self.publish_markers)
         self.create_timer(0.05, self.motion_tick)
@@ -219,6 +224,7 @@ class SemanticNavNode(Node):
         self.declare_parameter('base_frame', 'base_link')
         self.declare_parameter('camera_image_topic', '/camera/image_raw')
         self.declare_parameter('camera_compressed_topic', '/camera/image_raw/compressed')
+        self.declare_parameter('scan_topic', '/scan')
         self.declare_parameter('openrouter_model', 'google/gemini-2.5-flash')
         self.declare_parameter('openrouter_base_url', 'https://openrouter.ai/api/v1/chat/completions')
         self.declare_parameter('tour_mode', True)
@@ -235,6 +241,7 @@ class SemanticNavNode(Node):
         self.declare_parameter('auto_save_min_confidence', 0.55)
         self.declare_parameter('clear_places_on_start', False)
         self.declare_parameter('restore_spawn_on_start', True)
+        self.declare_parameter('allow_manual_initialpose_override', True)
         self.declare_parameter('restore_spawn_retry_interval_sec', 5.0)
         self.declare_parameter('restore_spawn_position_tolerance_m', 0.75)
         self.declare_parameter('restore_spawn_yaw_tolerance_rad', 0.75)
@@ -429,6 +436,14 @@ class SemanticNavNode(Node):
 
     def scan_cb(self, msg: LaserScan) -> None:
         self.latest_scan = msg
+        self._latest_scan_received_ns = self.get_clock().now().nanoseconds
+
+    def scan_ready_for_initialpose(self) -> bool:
+        if self.latest_scan is None:
+            return False
+        max_age_sec = max(0.5, float(self.get_parameter('tf_max_age_sec').value))
+        now_ns = self.get_clock().now().nanoseconds
+        return (now_ns - self._latest_scan_received_ns) <= int(max_age_sec * 1e9)
 
     def scan_summary(self) -> dict:
         if self.latest_scan is None:
@@ -511,13 +526,10 @@ class SemanticNavNode(Node):
         """
         Resume-mode startup localization restore.
 
-        This intentionally publishes /initialpose only ONCE per semantic_nav_node start.
-        The timer may call this function repeatedly, but after one successful publish,
-        self._restore_done is set to True and all future calls return immediately.
-
-        We do NOT keep checking whether map->base_link already equals spawn, because
-        that caused repeated AMCL resets when the current TF estimate stayed far from
-        the saved spawn pose.
+        We publish /initialpose once AMCL is active, then keep checking the
+        resulting map->base_link pose until it settles near the saved spawn.
+        If localization does not converge, we retry on a controlled cadence so
+        resume mode can recover from a weak or ignored first initial pose.
         """
         if self._restore_done:
             return
@@ -549,6 +561,30 @@ class SemanticNavNode(Node):
             self._restore_done = True
             return
 
+        if not self.scan_ready_for_initialpose():
+            self.publish_status('scan_not_ready_before_spawn_restore_publishing_anyway')
+
+        now_ns = self.get_clock().now().nanoseconds
+        current_pose = self.lookup_current_pose()
+        if current_pose is not None and self._restore_spawn_last_publish_ns > 0:
+            matched, pose_dist, yaw_err = self.current_pose_matches_spawn(current_pose, spawn)
+            if matched:
+                self._restore_spawn_verified = True
+                self._restore_done = True
+                self.publish_status(
+                    f'restored_spawn_verified name=spawn '
+                    f'dist={pose_dist:.2f} yaw_err={yaw_err:.2f} '
+                    f'count={self._restore_count}'
+                )
+                return
+            self.publish_status(
+                f'resume_pose_needs_refresh dist={pose_dist:.2f} yaw_err={yaw_err:.2f}'
+            )
+
+        retry_interval_ns = int(float(self.get_parameter('restore_spawn_retry_interval_sec').value) * 1e9)
+        if self._restore_spawn_last_publish_ns and now_ns < self._restore_next_attempt_ns:
+            return
+
         subscriber_count = 0
         try:
             subscriber_count = int(self.initialpose_pub.get_subscription_count())
@@ -578,20 +614,52 @@ class SemanticNavNode(Node):
         msg.pose.covariance[7] = pos_cov
         msg.pose.covariance[35] = yaw_cov
 
+        self._restore_spawn_last_target = {
+            'x': float(spawn.get('x', 0.0)),
+            'y': float(spawn.get('y', 0.0)),
+            'yaw': float(spawn.get('yaw', 0.0)),
+            'frame_id': msg.header.frame_id,
+        }
         self.initialpose_pub.publish(msg)
         self._restore_count += 1
-
-        # Critical fix:
-        # Publish /initialpose once at startup, then never restore spawn again
-        # during this semantic_nav_node process.
-        self._restore_done = True
+        self._restore_spawn_last_publish_ns = now_ns
+        self._restore_next_attempt_ns = now_ns + retry_interval_ns
+        self._restore_spawn_verified = False
 
         self.publish_status(
-            f'restored_spawn_initialpose_once name=spawn '
+            f'restored_spawn_initialpose name=spawn '
             f'x={msg.pose.pose.position.x:.2f} '
             f'y={msg.pose.pose.position.y:.2f} '
             f'yaw={float(spawn.get("yaw", 0.0)):.2f} '
             f'count={self._restore_count} subscribers={subscriber_count}'
+        )
+
+    def initialpose_cb(self, msg: PoseWithCovarianceStamped) -> None:
+        if self.mode != 'resume':
+            return
+        if not bool(self.get_parameter('allow_manual_initialpose_override').value):
+            return
+
+        spawn = self._restore_spawn_last_target
+        if spawn is not None and self._restore_spawn_last_publish_ns > 0:
+            pose = PoseStamped()
+            pose.header.frame_id = msg.header.frame_id or self.map_frame
+            pose.pose = msg.pose.pose
+            matched, _, _ = self.current_pose_matches_spawn(pose, spawn)
+            if matched:
+                return
+
+        if self._restore_done:
+            return
+
+        pose_x = float(msg.pose.pose.position.x)
+        pose_y = float(msg.pose.pose.position.y)
+        pose_yaw = float(yaw_from_quat(msg.pose.pose.orientation))
+        self._restore_done = True
+        self._restore_spawn_verified = True
+        self.publish_status(
+            f'manual_initialpose_accepted from_rviz '
+            f'x={pose_x:.2f} y={pose_y:.2f} yaw={pose_yaw:.2f}'
         )
 
     def current_pose_matches_spawn(self, current_pose: PoseStamped, spawn: dict) -> tuple[bool, float, float]:

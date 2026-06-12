@@ -77,6 +77,12 @@ The stack is intentionally split into a base robot bringup and overlay packages.
 
 ### 1. Base robot bringup
 
+For normal/base mode:
+
+```bash
+BASE_MODE=base bash scripts/run_robot_live.sh
+```
+
 For teach mode:
 
 ```bash
@@ -90,7 +96,8 @@ BASE_MODE=resume bash scripts/run_robot_live.sh
 ```
 
 Wait 10 to 15 seconds after the robot bringup before starting the overlay launch.
-Teach mode starts SLAM only. Resume mode starts Nav2 only. Do not run both at once.
+Base mode starts only the robot driver and sensor pipeline. Teach mode starts SLAM only. Resume mode starts Nav2 only. Do not run both at once.
+For semantic resume overlay, start `BASE_MODE=base` first, then launch `semantic_nav_resume.launch.py` as the overlay. Do not pair the overlay with a second Nav2 bringup.
 
 ### 2. Semantic teach mode
 
@@ -131,7 +138,7 @@ ros2 launch go2_semantic_nav_agent semantic_nav_resume.launch.py \
 ```
 
 The resume launcher falls back to the live `/map` topic when a session is missing `map.yaml`.
-If the robot is already running SLAM, stop `slam_toolbox` before starting resume mode so `amcl` is the only map-to-odom source.
+If the robot is already running SLAM, stop `slam_toolbox` before starting the resume overlay so `amcl` is the only map-to-odom source.
 
 ### 4. Full agentic stack
 

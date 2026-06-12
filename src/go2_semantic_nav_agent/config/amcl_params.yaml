@@ -10,7 +10,7 @@ amcl:
     global_frame_id: map
     odom_frame_id: odom
     tf_broadcast: true
-    scan_topic: /scan_fixed
+    scan_topic: /scan
     set_initial_pose: false
     laser_model_type: likelihood_field
     max_particles: 2000

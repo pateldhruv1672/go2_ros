@@ -11,8 +11,6 @@
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
-  <exec_depend>go2_semantic_nav_agent</exec_depend>
-  <exec_depend>go2_agentic_multiagent_voice_nav</exec_depend>
   <exec_depend>go2_agentic_motion_skills</exec_depend>
 
   <export>

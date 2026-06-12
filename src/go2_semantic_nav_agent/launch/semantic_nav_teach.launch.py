@@ -27,12 +27,6 @@ def generate_launch_description():
                               ])),
         Node(
             package='go2_semantic_nav_agent',
-            executable='scan_retimestamp_node',
-            name='scan_retimestamp_node',
-            output='screen',
-        ),
-        Node(
-            package='go2_semantic_nav_agent',
             executable='semantic_nav_node',
             name='semantic_nav_node',
             output='screen',

@@ -86,7 +86,8 @@ def generate_launch_description():
             parameters=[{
                 'robot_ip': robot_ip,
                 'token': robot_token,
-                'conn_type': conn_type
+                'conn_type': conn_type,
+                'obstacle_avoidance': True,
             }],
         ),
         # LiDAR processing node
@@ -123,7 +124,7 @@ def generate_launch_description():
             executable='pointcloud_to_laserscan_node',
             name='go2_pointcloud_to_laserscan',
             remappings=[
-                ('cloud_in', '/pointcloud/filtered'),
+                ('cloud_in', '/pointcloud/aggregated'),
                 ('scan', '/scan'),
             ],
             parameters=[{
@@ -141,21 +142,27 @@ def generate_launch_description():
             }],
             output='screen',
         ),
-        # TTS Node
-        Node(
-            package='speech_processor',
-            executable='tts_node',
-            name='tts_node',
-            parameters=[{
-                'api_key': os.getenv('ELEVENLABS_API_KEY', ''),
-                'provider': 'elevenlabs',
-                'voice_name': 'XrExE9yKIg1WjnnlVkGX',
-                'local_playback': False,
-                'use_cache': True,
-                'audio_quality': 'standard'
-            }],
-        ),
     ]
+
+    elevenlabs_api_key = os.getenv('ELEVENLABS_API_KEY', '').strip()
+    if elevenlabs_api_key:
+        core_nodes.append(
+            Node(
+                package='speech_processor',
+                executable='tts_node',
+                name='tts_node',
+                parameters=[{
+                    'api_key': elevenlabs_api_key,
+                    'provider': 'elevenlabs',
+                    'voice_name': 'XrExE9yKIg1WjnnlVkGX',
+                    'local_playback': False,
+                    'use_cache': True,
+                    'audio_quality': 'standard'
+                }],
+            )
+        )
+    else:
+        print('[go2_robot_sdk] Skipping speech_processor tts_node because ELEVENLABS_API_KEY is not set')
     
     # Teleop nodes
     teleop_nodes = [
