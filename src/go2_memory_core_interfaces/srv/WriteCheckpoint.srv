@@ -1,0 +1,6 @@
+string session_name
+string checkpoint_json
+---
+bool success
+string message
+string checkpoint_id

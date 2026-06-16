@@ -1,0 +1,8 @@
+string session_name
+string from_id
+string to_id
+string edge_json
+---
+bool success
+string message
+string edge_id

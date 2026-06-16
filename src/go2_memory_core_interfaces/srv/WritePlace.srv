@@ -1,0 +1,6 @@
+string session_name
+string place_json
+---
+bool success
+string message
+string place_id

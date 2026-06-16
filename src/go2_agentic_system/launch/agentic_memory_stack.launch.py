@@ -1,0 +1,107 @@
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+
+
+def generate_launch_description():
+    args = [
+        DeclareLaunchArgument('session_root', default_value='~/.ros/go2_semantic_nav_sessions'),
+        DeclareLaunchArgument('session_name', default_value='default'),
+        DeclareLaunchArgument('enable_memory_core', default_value='true'),
+        DeclareLaunchArgument('enable_graph_memory', default_value='false'),
+        DeclareLaunchArgument('enable_voxel_memory', default_value='false'),
+        DeclareLaunchArgument('enable_vector_memory', default_value='false'),
+        DeclareLaunchArgument('enable_perception_tools', default_value='false'),
+        DeclareLaunchArgument('enable_open_vocab_detector', default_value='false'),
+        DeclareLaunchArgument('open_vocab_backend', default_value='grounding_dino'),
+        DeclareLaunchArgument('open_vocab_model', default_value='IDEA-Research/grounding-dino-tiny'),
+        DeclareLaunchArgument('enable_dynamic_obstacle_tracking', default_value='false'),
+        DeclareLaunchArgument('enable_langgraph_agent', default_value='false'),
+        DeclareLaunchArgument('enable_debate_layer', default_value='false'),
+        DeclareLaunchArgument('enable_explore_mode', default_value='false'),
+        DeclareLaunchArgument('enable_tour_mode', default_value='false'),
+        DeclareLaunchArgument('enable_vlm_checkpointing', default_value='false'),
+        DeclareLaunchArgument('vlm_provider', default_value='offline'),
+        DeclareLaunchArgument('vlm_model', default_value='google/gemini-2.5-flash'),
+        DeclareLaunchArgument('camera_topic', default_value='/camera/image_raw'),
+        DeclareLaunchArgument('enable_unified_voice', default_value='false'),
+        DeclareLaunchArgument('voice_input_mode', default_value='text_topic'),
+        DeclareLaunchArgument('stt_backend', default_value='faster_whisper'),
+        DeclareLaunchArgument('stt_model', default_value='tiny.en'),
+        DeclareLaunchArgument('omi_device_name', default_value='Omi'),
+        DeclareLaunchArgument('omi_device_address', default_value=''),
+        DeclareLaunchArgument('enable_tts', default_value='false'),
+        DeclareLaunchArgument('tts_backend', default_value='piper'),
+        DeclareLaunchArgument('piper_model_path', default_value=''),
+    ]
+    return LaunchDescription(args + [
+        Node(
+            package='go2_memory_core', executable='memory_server_node', name='go2_memory_server', output='screen',
+            condition=IfCondition(LaunchConfiguration('enable_memory_core')),
+            parameters=[{
+                'session_root': LaunchConfiguration('session_root'),
+                'enable_graph_memory': LaunchConfiguration('enable_graph_memory'),
+                'enable_voxel_memory': LaunchConfiguration('enable_voxel_memory'),
+                'enable_vector_memory': LaunchConfiguration('enable_vector_memory'),
+            }],
+        ),
+        Node(
+            package='go2_semantic_voxel_memory', executable='semantic_voxel_node', name='go2_semantic_voxel_node', output='screen',
+            condition=IfCondition(LaunchConfiguration('enable_voxel_memory')),
+            parameters=[{
+                'session_root': LaunchConfiguration('session_root'),
+                'session_name': LaunchConfiguration('session_name'),
+                'enable_pointcloud_ingest': LaunchConfiguration('enable_voxel_memory'),
+            }],
+        ),
+        Node(
+            package='go2_memory_core', executable='vlm_checkpoint_node', name='go2_vlm_checkpoint_node', output='screen',
+            condition=IfCondition(LaunchConfiguration('enable_vlm_checkpointing')),
+            parameters=[{
+                'session_root': LaunchConfiguration('session_root'),
+                'session_name': LaunchConfiguration('session_name'),
+                'camera_topic': LaunchConfiguration('camera_topic'),
+                'vlm_provider': LaunchConfiguration('vlm_provider'),
+                'vlm_model': LaunchConfiguration('vlm_model'),
+                'enable_graph_memory': LaunchConfiguration('enable_graph_memory'),
+                'enable_voxel_memory': LaunchConfiguration('enable_voxel_memory'),
+                'enable_vector_memory': LaunchConfiguration('enable_vector_memory'),
+            }],
+        ),
+        Node(package='go2_perception_tools', executable='lidar_geometry_node', name='go2_lidar_geometry_node', output='screen', condition=IfCondition(LaunchConfiguration('enable_perception_tools'))),
+        Node(package='go2_perception_tools', executable='pointcloud_analyzer_node', name='go2_pointcloud_analyzer_node', output='screen', condition=IfCondition(LaunchConfiguration('enable_perception_tools'))),
+        Node(package='go2_perception_tools', executable='traversability_node', name='go2_traversability_node', output='screen', condition=IfCondition(LaunchConfiguration('enable_perception_tools'))),
+        Node(package='go2_perception_tools', executable='open_vocab_detector_node', name='go2_open_vocab_detector', output='screen', condition=IfCondition(LaunchConfiguration('enable_open_vocab_detector')), parameters=[{
+            'camera_topic': LaunchConfiguration('camera_topic'), 'backend': LaunchConfiguration('open_vocab_backend'), 'model_name': LaunchConfiguration('open_vocab_model')
+        }]),
+        Node(package='go2_perception_tools', executable='dynamic_obstacle_tracker', name='go2_dynamic_obstacle_tracker', output='screen', condition=IfCondition(LaunchConfiguration('enable_dynamic_obstacle_tracking'))),
+        Node(
+            package='go2_langgraph_agent', executable='main_supervisor', name='go2_langgraph_main_supervisor', output='screen',
+            condition=IfCondition(LaunchConfiguration('enable_langgraph_agent')),
+            parameters=[{
+                'session_root': LaunchConfiguration('session_root'),
+                'session_name': LaunchConfiguration('session_name'),
+                'enable_debate_layer': LaunchConfiguration('enable_debate_layer'),
+                'enable_explore_mode': LaunchConfiguration('enable_explore_mode'),
+                'enable_tour_mode': LaunchConfiguration('enable_tour_mode'),
+            }],
+        ),
+        Node(
+            package='go2_langgraph_agent', executable='voice_input_node', name='go2_voice_input_node', output='screen',
+            condition=IfCondition(LaunchConfiguration('enable_unified_voice')),
+            parameters=[{
+                'input_mode': LaunchConfiguration('voice_input_mode'),
+                'stt_backend': LaunchConfiguration('stt_backend'),
+                'stt_model': LaunchConfiguration('stt_model'),
+                'omi_device_name': LaunchConfiguration('omi_device_name'),
+                'omi_device_address': LaunchConfiguration('omi_device_address'),
+            }],
+        ),
+        Node(
+            package='go2_langgraph_agent', executable='tts_output_node', name='go2_tts_output_node', output='screen',
+            condition=IfCondition(LaunchConfiguration('enable_tts')),
+            parameters=[{'tts_backend': LaunchConfiguration('tts_backend'), 'piper_model_path': LaunchConfiguration('piper_model_path')}],
+        ),
+    ])

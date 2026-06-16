@@ -1,0 +1,7 @@
+string session_name
+string memory_id
+string reason
+---
+bool success
+string message
+string result_json

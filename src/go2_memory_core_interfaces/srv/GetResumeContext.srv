@@ -1,0 +1,6 @@
+string session_name
+string request_json
+---
+bool success
+string message
+string context_json

@@ -1,0 +1,6 @@
+string session_name
+string spawn_json
+---
+bool success
+string message
+string spawn_id

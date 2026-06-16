@@ -1,0 +1,12 @@
+go2_memory_core:
+  ros__parameters:
+    session_root: "~/.ros/go2_semantic_nav_sessions"
+    session_name: "latest"
+    enable_graph_memory: false
+    enable_voxel_memory: false
+    enable_vector_memory: false
+    enable_legacy_exports: true
+    default_memory_layer: "temporary"
+    auto_connect_checkpoints: true
+    checkpoint_connect_distance_m: 5.0
+    localization_confidence_threshold: 0.55

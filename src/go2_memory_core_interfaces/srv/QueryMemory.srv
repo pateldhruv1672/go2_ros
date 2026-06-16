@@ -1,0 +1,6 @@
+string session_name
+string query_json
+---
+bool success
+string message
+string result_json

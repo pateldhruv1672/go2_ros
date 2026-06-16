@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>go2_memory_core</name>
+  <version>0.1.0</version>
+  <description>Unified multimodal memory core for Go2 teach, resume, explore, and tour modes.</description>
+  <maintainer email="pateldhruv1672@gmail.com">Dhruv Patel</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>go2_memory_core_interfaces</exec_depend>
+  <test_depend>pytest</test_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
