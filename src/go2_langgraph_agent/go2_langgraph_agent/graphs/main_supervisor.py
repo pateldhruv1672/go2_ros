@@ -39,12 +39,18 @@ class MainSupervisor(Node):
         self.declare_parameter("session_name", "default")
         self.declare_parameter("thread_id", "")
         self.declare_parameter("enable_debate_layer", True)
+        self.declare_parameter("enable_llm_debate", False)
+        self.declare_parameter("debate_llm_provider", "openrouter")
+        self.declare_parameter("debate_llm_model", "openai/gpt-4o-mini")
+        self.declare_parameter("debate_llm_timeout_sec", 8.0)
         self.declare_parameter("enable_tour_mode", False)
         self.declare_parameter("enable_explore_mode", False)
         self.declare_parameter("enable_nav_publish", True)
         self.declare_parameter("enable_human_interrupts", False)
         self.declare_parameter("enable_langgraph_streaming", True)
         self.declare_parameter("langgraph_checkpoint_db", "")
+        self.declare_parameter("langgraph_store_db", "")
+        self.declare_parameter("require_native_langgraph_store", True)
         self.declare_parameter("odom_topic", "/odom")
         self.session_root = str(self.get_parameter("session_root").value)
         self.session_name = str(self.get_parameter("session_name").value)
@@ -52,16 +58,30 @@ class MainSupervisor(Node):
         self.thread_id = thread_param or self.session_name
         self.memory = MemoryTools(self.session_root, self.session_name)
         checkpoint_db = str(self.get_parameter("langgraph_checkpoint_db").value or "") or None
-        self.persistence = LangGraphSQLitePersistence(self.session_root, self.session_name, checkpoint_db)
+        store_db = str(self.get_parameter("langgraph_store_db").value or "") or None
+        self.persistence = LangGraphSQLitePersistence(
+            self.session_root,
+            self.session_name,
+            checkpoint_db,
+            store_db,
+            require_native_store=_as_bool(self.get_parameter("require_native_langgraph_store").value),
+        )
         self.latest: Dict[str, Any] = {}
         self.nav_pub = self.create_publisher(String, "/go2_nav/command", 10)
         self.status_pub = self.create_publisher(String, "/go2_agent/status", 10)
         self.speech_pub = self.create_publisher(String, "/go2_agent/speech", 10)
         self.event_pub = self.create_publisher(String, "/go2_agent/events", 10)
+        self.stream_pub = self.create_publisher(String, "/go2_agent/stream", 10)
+        self.checkpoint_pub = self.create_publisher(String, "/go2_agent/checkpoints", 10)
+        self.store_pub = self.create_publisher(String, "/go2_agent/store_results", 10)
         self.interrupt_pub = self.create_publisher(String, "/go2_agent/interrupts", 10)
         for topic in ("/go2_agent/command", "/go2_agent/user_command", "/semantic_nav/command"):
             self.create_subscription(String, topic, self._on_command, 10)
         self.create_subscription(String, "/go2_agent/resume", self._on_resume, 10)
+        self.create_subscription(String, "/go2_agent/checkpoints/request", self._on_checkpoint_request, 10)
+        self.create_subscription(String, "/go2_agent/time_travel", self._on_time_travel, 10)
+        self.create_subscription(String, "/go2_agent/store/query", self._on_store_query, 10)
+        self.create_subscription(String, "/go2_agent/store/write", self._on_store_write, 10)
         self.create_subscription(String, "/go2_perception/scan_summary", lambda m: self._store_json("scan_summary", m), 10)
         self.create_subscription(String, "/go2_perception/pointcloud_summary", lambda m: self._store_json("pointcloud_summary", m), 10)
         self.create_subscription(String, "/go2_perception/traversability_summary", lambda m: self._store_json("traversability", m), 10)
@@ -78,6 +98,10 @@ class MainSupervisor(Node):
                 self.persistence,
                 {
                     "enable_debate_layer": _as_bool(self.get_parameter("enable_debate_layer").value),
+                    "enable_llm_debate": _as_bool(self.get_parameter("enable_llm_debate").value),
+                    "debate_llm_provider": str(self.get_parameter("debate_llm_provider").value),
+                    "debate_llm_model": str(self.get_parameter("debate_llm_model").value),
+                    "debate_llm_timeout_sec": float(self.get_parameter("debate_llm_timeout_sec").value),
                     "enable_tour_mode": _as_bool(self.get_parameter("enable_tour_mode").value),
                     "enable_explore_mode": _as_bool(self.get_parameter("enable_explore_mode").value),
                     "enable_human_interrupts": _as_bool(self.get_parameter("enable_human_interrupts").value),
@@ -136,10 +160,14 @@ class MainSupervisor(Node):
 
     def _on_command(self, msg: String) -> None:
         try:
-            state = self.orchestrator.invoke(msg.data)
-            self._publish_result(state)
             if _as_bool(self.get_parameter("enable_langgraph_streaming").value):
-                self._publish_events({"type": "graph_result", "run_id": state.get("run_id"), "events": state.get("events", [])[-25:]})
+                state, updates = self.orchestrator.run_with_stream(msg.data)
+                for idx, update in enumerate(updates):
+                    self.stream_pub.publish(String(data=json.dumps({"index": idx, "update": update}, sort_keys=True, default=str)))
+            else:
+                state = self.orchestrator.invoke(msg.data)
+            self._publish_result(state)
+            self._publish_events({"type": "graph_result", "run_id": state.get("run_id"), "events": state.get("events", [])[-25:]})
         except Exception as exc:
             self.get_logger().exception(f"LangGraph invocation failed: {exc}")
             command = {"action": "stop_robot", "reason": "langgraph_invocation_failed", "error": str(exc)}
@@ -157,6 +185,71 @@ class MainSupervisor(Node):
             self.get_logger().exception(f"LangGraph resume failed: {exc}")
             self._publish_events({"type": "resume_failed", "thread_id": self.thread_id, "error": str(exc), "payload": payload})
             self.speech_pub.publish(String(data="I could not resume the interrupted LangGraph task, so I am staying stopped."))
+
+
+    def _on_checkpoint_request(self, msg: String) -> None:
+        payload = _json_or_text(msg)
+        limit = 10
+        checkpoint_id = None
+        if isinstance(payload, dict):
+            limit = int(payload.get("limit", 10))
+            checkpoint_id = payload.get("checkpoint_id")
+        try:
+            if checkpoint_id:
+                result = self.orchestrator.get_checkpoint_state(str(checkpoint_id))
+            else:
+                result = {"thread_id": self.thread_id, "checkpoints": self.orchestrator.list_checkpoints(limit=limit)}
+            self.checkpoint_pub.publish(String(data=json.dumps(result, sort_keys=True, default=str)))
+        except Exception as exc:
+            self.checkpoint_pub.publish(String(data=json.dumps({"error": str(exc)}, sort_keys=True)))
+
+    def _on_time_travel(self, msg: String) -> None:
+        payload = _json_or_text(msg)
+        if not isinstance(payload, dict):
+            self._publish_events({"type": "time_travel_failed", "error": "payload must be JSON object"})
+            return
+        checkpoint_id = str(payload.get("checkpoint_id") or "")
+        command = payload.get("command")
+        if not checkpoint_id:
+            self._publish_events({"type": "time_travel_failed", "error": "missing checkpoint_id"})
+            return
+        try:
+            state = self.orchestrator.time_travel_invoke(checkpoint_id, str(command) if command else None)
+            self._publish_result(state)
+            self._publish_events({"type": "time_travel_completed", "checkpoint_id": checkpoint_id, "run_id": state.get("run_id")})
+        except Exception as exc:
+            self.get_logger().exception(f"LangGraph time travel failed: {exc}")
+            self._publish_events({"type": "time_travel_failed", "checkpoint_id": checkpoint_id, "error": str(exc)})
+            self.speech_pub.publish(String(data="I could not time-travel to that LangGraph checkpoint, so I am staying stopped."))
+
+    def _on_store_query(self, msg: String) -> None:
+        payload = _json_or_text(msg)
+        namespace = ["threads", self.thread_id]
+        query = ""
+        limit = 20
+        if isinstance(payload, dict):
+            namespace = payload.get("namespace", namespace)
+            query = str(payload.get("query", ""))
+            limit = int(payload.get("limit", 20))
+        try:
+            result = {"namespace": namespace, "query": query, "results": self.persistence.store.search(namespace, query=query, limit=limit)}
+            self.store_pub.publish(String(data=json.dumps(result, sort_keys=True, default=str)))
+        except Exception as exc:
+            self.store_pub.publish(String(data=json.dumps({"error": str(exc)}, sort_keys=True)))
+
+    def _on_store_write(self, msg: String) -> None:
+        payload = _json_or_text(msg)
+        if not isinstance(payload, dict):
+            self.store_pub.publish(String(data=json.dumps({"error": "payload must be JSON object"}, sort_keys=True)))
+            return
+        namespace = payload.get("namespace", ["threads", self.thread_id, "manual"] )
+        key = str(payload.get("key") or payload.get("id") or "manual_write")
+        value = payload.get("value", payload)
+        try:
+            self.persistence.store.put(namespace, key, value if isinstance(value, dict) else {"value": value})
+            self.store_pub.publish(String(data=json.dumps({"ok": True, "namespace": namespace, "key": key}, sort_keys=True, default=str)))
+        except Exception as exc:
+            self.store_pub.publish(String(data=json.dumps({"error": str(exc)}, sort_keys=True)))
 
     def destroy_node(self) -> bool:
         try:

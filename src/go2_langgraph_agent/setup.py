@@ -19,5 +19,6 @@ setup(
         'main_supervisor = go2_langgraph_agent.graphs.main_supervisor:main',
         'voice_input_node = go2_langgraph_agent.voice_input_node:main',
         'tts_output_node = go2_langgraph_agent.tts_output_node:main',
+        'time_travel_rviz_node = go2_langgraph_agent.time_travel_rviz_node:main',
     ]},
 )

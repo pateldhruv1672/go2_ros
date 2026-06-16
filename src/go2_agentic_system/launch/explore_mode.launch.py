@@ -16,6 +16,10 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_dynamic_obstacle_tracking', default_value='true'),
         DeclareLaunchArgument('voice_input_mode', default_value='text_topic'),
         DeclareLaunchArgument('enable_human_interrupts', default_value='false'),
+        DeclareLaunchArgument('enable_llm_debate', default_value='false'),
+        DeclareLaunchArgument('debate_llm_provider', default_value='openrouter'),
+        DeclareLaunchArgument('debate_llm_model', default_value='openai/gpt-4o-mini'),
+        DeclareLaunchArgument('enable_time_travel_rviz', default_value='false'),
     ]
     memory_stack = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(PathJoinSubstitution([FindPackageShare('go2_agentic_system'), 'launch', 'agentic_memory_stack.launch.py'])),
@@ -31,6 +35,10 @@ def generate_launch_description():
             'enable_dynamic_obstacle_tracking': LaunchConfiguration('enable_dynamic_obstacle_tracking'),
             'enable_langgraph_agent': 'true',
             'enable_debate_layer': 'true',
+            'enable_llm_debate': LaunchConfiguration('enable_llm_debate'),
+            'debate_llm_provider': LaunchConfiguration('debate_llm_provider'),
+            'debate_llm_model': LaunchConfiguration('debate_llm_model'),
+            'enable_time_travel_rviz': LaunchConfiguration('enable_time_travel_rviz'),
             'enable_explore_mode': LaunchConfiguration('enable_explore_mode'),
             'enable_unified_voice': 'true',
             'enable_human_interrupts': LaunchConfiguration('enable_human_interrupts'),

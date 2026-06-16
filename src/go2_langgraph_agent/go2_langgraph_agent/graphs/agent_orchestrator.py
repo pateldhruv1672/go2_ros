@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import json
 import traceback
 
@@ -105,7 +105,16 @@ class AgentOrchestrator:
         builder.add_edge("memory_writeback", "final_response")
         builder.add_edge("fault_handler", "final_response")
         builder.add_edge("final_response", END)
-        return builder.compile(checkpointer=self.persistence.checkpointer)
+        
+        # Compile with both LangGraph persistence concepts when supported:
+        # checkpointer = per-thread graph state; store = cross-thread durable memory.
+        native_store = getattr(self.persistence.store, "native_store", None) or self.persistence.store
+        try:
+            return builder.compile(checkpointer=self.persistence.checkpointer, store=native_store)
+        except TypeError:
+            # Older LangGraph versions may not expose compile(store=...). The agent
+            # still uses the durable SQLite store directly in graph nodes.
+            return builder.compile(checkpointer=self.persistence.checkpointer)
 
     def invoke(self, raw_command: str) -> AgentState:
         input_state: AgentState = {
@@ -116,7 +125,9 @@ class AgentOrchestrator:
             "events": [],
             "memory_updates": [],
             "history": [],
+            "store_events": [],
         }
+        self.persistence.store.put(("threads", self.thread_id, "commands"), input_state["run_id"], {"raw_command": raw_command})
         result = self.graph.invoke(input_state, self.config)
         self.persistence.write_summary(result)
         return result
@@ -132,18 +143,42 @@ class AgentOrchestrator:
             "events": [],
             "memory_updates": [],
             "history": [],
+            "store_events": [],
         }
+        self.persistence.store.put(("threads", self.thread_id, "commands"), input_state["run_id"], {"raw_command": raw_command})
         final_state: Optional[AgentState] = None
         for event in self.graph.stream(input_state, self.config, stream_mode="updates"):
             updates.append(event)
+            try:
+                self.persistence.store.append_event(self.thread_id, {"type": "stream_update", "run_id": input_state["run_id"], "payload": event})
+            except Exception:
+                pass
             if isinstance(event, dict):
                 for value in event.values():
                     if isinstance(value, dict) and value.get("status"):
                         final_state = value  # best-effort; invoke-style state may not appear in update mode
-        # Ensure summary file exists even when only updates were consumed.
+        # Retrieve final checkpointed state after streaming.
+        if final_state is None:
+            try:
+                snapshot = self.graph.get_state(self.config)
+                values = getattr(snapshot, "values", None)
+                if isinstance(values, dict):
+                    final_state = values
+            except Exception:
+                final_state = None
         if final_state:
             self.persistence.write_summary(final_state)
         return updates
+
+    def run_with_stream(self, raw_command: str) -> Tuple[AgentState, List[Dict[str, Any]]]:
+        """Run once with LangGraph streaming and return final checkpointed state."""
+        events = self.stream(raw_command)
+        snapshot = self.graph.get_state(self.config)
+        state = getattr(snapshot, "values", None) or {}
+        if isinstance(state, dict):
+            self.persistence.write_summary(state)
+            return state, events
+        return {"error": {"message": "stream_completed_without_state"}, "events": []}, events
 
     def resume_interrupt(self, resume_payload: Any) -> AgentState:
         """Resume a paused LangGraph interrupt with human input."""
@@ -155,6 +190,41 @@ class AgentOrchestrator:
 
     def list_checkpoints(self, limit: int = 10) -> List[Dict[str, Any]]:
         return self.persistence.list_checkpoints(self.thread_id, limit=limit)
+
+    def get_checkpoint_state(self, checkpoint_id: Optional[str] = None) -> Dict[str, Any]:
+        """Inspect current or historical checkpoint state for time-travel debugging."""
+        return self.persistence.get_state(self.graph, self.thread_id, checkpoint_id=checkpoint_id)
+
+    def time_travel_invoke(self, checkpoint_id: str, raw_command: Optional[str] = None) -> AgentState:
+        """Branch/re-run from a previous checkpoint.
+
+        The checkpoint_id is added to the runnable config. If raw_command is
+        provided, the branch receives that command; otherwise LangGraph resumes
+        from the checkpoint with no new input.
+        """
+        config = {"configurable": {"thread_id": self.thread_id, "checkpoint_id": checkpoint_id}}
+        if raw_command:
+            input_state: AgentState = {
+                "run_id": new_run_id("time_travel"),
+                "thread_id": self.thread_id,
+                "raw_command": raw_command,
+                "feature_flags": dict(self.feature_flags),
+                "events": [],
+                "memory_updates": [],
+                "history": [],
+                "store_events": [],
+                "time_travel": {"from_checkpoint_id": checkpoint_id},
+            }
+            result = self.graph.invoke(input_state, config)
+        else:
+            result = self.graph.invoke(None, config)
+        self.persistence.write_summary(result)
+        self.persistence.store.put(("threads", self.thread_id, "time_travel"), str(result.get("run_id") or checkpoint_id), {
+            "checkpoint_id": checkpoint_id,
+            "raw_command": raw_command,
+            "result_status": result.get("status"),
+        })
+        return result
 
     # ------------------------- graph nodes -------------------------
 
@@ -178,6 +248,10 @@ class AgentOrchestrator:
             except Exception as exc:
                 live = {"live_context_error": str(exc)}
         context.update(live)
+        try:
+            context["langgraph_store_recent"] = self.persistence.store.search(("threads", self.thread_id), limit=10)
+        except Exception as exc:
+            context["langgraph_store_error"] = str(exc)
         context.setdefault("localization_confidence", 0.75)
         context.setdefault("safety_blocked", False)
         if "scan_summary" in context:
@@ -207,7 +281,15 @@ class AgentOrchestrator:
     def debate_council(self, state: AgentState) -> Dict[str, Any]:
         try:
             if self.feature_flags.get("enable_debate_layer", True):
-                decision = run_debate(state.get("text", ""), state.get("context", {}), state.get("candidate_actions", []))
+                decision = run_debate(
+                    state.get("text", ""),
+                    state.get("context", {}),
+                    state.get("candidate_actions", []),
+                    enable_llm=bool(self.feature_flags.get("enable_llm_debate", False)),
+                    llm_provider=self.feature_flags.get("debate_llm_provider") or None,
+                    llm_model=self.feature_flags.get("debate_llm_model") or None,
+                    llm_timeout_sec=float(self.feature_flags.get("debate_llm_timeout_sec", 8.0) or 8.0),
+                )
                 decision_dict = decision.to_dict()
             else:
                 actions = state.get("candidate_actions") or ["speak"]
@@ -226,9 +308,18 @@ class AgentOrchestrator:
                     "memory_updates": [],
                 }
             self.memory.save_decision(decision_dict)
+            try:
+                self.persistence.store.put(("threads", self.thread_id, "debate_decisions"), decision_dict.get("decision_id", str(state.get("run_id"))), decision_dict)
+            except Exception:
+                pass
             return {
                 "decision": decision_dict,
-                "events": event_update("main_supervisor", "debate_complete", {"final_action": decision_dict.get("final_action"), "risk": decision_dict.get("risk_level")})["events"],
+                "events": event_update("main_supervisor", "debate_complete", {
+                    "final_action": decision_dict.get("final_action"),
+                    "risk": decision_dict.get("risk_level"),
+                    "mode": decision_dict.get("debate_mode"),
+                    "vote_count": len(decision_dict.get("council_votes") or []),
+                })["events"],
             }
         except Exception as exc:
             return {
@@ -315,6 +406,14 @@ class AgentOrchestrator:
         # command. This is metadata only; VLM/voxel artifact writing remains in
         # the dedicated ROS checkpoint nodes.
         command = state.get("nav_command") or {}
+        try:
+            self.persistence.store.put(("threads", self.thread_id, "nav_commands"), str(state.get("run_id") or new_run_id("nav")), {
+                "command": command,
+                "decision": state.get("decision") or {},
+                "intent": state.get("parsed_intent") or {},
+            })
+        except Exception:
+            pass
         if command.get("action") in {None, "none", "stop_robot"}:
             return {"events": event_update("main_supervisor", "memory_writeback_skipped", {"action": command.get("action")})["events"]}
         payload = {
@@ -351,6 +450,8 @@ class AgentOrchestrator:
             "pending_interrupt": state.get("pending_interrupt") or {},
             "speech": speech,
             "checkpoint_db": str(self.persistence.db_path),
+            "store_db": str(self.persistence.store_path),
+            "store_namespaces": self.persistence.store.list_namespaces(limit=20),
         }
         history_entry = {
             "run_id": state.get("run_id"),

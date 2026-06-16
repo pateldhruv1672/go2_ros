@@ -46,10 +46,15 @@ class Go2AgentState(TypedDict, total=False):
     tour_route: List[Dict[str, Any]]
     pending_interrupt: Dict[str, Any]
     human_approval: Dict[str, Any]
+    store_reads: List[Dict[str, Any]]
+    store_writes: List[Dict[str, Any]]
+    checkpoint_query: Dict[str, Any]
+    time_travel: Dict[str, Any]
     error: Dict[str, Any]
     history: Annotated[List[Dict[str, Any]], operator.add]
     events: Annotated[List[Dict[str, Any]], operator.add]
     memory_updates: Annotated[List[Dict[str, Any]], operator.add]
+    store_events: Annotated[List[Dict[str, Any]], operator.add]
 
 
 AgentState = Go2AgentState
