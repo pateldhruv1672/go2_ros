@@ -44,7 +44,7 @@ class Go2IsaacBridge(Node):
         self.declare_parameter("state_port", 15001)
         self.declare_parameter("cmd_topic", "/cmd_vel_out")
         self.declare_parameter("publish_clear_scan", False)
-        self.declare_parameter("scan_topic", "/scan")
+        self.declare_parameter("scan_topic", "/scan_placeholder_disabled")
         self.declare_parameter("odom_frame_id", "odom")
         self.declare_parameter("base_frame_id", "base_link")
         self.declare_parameter("scan_frame_id", "base_scan")
@@ -83,6 +83,8 @@ class Go2IsaacBridge(Node):
         self.vy = 0.0
         self.wz = 0.0
         self.last_cmd_wall = time.time()
+        self.latest_joint_position = [0.0] * len(GO2_JOINT_NAMES)
+        self.latest_joint_velocity = [0.0] * len(GO2_JOINT_NAMES)
 
         self.create_subscription(Twist, self.cmd_topic, self.cmd_cb, 10)
 
@@ -114,6 +116,8 @@ class Go2IsaacBridge(Node):
         self.vy = float(msg.linear.y)
         self.wz = float(msg.angular.z)
         self.last_cmd_wall = time.time()
+        self.latest_joint_position = [0.0] * len(GO2_JOINT_NAMES)
+        self.latest_joint_velocity = [0.0] * len(GO2_JOINT_NAMES)
 
     def send_cmd_timer(self):
         if time.time() - self.last_cmd_wall > 0.5:
@@ -148,6 +152,13 @@ class Go2IsaacBridge(Node):
         vx = float(latest.get("vx", 0.0))
         vy = float(latest.get("vy", 0.0))
         wz = float(latest.get("wz", 0.0))
+
+        joint_pos = latest.get("joint_pos", None)
+        joint_vel = latest.get("joint_vel", None)
+        if isinstance(joint_pos, list) and len(joint_pos) == len(GO2_JOINT_NAMES):
+            self.latest_joint_position = [float(v) for v in joint_pos]
+        if isinstance(joint_vel, list) and len(joint_vel) == len(GO2_JOINT_NAMES):
+            self.latest_joint_velocity = [float(v) for v in joint_vel]
 
         sec = int(t)
         nanosec = int((t - sec) * 1e9)
@@ -235,8 +246,8 @@ class Go2IsaacBridge(Node):
         msg.header.stamp.sec = self.last_sec
         msg.header.stamp.nanosec = self.last_nanosec
         msg.name = GO2_JOINT_NAMES
-        msg.position = [0.0] * len(GO2_JOINT_NAMES)
-        msg.velocity = [0.0] * len(GO2_JOINT_NAMES)
+        msg.position = list(self.latest_joint_position)
+        msg.velocity = list(self.latest_joint_velocity)
         msg.effort = [0.0] * len(GO2_JOINT_NAMES)
         self.joint_pub.publish(msg)
 

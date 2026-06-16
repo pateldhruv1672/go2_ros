@@ -58,7 +58,18 @@ if [ "${FLAT_GENERATED_TERRAIN:-1}" = "1" ]; then
   EXTRA_ARGS+=("--flat-generated-terrain")
 fi
 
+SENSOR_ARGS=()
+if [ "${ENABLE_ROS_SENSORS:-1}" = "1" ]; then
+  SENSOR_ARGS+=("--enable-ros-sensors")
+fi
+
+RTX_LIDAR_ARGS=()
+if [ "${ENABLE_RTX_LIDAR:-1}" = "1" ]; then
+  RTX_LIDAR_ARGS+=("--enable-rtx-lidar")
+fi
+
 exec ./isaaclab.sh -p "$BACKEND" \
+  --enable_cameras \
   --task "$TASK" \
   --num-envs 1 \
   --env-device cuda:0 \
@@ -69,4 +80,6 @@ exec ./isaaclab.sh -p "$BACKEND" \
   --spawn-y "$SPAWN_Y" \
   --spawn-z "$SPAWN_Z" \
   --spawn-yaw "$SPAWN_YAW" \
-  "${EXTRA_ARGS[@]}"
+  "${EXTRA_ARGS[@]}" \
+  "${RTX_LIDAR_ARGS[@]}" \
+  "${SENSOR_ARGS[@]}"
