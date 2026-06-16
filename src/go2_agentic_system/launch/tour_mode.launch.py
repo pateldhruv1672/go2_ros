@@ -12,6 +12,7 @@ def generate_launch_description():
         DeclareLaunchArgument('session_name', default_value='latest'),
         DeclareLaunchArgument('enable_tour_mode', default_value='true'),
         DeclareLaunchArgument('enable_motion', default_value='false'),
+        DeclareLaunchArgument('enable_human_interrupts', default_value='false'),
     ]
     memory_stack = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(PathJoinSubstitution([FindPackageShare('go2_agentic_system'), 'launch', 'agentic_memory_stack.launch.py'])),
@@ -25,6 +26,8 @@ def generate_launch_description():
             'enable_perception_tools': 'true',
             'enable_langgraph_agent': 'true',
             'enable_debate_layer': 'true',
+            'enable_tour_mode': LaunchConfiguration('enable_tour_mode'),
+            'enable_human_interrupts': LaunchConfiguration('enable_human_interrupts'),
         }.items(),
     )
     return LaunchDescription(args + [

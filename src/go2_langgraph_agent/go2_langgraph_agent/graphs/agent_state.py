@@ -3,13 +3,56 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, MutableMapping, Optional
+from typing_extensions import Annotated, TypedDict
 import copy
 import json
+import operator
 import re
 import uuid
 
 
-AgentState = Dict[str, Any]
+class Go2AgentState(TypedDict, total=False):
+    """State carried by the real LangGraph runtime.
+
+    Reducers are used for append-only traces so checkpoints preserve every node
+    update instead of replacing the event/history streams on each step.
+    """
+
+    run_id: str
+    thread_id: str
+    raw_command: str
+    text: str
+    parsed_intent: Dict[str, Any]
+    candidate_actions: List[str]
+    context: Dict[str, Any]
+    mode: str
+    feature_flags: Dict[str, bool]
+    decision: Dict[str, Any]
+    motion_gate: Dict[str, Any]
+    route: List[Dict[str, Any]]
+    nav_command: Dict[str, Any]
+    speech_response: str
+    status: Dict[str, Any]
+    memory_operation: Dict[str, Any]
+    memory_result: Dict[str, Any]
+    goal_selection: Dict[str, Any]
+    selected_goal: Dict[str, Any]
+    explore_strategy: str
+    explore_plan: List[Dict[str, Any]]
+    recovery_issue: str
+    recovery_plan: List[str]
+    tour_memory: Dict[str, Any]
+    current_tour_stop: Dict[str, Any]
+    tour_route: List[Dict[str, Any]]
+    pending_interrupt: Dict[str, Any]
+    human_approval: Dict[str, Any]
+    error: Dict[str, Any]
+    history: Annotated[List[Dict[str, Any]], operator.add]
+    events: Annotated[List[Dict[str, Any]], operator.add]
+    memory_updates: Annotated[List[Dict[str, Any]], operator.add]
+
+
+AgentState = Go2AgentState
 
 
 MOTION_ACTIONS = {
@@ -19,6 +62,7 @@ MOTION_ACTIONS = {
     "return_to_spawn",
     "frontier_explore",
     "coverage_explore",
+    "manual_assisted_explore",
 }
 
 
@@ -38,43 +82,31 @@ class SubgraphEvent:
         }
 
 
-class SimpleCompiledGraph:
-    """Small dependency-free executable graph used when langgraph is unavailable.
-
-    The project can still install real LangGraph later; this runner intentionally
-    mirrors the node/edge mental model and keeps deterministic behavior for ROS
-    tests and robot bringup where optional Python deps may not be installed.
-    """
-
-    def __init__(self, graph_name: str, nodes: List[Any]):
-        self.graph_name = graph_name
-        self.nodes = nodes
-
-    def invoke(self, state: AgentState) -> AgentState:
-        current = copy.deepcopy(state)
-        append_event(current, self.graph_name, "start", {"nodes": [getattr(n, "__name__", str(n)) for n in self.nodes]})
-        for node in self.nodes:
-            update = node(current) or {}
-            if update is not current:
-                merge_state(current, update)
-        append_event(current, self.graph_name, "end", {"status": current.get("status", "ok")})
-        return current
+class LangGraphDependencyError(RuntimeError):
+    pass
 
 
-def try_build_langgraph(graph_name: str, node_order: List[str], node_funcs: Dict[str, Any]) -> Any:
-    """Build a real LangGraph StateGraph if installed, otherwise fallback.
-
-    LangGraph is an optional dependency in this ROS package because many robot
-    installs will build from apt/colcon without the PyPI package. The public API
-    stays the same: returned object has .invoke(state).
-    """
-
+def require_langgraph() -> None:
     try:
-        from langgraph.graph import END, START, StateGraph  # type: ignore
-    except Exception:
-        return SimpleCompiledGraph(graph_name, [node_funcs[name] for name in node_order])
+        import langgraph  # noqa: F401
+    except Exception as exc:  # pragma: no cover - exercised on robot if dependency missing
+        raise LangGraphDependencyError(
+            "go2_langgraph_agent now requires real LangGraph. Install it in the workspace venv with: "
+            "python -m pip install -U langgraph langgraph-checkpoint-sqlite langchain-core"
+        ) from exc
 
-    builder = StateGraph(dict)
+
+def build_required_langgraph(graph_name: str, node_order: List[str], node_funcs: Dict[str, Any]) -> Any:
+    """Build a real LangGraph StateGraph.
+
+    No dependency-free fallback is used here. If LangGraph is missing, the robot
+    should fail loudly instead of pretending to run a LangGraph agent.
+    """
+
+    require_langgraph()
+    from langgraph.graph import END, START, StateGraph  # type: ignore
+
+    builder = StateGraph(Go2AgentState)
     for name in node_order:
         builder.add_node(name, node_funcs[name])
     previous = START
@@ -85,14 +117,19 @@ def try_build_langgraph(graph_name: str, node_order: List[str], node_funcs: Dict
     return builder.compile()
 
 
+# Backwards-compatible symbol used by existing subgraph modules. It now builds
+# real LangGraph only and raises if the dependency is missing.
+def try_build_langgraph(graph_name: str, node_order: List[str], node_funcs: Dict[str, Any]) -> Any:
+    return build_required_langgraph(graph_name, node_order, node_funcs)
+
+
 def merge_state(base: AgentState, update: MutableMapping[str, Any]) -> AgentState:
+    """Deterministic merge used only for compatibility utilities/tests."""
+
     for key, value in update.items():
-        if key == "events":
-            base.setdefault("events", [])
-            base["events"].extend(value or [])
-        elif key == "memory_updates":
-            base.setdefault("memory_updates", [])
-            base["memory_updates"].extend(value or [])
+        if key in {"events", "memory_updates", "history"}:
+            base.setdefault(key, [])
+            base[key].extend(value or [])
         elif isinstance(value, dict) and isinstance(base.get(key), dict):
             merged = dict(base[key])
             merged.update(value)
@@ -103,7 +140,14 @@ def merge_state(base: AgentState, update: MutableMapping[str, Any]) -> AgentStat
 
 
 def append_event(state: AgentState, graph: str, event: str, data: Optional[Dict[str, Any]] = None) -> None:
+    # The compiled LangGraph nodes in this package also mutate the state for
+    # compatibility with the previous implementation. Main graph checkpoints use
+    # reducer-annotated event streams and final status publishes these events.
     state.setdefault("events", []).append(SubgraphEvent(graph, event, data or {}).to_dict())
+
+
+def event_update(graph: str, event: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    return {"events": [SubgraphEvent(graph, event, data or {}).to_dict()]}
 
 
 def extract_text_from_message(raw: str) -> str:
@@ -157,6 +201,10 @@ def classify_intent(text: str) -> Dict[str, Any]:
         intent = "explain_state"
     elif "continue" in norm or "resume" in norm:
         intent = "continue_task"
+    elif "approve" in norm or "yes continue" in norm or "resume motion" in norm:
+        intent = "approve_interrupt"
+    elif "reject" in norm or "cancel motion" in norm or "do not move" in norm:
+        intent = "reject_interrupt"
     else:
         intent = "chat"
     return {
@@ -223,4 +271,12 @@ def summarize_context(context: Dict[str, Any]) -> Dict[str, Any]:
         "graph_summary": context.get("graph_summary") or {},
         "localization_confidence": context.get("localization_confidence"),
         "safety_blocked": context.get("safety_blocked"),
+        "frontier_count": len((context.get("frontier_candidates") or {}).get("candidates", [])) if isinstance(context.get("frontier_candidates"), dict) else 0,
     }
+
+
+def safe_copy(value: Any) -> Any:
+    try:
+        return copy.deepcopy(value)
+    except Exception:
+        return value

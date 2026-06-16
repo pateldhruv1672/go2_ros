@@ -15,6 +15,7 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_open_vocab_detector', default_value='true'),
         DeclareLaunchArgument('enable_dynamic_obstacle_tracking', default_value='true'),
         DeclareLaunchArgument('voice_input_mode', default_value='text_topic'),
+        DeclareLaunchArgument('enable_human_interrupts', default_value='false'),
     ]
     memory_stack = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(PathJoinSubstitution([FindPackageShare('go2_agentic_system'), 'launch', 'agentic_memory_stack.launch.py'])),
@@ -32,6 +33,7 @@ def generate_launch_description():
             'enable_debate_layer': 'true',
             'enable_explore_mode': LaunchConfiguration('enable_explore_mode'),
             'enable_unified_voice': 'true',
+            'enable_human_interrupts': LaunchConfiguration('enable_human_interrupts'),
             'voice_input_mode': LaunchConfiguration('voice_input_mode'),
         }.items(),
     )

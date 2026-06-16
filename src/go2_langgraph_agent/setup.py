@@ -9,11 +9,11 @@ setup(
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'langgraph', 'langgraph-checkpoint-sqlite', 'langchain-core'],
     zip_safe=True,
     maintainer='Dhruv Patel',
     maintainer_email='pateldhruv1672@gmail.com',
-    description='Persistent LangGraph-style agent and debate council for Go2.',
+    description='Real LangGraph StateGraph supervisor and debate council for Go2.',
     license='MIT',
     entry_points={'console_scripts': [
         'main_supervisor = go2_langgraph_agent.graphs.main_supervisor:main',
