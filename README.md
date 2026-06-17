@@ -1,49 +1,59 @@
-# Go2 ROS 2 Workspace
+# Sparky Go2 ROS 2 Workspace
 
-ROS 2 Jazzy workspace for the wireless Unitree Go2 stack:
-- base robot bringup and Nav2
-- SLAM and localization
-- semantic teach/resume navigation
-- voice, motion, and agentic overlay packages
+This workspace runs the Sparky Unitree Go2 ROS 2 Jazzy stack. It combines:
 
-The expected workspace root is:
+- Unitree Go2 WebRTC robot bringup
+- point cloud to `/scan` conversion
+- SLAM teach mode
+- saved-map semantic resume mode
+- Nav2 execution and collision monitoring
+- LangGraph-style agentic supervision
+- semantic memory, perception, and VLM checkpointing
+- Omi-style transcript voice control and tour commands
+
+Expected workspace path:
 
 ```bash
-~/Dhruv/sparky/ros2_ws
+/home/digital-twin-admin/Dhruv/sparky/ros2_ws
 ```
 
-## Known-good setup
+For the detailed system diagrams, read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Use ROS 2 Jazzy and the workspace virtualenv. Do not mix Conda Python with ROS Python.
+## Quick Start
+
+Use the project environment in every terminal:
 
 ```bash
-cd ~/Dhruv/sparky/ros2_ws
-
-source /opt/ros/jazzy/setup.bash
-source src/.venv/bin/activate
+cd /home/digital-twin-admin/Dhruv/sparky/ros2_ws
+source ./go2_env.sh
 source install/setup.bash
-
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-export ROS_DOMAIN_ID=7
-export ROS_LOCALHOST_ONLY=0
-export CYCLONEDDS_URI='<CycloneDDS><Domain><Discovery><ParticipantIndex>none</ParticipantIndex></Discovery></Domain></CycloneDDS>'
 ```
 
-If `python3` points to the wrong interpreter, use the venv Python explicitly for builds:
+The expected runtime defaults are:
 
 ```bash
-python -m colcon build --symlink-install \
-  --cmake-args -DPython3_EXECUTABLE=$VIRTUAL_ENV/bin/python -Wno-dev
+ROBOT_IP=192.168.12.1
+CONN_TYPE=webrtc
+ROS_DOMAIN_ID=7
+RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+CYCLONEDDS_URI=file:///home/digital-twin-admin/Dhruv/sparky/ros2_ws/cyclonedds_go2.xml
 ```
+
+For OpenRouter, Gemini, or VLM features, also source secrets:
+
+```bash
+source ./go2_secrets.sh
+```
+
+Do not print or commit secrets.
 
 ## Build
 
-Preferred build flow:
+Preferred full workspace build:
 
 ```bash
-cd ~/Dhruv/sparky/ros2_ws
-source /opt/ros/jazzy/setup.bash
-source src/.venv/bin/activate
+cd /home/digital-twin-admin/Dhruv/sparky/ros2_ws
+source ./go2_env.sh
 
 python -m colcon build --symlink-install \
   --cmake-args -DPython3_EXECUTABLE=$VIRTUAL_ENV/bin/python -Wno-dev
@@ -51,60 +61,64 @@ python -m colcon build --symlink-install \
 source install/setup.bash
 ```
 
-For rebuilding only a package:
+For focused rebuilds:
 
 ```bash
-python -m colcon build --symlink-install --packages-select go2_semantic_nav_agent \
+python -m colcon build --symlink-install --packages-select go2_omi_voice_bridge \
   --cmake-args -DPython3_EXECUTABLE=$VIRTUAL_ENV/bin/python -Wno-dev
 source install/setup.bash
 ```
 
-## Clean restart workaround
+The `tests_require` warnings from setuptools are currently harmless.
 
-Before relaunching the stack, clear stale ROS processes and restart the ROS daemon:
+## Launch Modes
 
-```bash
-pkill -9 -f "rviz2|go2_rviz2|robot.launch.py|go2_driver_node|bt_navigator|planner_server|controller_server|behavior_server|lifecycle_manager|nav2|collision_monitor|docking_server|slam_toolbox|foxglove_bridge|pointcloud|lidar|semantic_nav|local_omi_stt_node|dialogue_orchestrator_node|camera_agent_node|speaker_tts_node" || true
-ros2 daemon stop || true
-ros2 daemon start
-```
+The stack has separate layers. Do not start every mode at once.
 
-If `ros2` CLI calls act stale or fail to discover nodes, rerun them with `--disable-daemon`.
+| Mode | Main command | Owns |
+| --- | --- | --- |
+| base | `BASE_MODE=base bash scripts/run_robot_live.sh` | driver, TF, odom, camera, LiDAR scan pipeline, RViz by default |
+| teach | `BASE_MODE=teach bash scripts/run_robot_live.sh` | base robot plus SLAM map building |
+| resume overlay | `bash scripts/run_semantic_nav_resume.sh` | saved map, AMCL, Nav2, semantic resume node |
+| agentic observe/explore | `ros2 launch go2_agentic_system explore_mode.launch.py ...` | memory, perception, LangGraph, Nav2 tool wrapper |
+| Omi voice | `ros2 launch go2_omi_voice_bridge omi_voice_stack.launch.py ...` | transcript bridge, intent gate, TTS, tour voice router |
 
-## Launch order
+### Base Bringup
 
-The stack is intentionally split into a base robot bringup and overlay packages.
-
-### 1. Base robot bringup
-
-For normal/base mode:
+Start the robot/sensor layer:
 
 ```bash
+cd /home/digital-twin-admin/Dhruv/sparky/ros2_ws
+source ./go2_env.sh
+source install/setup.bash
+
 BASE_MODE=base bash scripts/run_robot_live.sh
 ```
 
-For teach mode:
+Check core topics:
 
 ```bash
-BASE_MODE=teach bash scripts/run_robot_live.sh
+ros2 topic list | sort | egrep "/camera/image_raw|/scan|/odom|/tf|/cmd_vel_out"
+ros2 topic info -v /scan
 ```
 
-For resume mode:
+Expected:
+
+- `/scan` exists
+- `/odom`, `/tf`, `/tf_static` exist
+- `/camera/image_raw` exists when the WebRTC video path is healthy
+- `/cmd_vel_out` exists
+
+### Teach Mode
+
+Teach mode is for building a map and saving semantic places.
 
 ```bash
-BASE_MODE=resume bash scripts/run_robot_live.sh
-```
+cd /home/digital-twin-admin/Dhruv/sparky/ros2_ws
+source ./go2_env.sh
+source ./go2_secrets.sh
+source install/setup.bash
 
-Wait 10 to 15 seconds after the robot bringup before starting the overlay launch.
-Base mode starts only the robot driver and sensor pipeline. Teach mode starts SLAM only. Resume mode starts Nav2 only. Do not run both at once.
-For semantic resume overlay, start `BASE_MODE=base` first, then launch `semantic_nav_resume.launch.py` as the overlay. Do not pair the overlay with a second Nav2 bringup.
-
-### 2. Semantic teach mode
-
-The helper script `scripts/run_semantic_nav_teach.sh` now defaults to VLM labeling, launches semantic RViz, and will load `OPENROUTER_API_KEY` from `.env.local` if present.
-
-```bash
-export OPENROUTER_API_KEY=YOUR_KEY
 ros2 launch go2_semantic_nav_agent semantic_nav_teach.launch.py \
   map_label:=digital_twin_lab \
   auto_save_places:=true \
@@ -115,85 +129,267 @@ ros2 launch go2_semantic_nav_agent semantic_nav_teach.launch.py \
   save_map_on_shutdown:=true
 ```
 
-If you want to persist the map before shutting the node down, send:
+Save the map before shutting down:
 
 ```bash
 ros2 topic pub --once /semantic_nav/command std_msgs/msg/String "{data: 'save_map'}"
 ```
 
-### 3. Semantic resume mode
+Saved sessions live under:
 
-Pick the latest saved session:
+```text
+~/.ros/go2_semantic_nav_sessions/
+```
+
+A resume-ready session should include:
+
+```text
+map.yaml
+map.pgm
+places.yaml
+session.yaml
+```
+
+### Resume Mode
+
+Resume mode is for navigating on a saved map. It should use AMCL/localization, not live SLAM, as the `map -> odom` owner.
+
+Recommended helper:
+
+```bash
+cd /home/digital-twin-admin/Dhruv/sparky/ros2_ws
+source ./go2_env.sh
+source install/setup.bash
+
+bash scripts/run_semantic_nav_resume.sh
+```
+
+Manual launch:
 
 ```bash
 SESSION=$(basename "$(ls -td ~/.ros/go2_semantic_nav_sessions/* | head -1)")
-```
 
-Then launch resume:
-
-```bash
 ros2 launch go2_semantic_nav_agent semantic_nav_resume.launch.py \
   session_name:=$SESSION \
-  rviz2:=false
+  rviz2:=true \
+  restore_spawn_on_start:=true
 ```
 
-The resume launcher falls back to the live `/map` topic when a session is missing `map.yaml`.
-If the robot is already running SLAM, stop `slam_toolbox` before starting the resume overlay so `amcl` is the only map-to-odom source.
+Current resume launch behavior:
 
-### 4. Full agentic stack
+- starts `resume_map_server`
+- starts `amcl`
+- starts the Nav2 no-docking stack
+- starts `semantic_nav_node` in `mode=resume`
+- currently retimestamps raw `/scan` into `/scan_nav` before feeding AMCL, costmaps, collision monitor, and semantic nav
+- delays Nav2 startup so saved-map localization can come up first
 
-Use the wrapper only after the base robot stack is already healthy:
+If you are debugging global costmap stability, keep global planning map-based and let the local costmap/collision monitor handle live obstacles. The runtime flag is:
 
 ```bash
-export OPENROUTER_API_KEY=YOUR_KEY
-scripts/run_sparky_full_system.sh
+export GO2_GLOBAL_LIVE_OBSTACLES=0
 ```
 
-Do not launch a second RViz instance if one is already running.
+### Agentic Observe/Explore
 
-## Session validation
-
-A resume-ready session must contain:
-- `map.yaml`
-- `map.pgm`
-- `places.yaml`
-- `session.yaml`
-
-Check with:
+The agentic stack should start after the base robot stack is healthy. Keep motion disabled first.
 
 ```bash
-SESSION=$(basename "$(ls -td ~/.ros/go2_semantic_nav_sessions/* | head -1)")
-find ~/.ros/go2_semantic_nav_sessions/$SESSION -maxdepth 1 -type f | sort
+cd /home/digital-twin-admin/Dhruv/sparky/ros2_ws
+source ./go2_env.sh
+source ./go2_secrets.sh
+source install/setup.bash
+
+ros2 launch go2_agentic_system explore_mode.launch.py \
+  enable_motion:=false \
+  enable_open_vocab_detector:=true \
+  open_vocab_backend:=openrouter \
+  open_vocab_model:=google/gemini-2.5-flash \
+  enable_vlm_checkpointing:=true \
+  vlm_provider:=openrouter \
+  vlm_model:=google/gemini-2.5-flash \
+  camera_topic:=/camera/image_raw \
+  enable_dynamic_obstacle_tracking:=false \
+  voice_input_mode:=text_topic
 ```
 
-If `places.yaml` is empty after a restart, the semantic nav node can rehydrate places from shared memory on startup.
+Send an observe-only command:
 
-## Common workarounds
+```bash
+ros2 topic pub --once /go2_agent/user_command std_msgs/msg/String \
+"{data: 'Observe the current scene, summarize visible landmarks, check map/odom/scan context, and recommend the safest next exploration direction. Do not move.'}"
+```
 
-- Use `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, `ROS_DOMAIN_ID=7`, and `ROS_LOCALHOST_ONLY=0` in every terminal.
-- Keep the same `ROS_DOMAIN_ID` in all terminals or nodes will not see each other.
-- If Omi is unavailable, the voice stack falls back to the device microphone.
-- The agentic voice stack uses on-device TTS only through `speaker_tts_node`; cloud TTS is not part of the validation path.
-- Store `OPENROUTER_API_KEY` in the shell or in a local ignored env file if you want VLM labeling during teach/resume.
-- Always send Nav2 goals in `frame_id=map`; never send an empty frame id.
-- Avoid duplicate RViz windows; if the base launch already has one, set the overlay launch to `rviz2:=false` where supported.
-- If you need Nav2 without docking bringup, use the no-docking navigation launch instead of a copied launch that still manages dock plugins.
-- If the stack reports stale TF or stale localization, restart the base robot bringup and semantic overlay in that order.
-- If live logs clutter the workspace, set `ROS_HOME` and `ROS_LOG_DIR` to a temporary directory before launch.
+Watch:
 
-## Recommended debug flow
+```bash
+ros2 topic echo /go2_agent/stream
+ros2 topic echo /go2_agent/status
+ros2 topic echo /go2_agent/speech
+```
+
+### Omi Voice Stack
+
+The current Omi integration is transcript-first. It supports simulated or mobile-provided transcripts through `/omi/transcript_raw`.
+
+Launch:
+
+```bash
+cd /home/digital-twin-admin/Dhruv/sparky/ros2_ws
+source ./go2_env.sh
+source install/setup.bash
+
+ros2 launch go2_omi_voice_bridge omi_voice_stack.launch.py \
+  adapter_mode:=transcript_only \
+  tts_enabled:=true \
+  require_confirmation_for_motion:=true
+```
+
+Simulate voice:
+
+```bash
+ros2 topic pub --once /omi/transcript_raw std_msgs/msg/String \
+"{data: 'Sparky, where are we?'}"
+```
+
+Start a tour command:
+
+```bash
+ros2 topic pub --once /omi/transcript_raw std_msgs/msg/String \
+"{data: 'Sparky, start the Applied Data Science tour'}"
+```
+
+Confirm:
+
+```bash
+ros2 topic pub --once /omi/transcript_raw std_msgs/msg/String \
+"{data: 'yes, proceed'}"
+```
+
+Useful voice topics:
+
+```bash
+ros2 topic echo /go2_voice/transcript
+ros2 topic echo /go2_voice/verification_request
+ros2 topic echo /go2_voice/verification_state
+ros2 topic echo /go2_agent/user_command
+ros2 topic echo /go2_tts/status
+ros2 topic echo /go2_tour/status
+```
+
+Motion/tour commands require confirmation. Stop commands do not.
+
+Immediate stop examples:
+
+```text
+stop
+halt
+freeze
+emergency stop
+cancel navigation
+```
+
+The voice gate publishes zero velocity to `/cmd_vel_out` and sends a `stop_robot` command to `/go2_nav/command`.
+
+## Tour Route File
+
+The voice tour router looks for:
+
+```text
+~/.ros/go2_semantic_nav_sessions/default/tours/sjsu_ads_department_tour.json
+```
+
+Minimum structure:
+
+```json
+{
+  "tour_id": "sjsu_ads_department_tour",
+  "title": "Applied Data Science Department Tour",
+  "requires_resume_mode": true,
+  "checkpoints": [
+    {
+      "checkpoint_id": "digital_twin_lab",
+      "place_id": "digital_twin_lab",
+      "name": "Digital Twin Lab",
+      "narration": "This area supports robotics, simulation, and digital twin experimentation.",
+      "fun_fact": "Digital twins let researchers test systems virtually before deploying them in the real world."
+    }
+  ]
+}
+```
+
+If the file is missing, the tour router refuses safely and publishes an error on `/go2_tour/status`.
+
+## Safety Rules
+
+- Do not bypass Nav2 for autonomous movement.
+- Voice motion commands must pass the confirmation gate.
+- Use short goals in teach/SLAM mode.
+- Use saved map/resume mode for long navigation and tours.
+- Never run SLAM and AMCL as competing `map -> odom` owners.
+- If localization is uncertain, do not start autonomous navigation.
+- If collision monitor is STOP or blocked, refuse new navigation.
+- Keep `enable_motion:=false` until base Nav2/resume is stable.
+
+## Debug Checklist
+
+Check the robot graph:
 
 ```bash
 ros2 node list --disable-daemon
 ros2 topic list --disable-daemon
+ros2 action info /navigate_to_pose
 ros2 lifecycle get /bt_navigator
 ros2 lifecycle get /controller_server
+```
+
+Check sensing:
+
+```bash
+ros2 topic info -v /scan
+ros2 topic hz /scan
+ros2 topic echo --once /odom
+```
+
+Check Nav2:
+
+```bash
+ros2 lifecycle get /planner_server
+ros2 lifecycle get /controller_server
+ros2 lifecycle get /bt_navigator
 ros2 action info /navigate_to_pose
 ```
 
-## Project handoff
+Check voice:
 
-Project-specific working notes and backlog live in:
-- `src/CODEX_CONTINUE_WORK.md`
-- `src/AGENTS.md`
-- package-specific handoff files under `src/`
+```bash
+ros2 topic echo /go2_voice/verification_state
+ros2 topic echo /go2_agent/user_command
+ros2 topic echo /go2_nav/command
+```
+
+## Clean Restart
+
+Before a clean relaunch:
+
+```bash
+pkill -f "go2_driver_node|robot_state_publisher|slam_toolbox|amcl|map_server|rviz2|bt_navigator|planner_server|controller_server|lifecycle_manager|foxglove_bridge|pointcloud_aggregator|pointcloud_to_laserscan_node|go2_pointcloud_to_laserscan|lidar_to_pointcloud|semantic_nav_node|go2_omi_bridge|go2_voice_stt_node|go2_voice_intent_gate|go2_tts_node|go2_tour_voice_command_router" || true
+ros2 daemon stop || true
+ros2 daemon start || true
+```
+
+## Important Files
+
+| File | Purpose |
+| --- | --- |
+| `scripts/run_robot_live.sh` | base/teach/resume robot bringup wrapper |
+| `scripts/run_semantic_nav_resume.sh` | semantic resume overlay wrapper |
+| `src/go2_robot_sdk/launch/robot.launch.py` | base robot launch |
+| `src/go2_robot_sdk/launch/navigation_no_docking.launch.py` | Nav2 no-docking launch used by semantic resume |
+| `src/go2_robot_sdk/config/nav2_params.yaml` | Nav2, costmap, collision monitor parameters |
+| `src/go2_semantic_nav_agent/launch/semantic_nav_teach.launch.py` | semantic teach launch |
+| `src/go2_semantic_nav_agent/launch/semantic_nav_resume.launch.py` | semantic resume launch |
+| `src/go2_agentic_system/launch/explore_mode.launch.py` | agentic observe/explore launch |
+| `src/go2_omi_voice_bridge/launch/omi_voice_stack.launch.py` | Omi-style voice stack launch |
+| `docs/ARCHITECTURE.md` | architecture diagrams and topic flows |
+
