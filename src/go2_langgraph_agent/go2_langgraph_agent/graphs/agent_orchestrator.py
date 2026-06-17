@@ -10,6 +10,7 @@ from go2_langgraph_agent.graphs.agent_state import (
     MOTION_ACTIONS,
     append_event,
     classify_intent,
+    compact_langgraph_value,
     event_update,
     extract_text_from_message,
     new_run_id,
@@ -24,6 +25,136 @@ from go2_langgraph_agent.graphs.recovery_graph import build_graph as build_recov
 from go2_langgraph_agent.graphs.tour_graph import build_graph as build_tour_graph
 from go2_langgraph_agent.persistence import LangGraphSQLitePersistence
 from go2_langgraph_agent.tools.memory_tools import MemoryTools
+
+
+def _compact_for_checkpoint(value, *, depth=0, max_depth=6, max_list=40, max_str=12000):
+    """Return a JSON-safe, bounded-size object for LangGraph checkpoint/state.
+
+    ROS topic payloads can contain large maps, coverage plans, pointcloud summaries,
+    or repeated stream/event histories. LangGraph checkpointers should persist
+    decisions and compact summaries, not unbounded raw sensor/map data.
+    """
+    if depth > max_depth:
+        return {"__truncated__": "max_depth"}
+
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+
+    if isinstance(value, str):
+        if len(value) > max_str:
+            return value[:max_str] + f"...<truncated {len(value) - max_str} chars>"
+        return value
+
+    if isinstance(value, bytes):
+        return f"<bytes:{len(value)}>"
+
+    if isinstance(value, (list, tuple)):
+        out = [_compact_for_checkpoint(v, depth=depth + 1, max_depth=max_depth, max_list=max_list, max_str=max_str) for v in list(value)[:max_list]]
+        if len(value) > max_list:
+            out.append({"__truncated_items__": len(value) - max_list})
+        return out
+
+    if isinstance(value, dict):
+        heavy_keys = {
+            "data", "ranges", "intensities", "raw", "raw_message", "raw_map",
+            "occupancy_grid", "pointcloud", "points", "image", "image_b64",
+            "camera_frame", "map_cells", "costmap", "scan_ranges",
+        }
+        out = {}
+        for k, v in value.items():
+            key = str(k)
+            if key in heavy_keys:
+                if isinstance(v, (list, tuple, bytes, str)):
+                    out[key] = f"<omitted:{key}:len={len(v)}>"
+                else:
+                    out[key] = f"<omitted:{key}:{type(v).__name__}>"
+                continue
+            out[key] = _compact_for_checkpoint(v, depth=depth + 1, max_depth=max_depth, max_list=max_list, max_str=max_str)
+        return out
+
+    return str(value)[:max_str]
+
+
+def _compact_agent_state(state):
+    compact = _compact_for_checkpoint(state, max_list=40, max_str=12000)
+    if isinstance(compact, dict):
+        # Event history can grow fast; keep only recent events.
+        events = compact.get("events")
+        if isinstance(events, list) and len(events) > 30:
+            compact["events"] = events[-30:]
+            compact["events_truncated_count"] = len(events) - 30
+
+        # Keep only top candidates/waypoints.
+        ctx = compact.get("context")
+        if isinstance(ctx, dict):
+            for key in ("frontier_candidates", "coverage_plan", "candidate_frontiers", "coverage_waypoints"):
+                val = ctx.get(key)
+                if isinstance(val, list) and len(val) > 20:
+                    ctx[key] = val[:20]
+                    ctx[key + "_truncated_count"] = len(val) - 20
+
+        # Same at top-level, if present.
+        for key in ("frontier_candidates", "coverage_plan", "candidate_frontiers", "coverage_waypoints"):
+            val = compact.get(key)
+            if isinstance(val, list) and len(val) > 20:
+                compact[key] = val[:20]
+                compact[key + "_truncated_count"] = len(val) - 20
+
+    return compact
+
+
+def _tiny_state_for_graph(state):
+    """Minimal checkpoint-safe state for LangGraph.
+
+    Do not checkpoint raw ROS context, map data, point clouds, scan arrays,
+    large frontier JSON, large coverage plans, or event history.
+    """
+    if not isinstance(state, dict):
+        return {"raw_command": str(state)[:2000]}
+
+    context = state.get("context") if isinstance(state.get("context"), dict) else {}
+
+    # Keep only compact graph/memory/navigation summaries.
+    compact_context = {
+        "graph_summary": context.get("graph_summary", {}),
+        "localization_confidence": context.get("localization_confidence"),
+        "has_spawn": context.get("has_spawn"),
+        "latest_checkpoint_id": context.get("latest_checkpoint_id"),
+    }
+
+    # Keep only top frontier/coverage summaries if already parsed into lists.
+    for key in ("frontier_candidates", "candidate_frontiers"):
+        val = context.get(key)
+        if isinstance(val, list):
+            compact_context[key] = val[:5]
+        elif isinstance(val, dict):
+            candidates = val.get("candidates")
+            compact_context[key] = {"candidate_count": val.get("candidate_count"), "candidates": candidates[:5] if isinstance(candidates, list) else []}
+
+    for key in ("coverage_plan", "coverage_waypoints"):
+        val = context.get(key)
+        if isinstance(val, list):
+            compact_context[key] = val[:10]
+        elif isinstance(val, dict):
+            waypoints = val.get("waypoints") or val.get("poses") or val.get("path")
+            compact_context[key] = {"waypoint_count": val.get("waypoint_count") or val.get("count"), "waypoints": waypoints[:10] if isinstance(waypoints, list) else []}
+
+    # Keep selected goal/decision but omit giant histories.
+    return {
+        "run_id": str(state.get("run_id", ""))[:128],
+        "thread_id": str(state.get("thread_id", ""))[:128],
+        "raw_command": str(state.get("raw_command", ""))[:2000],
+        "text": str(state.get("text", ""))[:2000],
+        "intent": state.get("intent", {}),
+        "candidate_actions": state.get("candidate_actions", [])[:10] if isinstance(state.get("candidate_actions"), list) else [],
+        "decision": state.get("decision", {}),
+        "selected_goal": state.get("selected_goal"),
+        "nav_command": state.get("nav_command"),
+        "speech": str(state.get("speech", ""))[:4000],
+        "context": compact_context,
+        "events": [],
+        "errors": [],
+    }
 
 
 class AgentOrchestrator:
@@ -127,9 +258,10 @@ class AgentOrchestrator:
             "history": [],
             "store_events": [],
         }
-        self.persistence.store.put(("threads", self.thread_id, "commands"), input_state["run_id"], {"raw_command": raw_command})
+        self.persistence.store.put(("threads", self.thread_id, "commands"), input_state["run_id"], _compact_for_checkpoint({"raw_command": raw_command}))
+        input_state = _tiny_state_for_graph(input_state)
         result = self.graph.invoke(input_state, self.config)
-        self.persistence.write_summary(result)
+        self.persistence.write_summary(compact_langgraph_value(result))
         return result
 
     def stream(self, raw_command: str) -> List[Dict[str, Any]]:
@@ -145,12 +277,12 @@ class AgentOrchestrator:
             "history": [],
             "store_events": [],
         }
-        self.persistence.store.put(("threads", self.thread_id, "commands"), input_state["run_id"], {"raw_command": raw_command})
+        self.persistence.store.put(("threads", self.thread_id, "commands"), input_state["run_id"], _compact_for_checkpoint({"raw_command": raw_command}))
         final_state: Optional[AgentState] = None
         for event in self.graph.stream(input_state, self.config, stream_mode="updates"):
-            updates.append(event)
+            updates.append(compact_langgraph_value(event, max_depth=5))
             try:
-                self.persistence.store.append_event(self.thread_id, {"type": "stream_update", "run_id": input_state["run_id"], "payload": event})
+                self.persistence.store.append_event(self.thread_id, {"type": "stream_update", "run_id": input_state["run_id"], "payload": compact_langgraph_value(event, max_depth=5)})
             except Exception:
                 pass
             if isinstance(event, dict):
@@ -167,7 +299,7 @@ class AgentOrchestrator:
             except Exception:
                 final_state = None
         if final_state:
-            self.persistence.write_summary(final_state)
+            self.persistence.write_summary(compact_langgraph_value(final_state))
         return updates
 
     def run_with_stream(self, raw_command: str) -> Tuple[AgentState, List[Dict[str, Any]]]:
@@ -176,7 +308,7 @@ class AgentOrchestrator:
         snapshot = self.graph.get_state(self.config)
         state = getattr(snapshot, "values", None) or {}
         if isinstance(state, dict):
-            self.persistence.write_summary(state)
+            self.persistence.write_summary(compact_langgraph_value(state))
             return state, events
         return {"error": {"message": "stream_completed_without_state"}, "events": []}, events
 
@@ -185,7 +317,7 @@ class AgentOrchestrator:
         from langgraph.types import Command  # type: ignore
 
         result = self.graph.invoke(Command(resume=resume_payload), self.config)
-        self.persistence.write_summary(result)
+        self.persistence.write_summary(compact_langgraph_value(result))
         return result
 
     def list_checkpoints(self, limit: int = 10) -> List[Dict[str, Any]]:
@@ -218,7 +350,7 @@ class AgentOrchestrator:
             result = self.graph.invoke(input_state, config)
         else:
             result = self.graph.invoke(None, config)
-        self.persistence.write_summary(result)
+        self.persistence.write_summary(compact_langgraph_value(result))
         self.persistence.store.put(("threads", self.thread_id, "time_travel"), str(result.get("run_id") or checkpoint_id), {
             "checkpoint_id": checkpoint_id,
             "raw_command": raw_command,
@@ -249,7 +381,7 @@ class AgentOrchestrator:
                 live = {"live_context_error": str(exc)}
         context.update(live)
         try:
-            context["langgraph_store_recent"] = self.persistence.store.search(("threads", self.thread_id), limit=10)
+            context["langgraph_store_recent"] = compact_langgraph_value(self.persistence.store.search(("threads", self.thread_id), limit=3), max_depth=3)
         except Exception as exc:
             context["langgraph_store_error"] = str(exc)
         context.setdefault("localization_confidence", 0.75)
@@ -265,6 +397,7 @@ class AgentOrchestrator:
         if isinstance(dyn, dict) and dyn.get("front_blocked"):
             context["safety_blocked"] = True
         context.setdefault("live_observation", "No live VLM observation has been attached to this command yet.")
+        context = compact_langgraph_value(context)
         return {"context": context, "events": event_update("main_supervisor", "context_built", summarize_context(context))["events"]}
 
     def memory_refresh(self, state: AgentState) -> Dict[str, Any]:
@@ -307,6 +440,7 @@ class AgentOrchestrator:
                     "spoken_response": "Debate layer is disabled; using first safe candidate action.",
                     "memory_updates": [],
                 }
+            decision_dict = compact_langgraph_value(decision_dict)
             self.memory.save_decision(decision_dict)
             try:
                 self.persistence.store.put(("threads", self.thread_id, "debate_decisions"), decision_dict.get("decision_id", str(state.get("run_id"))), decision_dict)
@@ -409,7 +543,7 @@ class AgentOrchestrator:
         try:
             self.persistence.store.put(("threads", self.thread_id, "nav_commands"), str(state.get("run_id") or new_run_id("nav")), {
                 "command": command,
-                "decision": state.get("decision") or {},
+                "decision": compact_langgraph_value(state.get("decision") or {}),
                 "intent": state.get("parsed_intent") or {},
             })
         except Exception:
@@ -420,8 +554,8 @@ class AgentOrchestrator:
             "layer": "temporary",
             "source": "langgraph_agent",
             "command": command,
-            "decision": state.get("decision") or {},
-            "context_summary": summarize_context(state.get("context") or {}),
+            "decision": compact_langgraph_value(state.get("decision") or {}),
+            "context_summary": summarize_context(compact_langgraph_value(state.get("context") or {})),
         }
         try:
             result = self.memory.write_checkpoint(payload)
@@ -457,7 +591,7 @@ class AgentOrchestrator:
             "run_id": state.get("run_id"),
             "text": state.get("text"),
             "parsed_intent": state.get("parsed_intent"),
-            "decision": state.get("decision"),
+            "decision": compact_langgraph_value(state.get("decision")),
             "nav_command": command,
             "speech_response": speech,
         }

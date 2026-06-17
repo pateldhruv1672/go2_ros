@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
@@ -142,7 +143,7 @@ class OpenVocabularyDetectorNode(Node):
         self.detector = OpenVocabularyDetector(str(self.get_parameter("backend").value), str(self.get_parameter("model_name").value), prompts, float(self.get_parameter("threshold").value))
         self.last_ts = 0.0
         self.pub = self.create_publisher(String, "/go2_perception/open_vocab_detections", 10)
-        self.create_subscription(Image, str(self.get_parameter("camera_topic").value), self._on_image, 3)
+        self.create_subscription(Image, str(self.get_parameter("camera_topic").value), self._on_image, qos_profile_sensor_data)
         self.get_logger().info("Open-vocabulary detector ready: backend=%s model=%s" % (self.detector._loaded_backend, self.detector.model_name))
 
     def _on_image(self, msg: Image) -> None:

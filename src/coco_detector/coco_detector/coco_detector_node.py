@@ -17,7 +17,7 @@ from cv_bridge import CvBridge
 import torch
 from torchvision.models import detection as detection_model
 from torchvision.utils import draw_bounding_boxes
-from rclpy.qos import QoSProfile, ReliabilityPolicy
+from rclpy.qos import QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 Detection = collections.namedtuple("Detection", "label, bbox, score")
 
 class CocoDetectorNode(Node):
@@ -38,11 +38,7 @@ class CocoDetectorNode(Node):
         self.device = self.get_parameter('device').get_parameter_value().string_value
         self.detection_threshold = \
             self.get_parameter('detection_threshold').get_parameter_value().double_value
-        self.subscription = self.create_subscription(
-            Image,
-            "/camera/image_raw",
-            self.listener_callback,
-            10)
+        self.subscription = self.create_subscription(Image, "/camera/image_raw", self.listener_callback, qos_profile_sensor_data)
         self.detected_objects_publisher = \
             self.create_publisher(Detection2DArray, "detected_objects", 10)
         if self.get_parameter('publish_annotated_image').get_parameter_value().bool_value:

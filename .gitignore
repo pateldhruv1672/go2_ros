@@ -14925,3 +14925,4 @@ src/go2_semantic_nav_agent/launch/semantic_nav_resume.launch.py.before_rollback_
 src/go2_semantic_nav_agent/launch/semantic_nav_resume.launch.py.before_ros_side_retry_20260611_222308
 src/go2_semantic_nav_agent/launch/semantic_nav_resume.launch.py.broken_20260611_214611
 src/go2_semantic_nav_agent/config/semantic_nav.rviz
+go2_secrets.sh

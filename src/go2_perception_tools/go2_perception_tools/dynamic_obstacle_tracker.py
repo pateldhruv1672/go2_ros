@@ -10,6 +10,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
+from rclpy.qos import qos_profile_sensor_data
 
 
 @dataclass
@@ -81,7 +82,7 @@ class DynamicObstacleTracker(Node):
         self.next_id = 1
         self.tracks: Dict[int, Track] = {}
         self.pub = self.create_publisher(String, "/go2_perception/dynamic_obstacles", 10)
-        self.create_subscription(LaserScan, str(self.get_parameter("scan_topic").value), self._on_scan, 10)
+        self.create_subscription(LaserScan, str(self.get_parameter("scan_topic").value), self._on_scan, qos_profile_sensor_data)
         self.get_logger().info("Dynamic obstacle tracker ready")
 
     def _on_scan(self, msg: LaserScan) -> None:

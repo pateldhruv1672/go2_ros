@@ -101,6 +101,127 @@ def require_langgraph() -> None:
         ) from exc
 
 
+def compact_langgraph_value(value: Any, depth: int = 0, max_depth: int = 6) -> Any:
+    """Keep LangGraph checkpoint state small and non-recursive."""
+    if depth > max_depth:
+        return {"__truncated__": "max_depth"}
+
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+
+    if isinstance(value, str):
+        return value[:4000] + ("...<truncated>" if len(value) > 4000 else "")
+
+    if isinstance(value, (list, tuple)):
+        out = [compact_langgraph_value(v, depth + 1, max_depth) for v in list(value)[:20]]
+        if len(value) > 20:
+            out.append({"__truncated_items__": len(value) - 20})
+        return out
+
+    if isinstance(value, dict):
+        drop_keys = {
+            "latest_checkpoint",
+            "latest_checkpoints",
+            "checkpoint_history",
+            "langgraph_store_recent",
+            "raw_map",
+            "map_data",
+            "occupancy_grid",
+            "pointcloud",
+            "pointcloud2",
+            "points",
+            "ranges",
+            "intensities",
+            "image",
+            "image_b64",
+            "raw_image",
+            "raw_camera_frame",
+        }
+        out = {}
+        for k, v in value.items():
+            key = str(k)
+
+            if key in {"events", "history", "store_events"}:
+                out[key] = compact_langgraph_value(list(v or [])[-20:], depth + 1, max_depth)
+                continue
+
+            if key == "memory_updates":
+                out[key] = compact_langgraph_value(list(v or [])[-10:], depth + 1, max_depth)
+                continue
+
+            if key in drop_keys:
+                if key == "latest_checkpoint" and isinstance(v, dict):
+                    out["latest_checkpoint_ref"] = {
+                        "id": v.get("id"),
+                        "timestamp": v.get("timestamp"),
+                        "type": v.get("type"),
+                    }
+                else:
+                    out[key + "_omitted"] = True
+                continue
+
+            out[key] = compact_langgraph_value(v, depth + 1, max_depth)
+        return out
+
+    return str(value)[:4000]
+
+
+class LocalSequentialGraph:
+    """Non-checkpointed local subgraph used inside the real top-level LangGraph.
+
+    This prevents child subgraphs from checkpointing the full parent state and
+    recursively duplicating events/history.
+    """
+
+    def __init__(self, graph_name: str, node_order: List[str], node_funcs: Dict[str, Any]):
+        self.graph_name = graph_name
+        self.node_funcs = [node_funcs[name] for name in node_order]
+
+    def invoke(self, state: AgentState) -> AgentState:
+        working = {
+            k: compact_langgraph_value(v)
+            for k, v in dict(state or {}).items()
+            if k not in {"events", "history", "memory_updates", "store_events"}
+        }
+        working["events"] = []
+        working["history"] = []
+        working["memory_updates"] = []
+        working["store_events"] = []
+
+        accumulated: AgentState = {}
+
+        for fn in self.node_funcs:
+            before_events = list(working.get("events") or [])
+            delta = fn(working) or {}
+            if not isinstance(delta, dict):
+                delta = {}
+
+            mutated_events = list(working.get("events") or [])[len(before_events):]
+            returned_events = list(delta.get("events") or [])
+            captured_events = []
+            for ev in returned_events + mutated_events:
+                ev = compact_langgraph_value(ev, max_depth=4)
+                if ev not in captured_events:
+                    captured_events.append(ev)
+
+            clean_delta = {
+                k: compact_langgraph_value(v)
+                for k, v in delta.items()
+                if k not in {"events", "history", "store_events"}
+            }
+            if captured_events:
+                clean_delta["events"] = captured_events[-20:]
+
+            merge_state(working, clean_delta)
+            merge_state(accumulated, clean_delta)
+
+            for key in ("events", "history", "memory_updates", "store_events"):
+                if isinstance(working.get(key), list):
+                    working[key] = working[key][-50:]
+
+        return accumulated
+
+
 def build_required_langgraph(graph_name: str, node_order: List[str], node_funcs: Dict[str, Any]) -> Any:
     """Build a real LangGraph StateGraph.
 
@@ -125,7 +246,7 @@ def build_required_langgraph(graph_name: str, node_order: List[str], node_funcs:
 # Backwards-compatible symbol used by existing subgraph modules. It now builds
 # real LangGraph only and raises if the dependency is missing.
 def try_build_langgraph(graph_name: str, node_order: List[str], node_funcs: Dict[str, Any]) -> Any:
-    return build_required_langgraph(graph_name, node_order, node_funcs)
+    return LocalSequentialGraph(graph_name, node_order, node_funcs)
 
 
 def merge_state(base: AgentState, update: MutableMapping[str, Any]) -> AgentState:
@@ -135,6 +256,7 @@ def merge_state(base: AgentState, update: MutableMapping[str, Any]) -> AgentStat
         if key in {"events", "memory_updates", "history"}:
             base.setdefault(key, [])
             base[key].extend(value or [])
+            base[key] = base[key][-50:]
         elif isinstance(value, dict) and isinstance(base.get(key), dict):
             merged = dict(base[key])
             merged.update(value)
@@ -148,11 +270,12 @@ def append_event(state: AgentState, graph: str, event: str, data: Optional[Dict[
     # The compiled LangGraph nodes in this package also mutate the state for
     # compatibility with the previous implementation. Main graph checkpoints use
     # reducer-annotated event streams and final status publishes these events.
-    state.setdefault("events", []).append(SubgraphEvent(graph, event, data or {}).to_dict())
+    state.setdefault("events", []).append(SubgraphEvent(graph, event, compact_langgraph_value(data or {}, max_depth=3)).to_dict())
+    state["events"] = state["events"][-50:]
 
 
 def event_update(graph: str, event: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    return {"events": [SubgraphEvent(graph, event, data or {}).to_dict()]}
+    return {"events": [SubgraphEvent(graph, event, compact_langgraph_value(data or {}, max_depth=3)).to_dict()]}
 
 
 def extract_text_from_message(raw: str) -> str:

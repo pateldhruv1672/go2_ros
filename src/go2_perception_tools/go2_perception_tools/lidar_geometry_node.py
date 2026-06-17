@@ -8,6 +8,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
+from rclpy.qos import qos_profile_sensor_data
 
 
 def summarize_scan(msg: LaserScan, opening_threshold_m: float = 1.8) -> dict:
@@ -55,7 +56,7 @@ class LidarGeometryNode(Node):
         self.declare_parameter('scan_topic', '/scan')
         self.declare_parameter('opening_threshold_m', 1.8)
         self.pub = self.create_publisher(String, '/go2_perception/scan_summary', 10)
-        self.create_subscription(LaserScan, self.get_parameter('scan_topic').value, self._on_scan, 10)
+        self.create_subscription(LaserScan, self.get_parameter('scan_topic').value, self._on_scan, qos_profile_sensor_data)
         self.get_logger().info('LiDAR geometry analyzer ready')
 
     def _on_scan(self, msg: LaserScan) -> None:

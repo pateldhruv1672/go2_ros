@@ -7,6 +7,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import String
+from rclpy.qos import qos_profile_sensor_data
 
 try:
     from sensor_msgs_py import point_cloud2
@@ -51,7 +52,7 @@ class PointCloudAnalyzerNode(Node):
         super().__init__('go2_pointcloud_analyzer_node')
         self.declare_parameter('pointcloud_topic', '/point_cloud2')
         self.pub = self.create_publisher(String, '/go2_perception/pointcloud_summary', 10)
-        self.create_subscription(PointCloud2, self.get_parameter('pointcloud_topic').value, self._on_cloud, 5)
+        self.create_subscription(PointCloud2, self.get_parameter('pointcloud_topic').value, self._on_cloud, qos_profile_sensor_data)
         self.get_logger().info('Point-cloud analyzer ready')
 
     def _on_cloud(self, msg: PointCloud2) -> None:

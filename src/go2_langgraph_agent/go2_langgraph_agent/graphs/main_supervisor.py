@@ -31,6 +31,17 @@ def _json_or_text(msg: String) -> Any:
         return msg.data
 
 
+def _bounded_json_string(value, max_chars=60000):
+    import json
+    try:
+        s = json.dumps(value, default=str)
+    except Exception:
+        s = str(value)
+    if len(s) > max_chars:
+        s = s[:max_chars] + f"...<truncated {len(s) - max_chars} chars>"
+    return s
+
+
 class MainSupervisor(Node):
     """ROS adapter for the real LangGraph Go2 agent runtime."""
 

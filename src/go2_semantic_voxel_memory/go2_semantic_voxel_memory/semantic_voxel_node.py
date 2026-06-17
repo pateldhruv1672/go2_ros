@@ -12,6 +12,7 @@ from visualization_msgs.msg import MarkerArray
 from .voxel_query import query_localization_landmarks, summarize_voxels
 from .voxel_rviz_markers import markers_from_voxels
 from .voxel_store import SemanticVoxelStore
+from rclpy.qos import qos_profile_sensor_data
 
 try:  # ROS 2 package; optional in pure Python tests
     from sensor_msgs_py import point_cloud2
@@ -59,10 +60,9 @@ class SemanticVoxelNode(Node):
         )
         self.latest_cloud_points: List[Dict[str, float]] = []
         self.last_cloud_ingest_time = 0.0
-        self.create_subscription(String, "/go2_voxel/write_observation", self._on_write, 10)
         self.create_subscription(String, "/go2_voxel/query", self._on_query, 10)
         if _as_bool(self.get_parameter("enable_pointcloud_ingest").value):
-            self.create_subscription(PointCloud2, str(self.get_parameter("pointcloud_topic").value), self._on_pointcloud, 5)
+            self.create_subscription(PointCloud2, str(self.get_parameter("pointcloud_topic").value), self._on_pointcloud, qos_profile_sensor_data)
         self.summary_pub = self.create_publisher(String, "/go2_voxel/summary", 10)
         self.marker_pub = self.create_publisher(MarkerArray, "/go2_voxel/markers", 10)
         self.create_timer(2.0, self._publish_markers)

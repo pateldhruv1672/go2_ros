@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Tuple
 import rclpy
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
@@ -74,7 +75,7 @@ class VLMCheckpointNode(Node):
         self.latest_image: Optional[Image] = None
         self.latest_odom: Optional[Odometry] = None
         self.status_pub = self.create_publisher(String, "/go2_vlm_checkpoint/status", 10)
-        self.create_subscription(Image, str(self.get_parameter("camera_topic").value), self._on_image, 5)
+        self.create_subscription(Image, str(self.get_parameter("camera_topic").value), self._on_image, qos_profile_sensor_data)
         self.create_subscription(Odometry, str(self.get_parameter("odom_topic").value), self._on_odom, 20)
         self.create_subscription(String, "/go2_vlm_checkpoint/write_now", self._on_write_now, 10)
         self.create_timer(float(self.get_parameter("write_period_sec").value), self._timer)
