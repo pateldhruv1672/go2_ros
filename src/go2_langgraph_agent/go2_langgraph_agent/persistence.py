@@ -74,6 +74,14 @@ class NativeLangGraphStoreAdapter:
             for ctor in constructors:
                 try:
                     store = ctor()
+                    # Some LangGraph versions return a context manager from
+                    # SqliteStore.from_conn_string(...). Enter it once and keep
+                    # the context alive for the lifetime of this ROS node.
+                    if hasattr(store, "__enter__") and not hasattr(store, "put"):
+                        self._native_store_context = store
+                        store = store.__enter__()
+                    # Store factory returned a context manager; `store` is now
+                    # the actual native LangGraph Store object.
                     setup = getattr(store, "setup", None)
                     if callable(setup):
                         setup()
@@ -207,6 +215,12 @@ class NativeLangGraphStoreAdapter:
             close = getattr(self.native_store, "close", None)
             if callable(close):
                 close()
+        except Exception:
+            pass
+        try:
+            if getattr(self, "_native_store_context", None) is not None:
+                self._native_store_context.__exit__(None, None, None)
+                self._native_store_context = None
         except Exception:
             pass
         try:

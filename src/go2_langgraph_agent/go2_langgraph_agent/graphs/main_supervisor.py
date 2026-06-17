@@ -13,6 +13,7 @@ from go2_langgraph_agent.graphs.agent_state import LangGraphDependencyError
 from go2_langgraph_agent.persistence import LangGraphSQLitePersistence
 from go2_langgraph_agent.tools.memory_tools import MemoryTools
 from go2_langgraph_agent.tools.nav_tools import publish_nav_command
+import traceback
 
 
 def _as_bool(value: Any) -> bool:
@@ -169,7 +170,7 @@ class MainSupervisor(Node):
             self._publish_result(state)
             self._publish_events({"type": "graph_result", "run_id": state.get("run_id"), "events": state.get("events", [])[-25:]})
         except Exception as exc:
-            self.get_logger().exception(f"LangGraph invocation failed: {exc}")
+            self.get_logger().error(f"LangGraph invocation failed: {exc}\n{traceback.format_exc()}")
             command = {"action": "stop_robot", "reason": "langgraph_invocation_failed", "error": str(exc)}
             publish_nav_command(self.nav_pub, "stop_robot", command)
             self.speech_pub.publish(String(data="The LangGraph agent failed internally, so I am stopping instead of moving."))
@@ -182,7 +183,7 @@ class MainSupervisor(Node):
             self._publish_result(state)
             self._publish_events({"type": "resume_completed", "thread_id": self.thread_id, "payload": payload})
         except Exception as exc:
-            self.get_logger().exception(f"LangGraph resume failed: {exc}")
+            self.get_logger().error(f"LangGraph resume failed: {exc}\n{traceback.format_exc()}")
             self._publish_events({"type": "resume_failed", "thread_id": self.thread_id, "error": str(exc), "payload": payload})
             self.speech_pub.publish(String(data="I could not resume the interrupted LangGraph task, so I am staying stopped."))
 
