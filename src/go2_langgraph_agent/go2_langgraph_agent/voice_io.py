@@ -275,20 +275,19 @@ class OmiBleAudioSource:
         payload = bytes(data)
         if len(payload) <= 3:
             return
-        audio = payload[3:]  # 3-byte Omi packet header: packet number + fragment index
-        pcm = self._decode_audio(audio)
+        pcm = self._decode_audio(payload)
         if pcm:
             try:
                 self.audio_q.put_nowait(pcm)
             except queue.Full:
                 pass
 
-    def _decode_audio(self, audio: bytes) -> bytes:
+    def _decode_audio(self, packet: bytes) -> bytes:
         if self._codec in {0, 1}:  # PCM 16-bit mono, 16 kHz or 8 kHz
-            return audio
+            return packet[3:]  # 3-byte Omi packet header: packet number + fragment index
         if self._codec == 20 and self._opus_decoder is not None:
             try:
-                decoded = self._opus_decoder.decode_packet(audio)
+                decoded = self._opus_decoder.decode_packet(packet)
                 return bytes(decoded or b"")
             except Exception:
                 return b""

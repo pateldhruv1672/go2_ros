@@ -1,0 +1,42 @@
+go2_omi_bridge:
+  ros__parameters:
+    adapter_mode: "transcript_only"
+    ble_device_name: "Omi"
+    ble_device_address: "EF:1C:34:C6:25:92"
+    ble_scan_timeout_sec: 10.0
+    reconnect_on_drop: true
+
+go2_voice_stt_node:
+  ros__parameters:
+    adapter_mode: "transcript_only"
+    ble_device_name: "Omi"
+    ble_device_address: "EF:1C:34:C6:25:92"
+    stt_backend: "faster_whisper"
+    stt_model: "tiny.en"
+    omi_chunk_sec: 4.0
+    language: "en-US"
+    default_confidence: 0.95
+
+go2_voice_intent_gate:
+  ros__parameters:
+    transcript_confidence_threshold: 0.70
+    confirmation_timeout_sec: 15.0
+    wake_words: ["sparky", "go2", "robot"]
+    require_confirmation_for_motion: true
+    duplicate_suppression_sec: 5.0
+    publish_to_agent_topic: "/go2_agent/user_command"
+    tts_topic: "/go2_tts/say"
+    cmd_vel_topic: "/cmd_vel_out"
+    nav_command_topic: "/go2_nav/command"
+
+go2_tts_node:
+  ros__parameters:
+    tts_enabled: true
+    tts_backend: "local"
+    espeak_voice: "en"
+
+go2_tour_voice_command_router:
+  ros__parameters:
+    session_root: "~/.ros/go2_semantic_nav_sessions"
+    session_name: "default"
+    default_tour_id: "sjsu_ads_department_tour"
