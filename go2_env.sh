@@ -17,6 +17,12 @@ export CONN_TYPE=webrtc
 source /opt/ros/jazzy/setup.bash
 source /home/digital-twin-admin/Dhruv/sparky/ros2_ws/src/.venv/bin/activate
 
+if [ -f /home/digital-twin-admin/Dhruv/sparky/ros2_ws/.env.local ]; then
+  set -a
+  source /home/digital-twin-admin/Dhruv/sparky/ros2_ws/.env.local
+  set +a
+fi
+
 if [ -f /home/digital-twin-admin/Dhruv/sparky/ros2_ws/install/setup.bash ]; then
   source /home/digital-twin-admin/Dhruv/sparky/ros2_ws/install/setup.bash
 fi

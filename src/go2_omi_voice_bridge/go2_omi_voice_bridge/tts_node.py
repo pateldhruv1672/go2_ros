@@ -19,7 +19,9 @@ def _message_text(data: str) -> tuple[str, dict[str, Any]]:
     try:
         payload = json.loads(raw)
         if isinstance(payload, dict):
-            text = str(payload.get("text") or payload.get("message") or payload.get("data") or "").strip()
+            text = str(payload.get("text") or payload.get("message") or payload.get("summary") or payload.get("data") or "").strip()
+            if payload.get("vlm_success") is False:
+                text = str(payload.get("vlm_error") or "I could not get a camera summary from the VLM.").strip()
             return text, payload
     except Exception:
         pass
@@ -42,9 +44,9 @@ class Go2TtsNode(Node):
         self.status_pub = self.create_publisher(String, "/go2_tts/status", 10)
         self._lock = threading.Lock()
         self._proc: subprocess.Popen | None = None
-        for topic in ("/go2_tts/say", "/go2_agent/response", "/go2_agent/speech", "/go2_tour/narration"):
+        for topic in ("/go2_tts/say", "/go2_agent/response", "/go2_agent/speech", "/go2_tour/narration", "/go2_vlm_checkpoint/status"):
             self.create_subscription(String, topic, self._on_speech, 10)
-        self.get_logger().info("Go2 TTS node ready; subscribes to /go2_tts/say, /go2_agent/response, /go2_agent/speech, /go2_tour/narration")
+        self.get_logger().info("Go2 TTS node ready; subscribes to /go2_tts/say, /go2_agent/response, /go2_agent/speech, /go2_tour/narration, /go2_vlm_checkpoint/status")
 
     def _param_bool(self, name: str) -> bool:
         value = self.get_parameter(name).value

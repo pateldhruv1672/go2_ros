@@ -133,7 +133,22 @@ class VLMCheckpointNode(Node):
                 "properties": {"source": "vlm_checkpoint", "checkpoint_id": checkpoint_id, "source_confidence": {"vlm": payload["confidence"]["perception_confidence"]}},
             }
         result = self.api.write_checkpoint(self.session_name, payload)
-        self.status_pub.publish(String(data=json.dumps({"success": True, "checkpoint_id": result.get("id"), "vlm_success": vlm_result.success, "vlm_error": vlm_result.error, "summary": vlm_result.summary, "image_ref": image_ref}, sort_keys=True)))
+        self.status_pub.publish(
+            String(
+                data=json.dumps(
+                    {
+                        "success": True,
+                        "checkpoint_id": result.get("id"),
+                        "trigger": trigger,
+                        "vlm_success": vlm_result.success,
+                        "vlm_error": vlm_result.error,
+                        "summary": vlm_result.summary,
+                        "image_ref": image_ref,
+                    },
+                    sort_keys=True,
+                )
+            )
+        )
 
     def _snapshot_image(self, checkpoint_id: str) -> Tuple[Optional[bytes], str, str]:
         if self.latest_image is None:

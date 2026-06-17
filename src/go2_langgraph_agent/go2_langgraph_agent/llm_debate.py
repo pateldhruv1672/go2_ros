@@ -108,6 +108,9 @@ class LLMVoteClient:
             "goal_candidate": context.get("goal_candidate"),
             "nav_status": context.get("nav_status"),
             "memory_summary": context.get("memory_summary"),
+            "live_observation": context.get("live_observation"),
+            "vlm_status": context.get("vlm_status"),
+            "open_vocab_detections": context.get("open_vocab_detections"),
         }
         return (
             "You are one council member in a safety-critical Unitree Go2 ROS 2 navigation agent. "

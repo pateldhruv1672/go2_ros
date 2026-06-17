@@ -65,6 +65,7 @@ class VoiceIntentGateNode(Node):
         self.tour_continue_pub = self.create_publisher(String, "/go2_tour/continue", 10)
         self.tour_skip_pub = self.create_publisher(String, "/go2_tour/skip", 10)
         self.tour_cancel_pub = self.create_publisher(String, "/go2_tour/cancel", 10)
+        self.vlm_write_pub = self.create_publisher(String, "/go2_vlm_checkpoint/write_now", 10)
 
         self.create_subscription(String, "/go2_voice/transcript", self._on_transcript, 10)
         self.create_subscription(String, "/go2_nav/status", self._on_nav_status, 10)
@@ -220,7 +221,11 @@ class VoiceIntentGateNode(Node):
         self.agent_pub.publish(String(data=json.dumps(payload, sort_keys=True, default=str)))
         self._route_tour_intent(intent, payload)
         if intent.intent in {INTENT_WHERE_AM_I, INTENT_OBSERVE}:
-            self._say("I will observe and answer without moving.", "status")
+            if intent.intent == INTENT_OBSERVE:
+                self.vlm_write_pub.publish(String(data="voice_observe"))
+                self._say("I am checking the camera now.", "status")
+            else:
+                self._say("I will answer without moving.", "status")
         elif intent.intent == INTENT_FUN_FACT:
             self._say("I will look up a safe fun fact for this place.", "status")
         self._publish_state({"state": "approved", "intent": intent.intent, "verified": verified})
