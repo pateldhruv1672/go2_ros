@@ -13,6 +13,8 @@ def generate_launch_description():
     ble_device_name = LaunchConfiguration("ble_device_name")
     ble_device_address = LaunchConfiguration("ble_device_address")
     tts_enabled = LaunchConfiguration("tts_enabled")
+    local_speaker_enabled = LaunchConfiguration("local_speaker_enabled")
+    local_speaker_backend = LaunchConfiguration("local_speaker_backend")
     agent_enabled = LaunchConfiguration("agent_enabled")
     enable_llm_debate = LaunchConfiguration("enable_llm_debate")
     debate_llm_provider = LaunchConfiguration("debate_llm_provider")
@@ -34,14 +36,16 @@ def generate_launch_description():
             DeclareLaunchArgument("ble_device_name", default_value="Omi"),
             DeclareLaunchArgument("ble_device_address", default_value="EF:1C:34:C6:25:92"),
             DeclareLaunchArgument("tts_enabled", default_value="true"),
+            DeclareLaunchArgument("local_speaker_enabled", default_value="true"),
+            DeclareLaunchArgument("local_speaker_backend", default_value="auto"),
             DeclareLaunchArgument("agent_enabled", default_value="true"),
             DeclareLaunchArgument("enable_llm_debate", default_value="true"),
-            DeclareLaunchArgument("debate_llm_provider", default_value="openrouter"),
-            DeclareLaunchArgument("debate_llm_model", default_value="openai/gpt-4o-mini"),
+            DeclareLaunchArgument("debate_llm_provider", default_value="ollama"),
+            DeclareLaunchArgument("debate_llm_model", default_value="qwen3:14b"),
             DeclareLaunchArgument("debate_llm_timeout_sec", default_value="8.0"),
             DeclareLaunchArgument("enable_vlm_checkpointing", default_value="true"),
-            DeclareLaunchArgument("vlm_provider", default_value="openrouter"),
-            DeclareLaunchArgument("vlm_model", default_value="google/gemini-2.5-flash"),
+            DeclareLaunchArgument("vlm_provider", default_value="ollama"),
+            DeclareLaunchArgument("vlm_model", default_value="qwen3-vl:8b"),
             DeclareLaunchArgument("vlm_write_period_sec", default_value="30.0"),
             DeclareLaunchArgument("vlm_auto_write_checkpoints", default_value="false"),
             DeclareLaunchArgument("camera_topic", default_value="/camera/image_raw"),
@@ -113,7 +117,7 @@ def generate_launch_description():
                 executable="tts_node",
                 name="go2_tts_node",
                 output="screen",
-                parameters=[config_file, {"tts_enabled": tts_enabled}],
+                parameters=[config_file, {"tts_enabled": tts_enabled, "local_speaker_enabled": local_speaker_enabled, "local_speaker_backend": local_speaker_backend}],
             ),
             Node(
                 package="go2_omi_voice_bridge",

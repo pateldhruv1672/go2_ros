@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import threading
@@ -16,37 +17,94 @@ def _message_text(data: str) -> tuple[str, dict[str, Any]]:
     raw = data.strip()
     if not raw:
         return "", {}
+
     try:
         payload = json.loads(raw)
         if isinstance(payload, dict):
-            text = str(payload.get("text") or payload.get("message") or payload.get("summary") or payload.get("data") or "").strip()
             if payload.get("vlm_success") is False:
-                text = str(payload.get("vlm_error") or "I could not get a camera summary from the VLM.").strip()
-            return text, payload
+                text = str(
+                    payload.get("vlm_error")
+                    or "I could not get a camera summary from the VLM."
+                ).strip()
+                return text, payload
+
+            for key in (
+                "text",
+                "message",
+                "summary",
+                "speech",
+                "narration",
+                "response",
+                "data",
+            ):
+                value = payload.get(key)
+                if value is not None:
+                    text = str(value).strip()
+                    if text:
+                        return text, payload
+            return "", payload
     except Exception:
         pass
+
     return raw, {"text": raw}
 
 
 class Go2TtsNode(Node):
-    """Simple interruptible TTS adapter.
+    """Interruptible local speaker mirror for Go2/Omi speech topics.
 
-    It always republishes status and logs speech text. If espeak is installed and
-    tts_backend is local/espeak, it speaks locally; otherwise it remains a safe
-    no-audio bridge for demos and CI.
+    This node does not bypass Nav2 or motion safety. It only mirrors speech text to
+    the computer's default audio output. It also keeps publishing /go2_tts/status
+    for debugging and UI feedback.
     """
 
     def __init__(self) -> None:
         super().__init__("go2_tts_node")
+
         self.declare_parameter("tts_enabled", True)
         self.declare_parameter("tts_backend", "local")
         self.declare_parameter("espeak_voice", "en")
+
+        # New computer speaker parameters.
+        self.declare_parameter("local_speaker_enabled", True)
+        self.declare_parameter("local_speaker_backend", "auto")
+        self.declare_parameter("local_speaker_voice", "")
+        self.declare_parameter("local_speaker_rate", 170)
+        self.declare_parameter("local_speaker_volume", 100)
+        self.declare_parameter("local_speaker_timeout_sec", 60.0)
+        self.declare_parameter("computer_speaker_device", "")
+        self.declare_parameter("interrupt_previous_by_default", False)
+        self.declare_parameter("speak_vlm_status", True)
+
         self.status_pub = self.create_publisher(String, "/go2_tts/status", 10)
         self._lock = threading.Lock()
-        self._proc: subprocess.Popen | None = None
-        for topic in ("/go2_tts/say", "/go2_agent/response", "/go2_agent/speech", "/go2_tour/narration", "/go2_vlm_checkpoint/status"):
-            self.create_subscription(String, topic, self._on_speech, 10)
-        self.get_logger().info("Go2 TTS node ready; subscribes to /go2_tts/say, /go2_agent/response, /go2_agent/speech, /go2_tour/narration, /go2_vlm_checkpoint/status")
+        self._proc: subprocess.Popen[str] | None = None
+
+        topics = (
+            "/tts",  # legacy Go2 robot TTS topic; mirroring this is the important add-on
+            "/go2_tts/say",
+            "/go2_agent/response",
+            "/go2_agent/speech",
+            "/go2_tour/narration",
+            "/go2_vlm_checkpoint/status",
+        )
+        for topic in topics:
+            self.create_subscription(
+                String,
+                topic,
+                lambda msg, topic_name=topic: self._on_speech(msg, topic_name),
+                10,
+            )
+
+        backend = self._select_backend()
+        self.get_logger().info(
+            "Go2 TTS node ready; mirroring speech to computer speaker. "
+            f"topics={list(topics)} backend={backend or 'none'}"
+        )
+        if backend is None and self._param_bool("local_speaker_enabled"):
+            self.get_logger().warn(
+                "No local TTS executable found. Install espeak-ng with: "
+                "sudo apt-get update && sudo apt-get install -y espeak-ng"
+            )
 
     def _param_bool(self, name: str) -> bool:
         value = self.get_parameter(name).value
@@ -56,51 +114,183 @@ class Go2TtsNode(Node):
             return value.strip().lower() in {"1", "true", "yes", "on"}
         return bool(value)
 
-    def _on_speech(self, msg: String) -> None:
+    def _param_int(self, name: str, default: int) -> int:
+        try:
+            return int(self.get_parameter(name).value)
+        except Exception:
+            return default
+
+    def _param_float(self, name: str, default: float) -> float:
+        try:
+            return float(self.get_parameter(name).value)
+        except Exception:
+            return default
+
+    def _on_speech(self, msg: String, topic_name: str) -> None:
+        if topic_name == "/go2_vlm_checkpoint/status" and not self._param_bool(
+            "speak_vlm_status"
+        ):
+            return
+
         text, payload = _message_text(msg.data)
         if not text:
             return
-        interrupt = bool(payload.get("interrupt", False)) or payload.get("priority") in {"high", "urgent"}
+
+        interrupt = (
+            bool(payload.get("interrupt", False))
+            or payload.get("priority") in {"high", "urgent"}
+            or self._param_bool("interrupt_previous_by_default")
+        )
         if interrupt:
             self._stop_current()
-        self.get_logger().info(f"TTS: {text}")
+
+        backend = self._select_backend()
+        status = {
+            "ok": True,
+            "source_topic": topic_name,
+            "text_len": len(text),
+            "category": payload.get("category", "speech"),
+            "tts_backend": str(self.get_parameter("tts_backend").value),
+            "local_speaker_enabled": self._param_bool("local_speaker_enabled"),
+            "local_speaker_backend": backend or "none",
+        }
+        self.status_pub.publish(String(data=json.dumps(status, sort_keys=True)))
+        self.get_logger().info(f"TTS mirror from {topic_name}: {text}")
+
+        if self._param_bool("tts_enabled") and self._param_bool(
+            "local_speaker_enabled"
+        ):
+            threading.Thread(target=self._speak_local, args=(text,), daemon=True).start()
+
+    def _select_backend(self) -> str | None:
+        requested = str(self.get_parameter("local_speaker_backend").value).strip()
+        requested_l = requested.lower()
+
+        if requested_l in {"off", "disabled", "none", "false", "0"}:
+            return None
+
+        if requested_l and requested_l != "auto":
+            exe = shutil.which(requested)
+            if exe:
+                return exe
+            # Friendly aliases.
+            aliases = {
+                "espeak": ("espeak-ng", "espeak"),
+                "espeak-ng": ("espeak-ng",),
+                "spd-say": ("spd-say",),
+                "say": ("say",),
+            }
+            for candidate in aliases.get(requested_l, (requested,)):
+                exe = shutil.which(candidate)
+                if exe:
+                    return exe
+            return None
+
+        for candidate in ("espeak-ng", "espeak", "spd-say", "say"):
+            exe = shutil.which(candidate)
+            if exe:
+                return exe
+        return None
+
+    def _build_command(self, exe: str, text: str) -> list[str]:
+        name = os.path.basename(exe)
+        voice = str(self.get_parameter("local_speaker_voice").value).strip()
+        if not voice:
+            voice = str(self.get_parameter("espeak_voice").value).strip() or "en"
+        rate = str(self._param_int("local_speaker_rate", 170))
+        volume = str(self._param_int("local_speaker_volume", 100))
+
+        if name in {"espeak", "espeak-ng"}:
+            return [exe, "-v", voice, "-s", rate, "-a", volume, text]
+        if name == "spd-say":
+            return [exe, "-w", text]
+        if name == "say":
+            return [exe, text]
+        return [exe, text]
+
+    def _stop_current(self) -> None:
+        with self._lock:
+            proc = self._proc
+            if proc and proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+            self._proc = None
+
+    def _speak_local(self, text: str) -> None:
+        disabled_backend = str(self.get_parameter("tts_backend").value).strip().lower()
+        if disabled_backend in {"off", "disabled", "none", "false", "0"}:
+            return
+
+        exe = self._select_backend()
+        if exe is None:
+            self.status_pub.publish(
+                String(
+                    data=json.dumps(
+                        {
+                            "ok": False,
+                            "error": "no_local_tts_executable",
+                            "hint": "sudo apt-get update && sudo apt-get install -y espeak-ng",
+                        },
+                        sort_keys=True,
+                    )
+                )
+            )
+            return
+
+        clean_text = " ".join(text.split())
+        if len(clean_text) > 4000:
+            clean_text = clean_text[:4000]
+
+        env = os.environ.copy()
+        device = str(self.get_parameter("computer_speaker_device").value).strip()
+        if device:
+            env["AUDIODEV"] = device
+
+        cmd = self._build_command(exe, clean_text)
+        timeout = self._param_float("local_speaker_timeout_sec", 60.0)
+
+        with self._lock:
+            self._proc = subprocess.Popen(
+                cmd,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+            proc = self._proc
+
+        ok = True
+        error = ""
+        try:
+            proc.wait(timeout=timeout)
+            ok = proc.returncode == 0
+            if not ok:
+                error = f"local_tts_returncode_{proc.returncode}"
+        except subprocess.TimeoutExpired:
+            ok = False
+            error = "local_tts_timeout"
+            proc.terminate()
+
+        with self._lock:
+            if self._proc is proc:
+                self._proc = None
+
         self.status_pub.publish(
             String(
                 data=json.dumps(
                     {
-                        "ok": True,
-                        "text_len": len(text),
-                        "category": payload.get("category", "status"),
-                        "backend": str(self.get_parameter("tts_backend").value),
+                        "ok": ok,
+                        "event": "local_speaker_done",
+                        "error": error,
+                        "local_speaker_backend": os.path.basename(exe),
                     },
                     sort_keys=True,
                 )
             )
         )
-        if self._param_bool("tts_enabled"):
-            threading.Thread(target=self._speak_local, args=(text,), daemon=True).start()
-
-    def _stop_current(self) -> None:
-        with self._lock:
-            if self._proc and self._proc.poll() is None:
-                self._proc.terminate()
-            self._proc = None
-
-    def _speak_local(self, text: str) -> None:
-        backend = str(self.get_parameter("tts_backend").value).lower()
-        if backend in {"off", "disabled", "none"}:
-            return
-        exe = shutil.which("espeak")
-        if exe is None:
-            return
-        voice = str(self.get_parameter("espeak_voice").value)
-        with self._lock:
-            self._proc = subprocess.Popen([exe, "-v", voice, text])
-            proc = self._proc
-        try:
-            proc.wait(timeout=60)
-        except subprocess.TimeoutExpired:
-            proc.terminate()
 
 
 def main(args=None) -> None:

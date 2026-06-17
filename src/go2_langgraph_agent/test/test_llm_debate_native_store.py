@@ -45,6 +45,19 @@ def test_llm_debate_runs_and_applies_hard_safety():
     assert blocked.safety_overrides
 
 
+def test_ollama_debate_client_parses_chat_message_json():
+    client = LLMVoteClient(provider="ollama", model="fake")
+    parsed = client._extract_json(
+        {
+            "message": {
+                "content": '{"vote":"approve","confidence":0.7,"risk_level":"low","final_action":"speak","requires_human_interrupt":false,"rationale":"ok","fallback_plan":["stop_robot"]}'
+            }
+        }
+    )
+    assert parsed["vote"] == "approve"
+    assert parsed["final_action"] == "speak"
+
+
 def test_store_adapter_mirror_fallback(tmp_path: Path):
     store = NativeLangGraphStoreAdapter(tmp_path / "store.sqlite", require_native=False)
     store.put(("threads", "demo", "facts"), "k1", {"fact": "robot has memory"})

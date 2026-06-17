@@ -39,12 +39,13 @@ class CouncilVote:
 
 
 class LLMVoteClient:
-    """Small OpenAI-compatible/OpenRouter/Gemini debate client.
+    """Small Ollama/OpenRouter/OpenAI-compatible/Gemini debate client.
 
     This intentionally avoids a hard LangChain dependency inside the ROS node.
-    The agent can use OpenRouter or any OpenAI-compatible endpoint by setting:
+    The agent can use local Ollama, OpenRouter, or any OpenAI-compatible endpoint by setting:
 
-      GO2_DEBATE_LLM_PROVIDER=openrouter|openai_compatible|gemini|offline
+      GO2_DEBATE_LLM_PROVIDER=ollama|openrouter|openai_compatible|gemini|offline
+      OLLAMA_CHAT_URL=http://127.0.0.1:11434/api/chat
       OPENROUTER_API_KEY=...
       OPENAI_API_KEY=... with GO2_DEBATE_BASE_URL=...
       GEMINI_API_KEY or GOOGLE_API_KEY=...
@@ -62,8 +63,8 @@ class LLMVoteClient:
         temperature: float = 0.1,
         request_fn: Optional[Callable[[str, Dict[str, Any], Dict[str, str], float], Dict[str, Any]]] = None,
     ) -> None:
-        self.provider = (provider or os.getenv("GO2_DEBATE_LLM_PROVIDER") or "openrouter").strip().lower()
-        self.model = model or os.getenv("GO2_DEBATE_LLM_MODEL") or "openai/gpt-4o-mini"
+        self.provider = (provider or os.getenv("GO2_DEBATE_LLM_PROVIDER") or "ollama").strip().lower()
+        self.model = model or os.getenv("GO2_DEBATE_LLM_MODEL") or ("qwen3:14b" if self.provider == "ollama" else "openai/gpt-4o-mini")
         self.timeout_sec = float(timeout_sec)
         self.temperature = float(temperature)
         self.request_fn = request_fn or self._http_json
@@ -71,6 +72,8 @@ class LLMVoteClient:
     def available(self) -> bool:
         if self.provider == "offline":
             return False
+        if self.provider == "ollama":
+            return True
         if self.provider == "openrouter":
             return bool(os.getenv("OPENROUTER_API_KEY"))
         if self.provider in {"openai", "openai_compatible"}:
@@ -85,7 +88,9 @@ class LLMVoteClient:
         prompt = self._prompt(agent, user_intent, context, candidate_actions)
         started = time.time()
         try:
-            if self.provider == "gemini":
+            if self.provider == "ollama":
+                raw = self._call_ollama(prompt)
+            elif self.provider == "gemini":
                 raw = self._call_gemini(prompt)
             else:
                 raw = self._call_openai_compatible(prompt)
@@ -150,6 +155,23 @@ class LLMVoteClient:
         }
         return self.request_fn(url, body, headers, self.timeout_sec)
 
+    def _call_ollama(self, prompt: str) -> Dict[str, Any]:
+        url = os.getenv("OLLAMA_CHAT_URL", "http://127.0.0.1:11434/api/chat")
+        body = {
+            "model": self.model,
+            "stream": False,
+            "format": "json",
+            "messages": [
+                {"role": "system", "content": "You output valid JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            "options": {
+                "temperature": self.temperature,
+                "num_predict": 384,
+            },
+        }
+        return self.request_fn(url, body, {"Content-Type": "application/json"}, self.timeout_sec)
+
     def _call_gemini(self, prompt: str) -> Dict[str, Any]:
         key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
         model = self.model if self.model.startswith("models/") else f"models/{self.model}"
@@ -170,6 +192,10 @@ class LLMVoteClient:
         text = ""
         if "choices" in raw:
             text = raw.get("choices", [{}])[0].get("message", {}).get("content", "")
+        elif "message" in raw:
+            text = raw.get("message", {}).get("content", "")
+        elif "response" in raw:
+            text = str(raw.get("response", ""))
         elif "candidates" in raw:
             parts = raw.get("candidates", [{}])[0].get("content", {}).get("parts", [])
             text = "\n".join(str(p.get("text", "")) for p in parts)
