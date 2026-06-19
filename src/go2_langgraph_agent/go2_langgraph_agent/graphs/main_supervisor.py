@@ -9,7 +9,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 
 from go2_langgraph_agent.graphs.agent_orchestrator import AgentOrchestrator
-from go2_langgraph_agent.graphs.agent_state import LangGraphDependencyError
+from go2_langgraph_agent.graphs.agent_state import LangGraphDependencyError, classify_intent, extract_text_from_message
 from go2_langgraph_agent.persistence import LangGraphSQLitePersistence
 from go2_langgraph_agent.tools.memory_tools import MemoryTools
 from go2_langgraph_agent.tools.nav_tools import publish_nav_command
@@ -58,6 +58,7 @@ class MainSupervisor(Node):
         self.declare_parameter("enable_tour_mode", False)
         self.declare_parameter("enable_explore_mode", False)
         self.declare_parameter("enable_nav_publish", True)
+        self.declare_parameter("route_semantic_resume_commands", True)
         self.declare_parameter("enable_human_interrupts", False)
         self.declare_parameter("enable_langgraph_streaming", True)
         self.declare_parameter("langgraph_checkpoint_db", "")
@@ -65,10 +66,13 @@ class MainSupervisor(Node):
         self.declare_parameter("require_native_langgraph_store", True)
         self.declare_parameter("odom_topic", "/odom")
         self.session_root = str(self.get_parameter("session_root").value)
-        self.session_name = str(self.get_parameter("session_name").value)
+        requested_session_name = str(self.get_parameter("session_name").value)
         thread_param = str(self.get_parameter("thread_id").value or "")
+        self.memory = MemoryTools(self.session_root, requested_session_name)
+        self.session_name = self.memory.session_name
         self.thread_id = thread_param or self.session_name
-        self.memory = MemoryTools(self.session_root, self.session_name)
+        if self.session_name != requested_session_name:
+            self.get_logger().info(f"Resolved semantic session '{requested_session_name}' -> '{self.session_name}'")
         checkpoint_db = str(self.get_parameter("langgraph_checkpoint_db").value or "") or None
         store_db = str(self.get_parameter("langgraph_store_db").value or "") or None
         self.persistence = LangGraphSQLitePersistence(
@@ -80,6 +84,7 @@ class MainSupervisor(Node):
         )
         self.latest: Dict[str, Any] = {}
         self.nav_pub = self.create_publisher(String, "/go2_nav/command", 10)
+        self.semantic_nav_pub = self.create_publisher(String, "/semantic_nav/command", 10)
         self.status_pub = self.create_publisher(String, "/go2_agent/status", 10)
         self.speech_pub = self.create_publisher(String, "/go2_agent/speech", 10)
         self.event_pub = self.create_publisher(String, "/go2_agent/events", 10)
@@ -125,7 +130,8 @@ class MainSupervisor(Node):
             self.get_logger().error(str(exc))
             raise
         self.get_logger().info(
-            "Real LangGraph Go2 supervisor ready: StateGraph + SQLite checkpoints + conditional subgraphs + ROS tool routing"
+            "Real LangGraph Go2 supervisor ready: StateGraph + SQLite checkpoints + conditional subgraphs "
+            f"+ ROS tool routing; session={self.session_name}"
         )
 
     def _store_json(self, key: str, msg: String) -> None:
@@ -170,8 +176,55 @@ class MainSupervisor(Node):
         if pending:
             self.interrupt_pub.publish(String(data=json.dumps(pending, sort_keys=True, default=str)))
 
+    def _semantic_resume_command(self, msg: String) -> Dict[str, Any]:
+        if not _as_bool(self.get_parameter("route_semantic_resume_commands").value):
+            return {}
+        payload = _json_or_text(msg)
+        text = extract_text_from_message(msg.data)
+        intent = ""
+        destination = ""
+        if isinstance(payload, dict):
+            intent = str(payload.get("intent") or payload.get("intent_hint") or payload.get("type") or "")
+            destination = str(payload.get("semantic_target") or payload.get("destination") or payload.get("place") or "")
+        parsed = classify_intent(text)
+        classified = str((parsed or {}).get("intent") or "")
+        entities = (parsed or {}).get("entities") or {}
+        destination = destination or str(entities.get("destination") or "")
+
+        if intent == "start_tour" or classified == "start_tour":
+            return {"type": "start_tour", "source": "langgraph_agent", "reset_index": True}
+        if intent == "continue_tour" or classified == "continue_task":
+            return {"type": "resume_tour", "source": "langgraph_agent", "speech": "tour: Resuming the saved route."}
+        if intent == "skip_checkpoint":
+            return {"type": "advance_tour", "source": "langgraph_agent"}
+        if intent == "navigate_to_place" or classified == "navigate":
+            if destination:
+                return {"type": "go", "source": "langgraph_agent", "place": destination}
+        return {}
+
     def _on_command(self, msg: String) -> None:
         try:
+            raw_payload = _json_or_text(msg)
+            if (
+                isinstance(raw_payload, dict)
+                and raw_payload.get("source") in {"langgraph_agent", "omi_tour_voice_router"}
+                and raw_payload.get("type") in {"start_tour", "resume_tour", "advance_tour", "pause_tour", "go"}
+            ):
+                return
+            if (
+                isinstance(raw_payload, dict)
+                and raw_payload.get("source") == "omi_voice"
+                and str(raw_payload.get("intent") or raw_payload.get("intent_hint") or "")
+                in {"start_tour", "continue_tour", "skip_checkpoint"}
+            ):
+                self._publish_status({"semantic_resume_command": "handled_by_tour_voice_router", "session_name": self.session_name})
+                return
+            semantic_command = self._semantic_resume_command(msg)
+            if semantic_command:
+                self.semantic_nav_pub.publish(String(data=json.dumps(semantic_command, sort_keys=True)))
+                self.speech_pub.publish(String(data="Routing that through saved resume memory."))
+                self._publish_status({"semantic_resume_command": semantic_command, "session_name": self.session_name})
+                return
             if _as_bool(self.get_parameter("enable_langgraph_streaming").value):
                 state, updates = self.orchestrator.run_with_stream(msg.data)
                 for idx, update in enumerate(updates):

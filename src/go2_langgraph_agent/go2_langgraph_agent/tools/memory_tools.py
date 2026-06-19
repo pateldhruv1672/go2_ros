@@ -3,11 +3,12 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from go2_memory_core import UnifiedMemoryAPI
+from go2_memory_core.session_resolution import resolve_semantic_session_name
 
 
 class MemoryTools:
     def __init__(self, session_root: str, session_name: str):
-        self.session_name = session_name
+        self.session_name = resolve_semantic_session_name(session_root, session_name)
         self.api = UnifiedMemoryAPI(
             session_root=session_root,
             enable_graph_memory=True,

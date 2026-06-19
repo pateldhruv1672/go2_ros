@@ -18,6 +18,7 @@ def generate_launch_description():
     local_speaker_backend = LaunchConfiguration("local_speaker_backend")
     agent_enabled = LaunchConfiguration("agent_enabled")
     enable_llm_debate = LaunchConfiguration("enable_llm_debate")
+    enable_tour_mode = LaunchConfiguration("enable_tour_mode")
     debate_llm_provider = LaunchConfiguration("debate_llm_provider")
     debate_llm_model = LaunchConfiguration("debate_llm_model")
     debate_llm_timeout_sec = LaunchConfiguration("debate_llm_timeout_sec")
@@ -42,6 +43,7 @@ def generate_launch_description():
             DeclareLaunchArgument("local_speaker_backend", default_value="auto"),
             DeclareLaunchArgument("agent_enabled", default_value="true"),
             DeclareLaunchArgument("enable_llm_debate", default_value="true"),
+            DeclareLaunchArgument("enable_tour_mode", default_value="true"),
             DeclareLaunchArgument("debate_llm_provider", default_value="ollama"),
             DeclareLaunchArgument("debate_llm_model", default_value="gemma4:12b"),
             DeclareLaunchArgument("debate_llm_timeout_sec", default_value="30.0"),
@@ -61,7 +63,7 @@ def generate_launch_description():
             DeclareLaunchArgument("camera_topic", default_value="/camera/image_raw"),
             DeclareLaunchArgument("require_confirmation_for_motion", default_value="true"),
             DeclareLaunchArgument("session_root", default_value="~/.ros/go2_semantic_nav_sessions"),
-            DeclareLaunchArgument("session_name", default_value="default"),
+            DeclareLaunchArgument("session_name", default_value="auto"),
             Node(
                 package="go2_langgraph_agent",
                 executable="main_supervisor",
@@ -73,10 +75,12 @@ def generate_launch_description():
                         "session_root": session_root,
                         "session_name": session_name,
                         "enable_llm_debate": enable_llm_debate,
+                        "enable_tour_mode": enable_tour_mode,
                         "debate_llm_provider": debate_llm_provider,
                         "debate_llm_model": debate_llm_model,
                         "debate_llm_timeout_sec": debate_llm_timeout_sec,
                         "enable_nav_publish": True,
+                        "route_semantic_resume_commands": True,
                     }
                 ],
             ),

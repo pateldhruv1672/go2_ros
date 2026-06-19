@@ -14,6 +14,7 @@ from std_msgs.msg import String
 from .backends.artifact_store_files import ArtifactStoreFiles
 from .memory_api import UnifiedMemoryAPI
 from .memory_schema import new_id
+from .session_resolution import resolve_semantic_session_name
 from .vlm_client import VLMClient
 
 try:
@@ -58,7 +59,10 @@ class VLMCheckpointNode(Node):
         self.declare_parameter("enable_voxel_memory", True)
         self.declare_parameter("enable_vector_memory", True)
         session_root = self.get_parameter("session_root").value
-        self.session_name = str(self.get_parameter("session_name").value)
+        requested_session_name = self.get_parameter("session_name").value
+        self.session_name = resolve_semantic_session_name(session_root, requested_session_name)
+        if self.session_name != str(requested_session_name):
+            self.get_logger().info(f"Resolved semantic session '{requested_session_name}' -> '{self.session_name}'")
         self.api = UnifiedMemoryAPI(
             session_root=session_root,
             enable_graph_memory=_as_bool(self.get_parameter("enable_graph_memory").value),
@@ -79,7 +83,7 @@ class VLMCheckpointNode(Node):
         self.create_subscription(Odometry, str(self.get_parameter("odom_topic").value), self._on_odom, 20)
         self.create_subscription(String, "/go2_vlm_checkpoint/write_now", self._on_write_now, 10)
         self.create_timer(float(self.get_parameter("write_period_sec").value), self._timer)
-        self.get_logger().info("VLM checkpoint writer ready")
+        self.get_logger().info(f"VLM checkpoint writer ready; session={self.session_name}")
 
     def _on_image(self, msg: Image) -> None:
         self.latest_image = msg

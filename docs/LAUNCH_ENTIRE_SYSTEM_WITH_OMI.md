@@ -100,6 +100,7 @@ ros2 launch go2_omi_voice_bridge omi_voice_stack.launch.py \
   debate_llm_provider:=ollama \
   debate_llm_model:=gemma4:12b \
   debate_llm_timeout_sec:=30.0 \
+  session_name:=auto \
   enable_vlm_checkpointing:=true \
   vlm_provider:=ollama \
   vlm_model:=gemma4:12b \
@@ -115,7 +116,9 @@ This starts:
 - `go2_langgraph_main_supervisor`: LangGraph agent and local Ollama debate
 - `go2_vlm_checkpoint_node`: local Ollama camera summaries
 - `go2_tts_node`: response relay and local speaker output
-- `go2_tour_voice_command_router`: saved-tour voice adapter
+- `go2_tour_voice_command_router`: saved-tour voice adapter that routes start/continue/skip/cancel through semantic resume navigation
+
+`session_name:=auto` is intentional. It skips an empty `default` session and uses the latest usable semantic resume session containing `map.yaml`, `places.yaml`, or `route.yaml`.
 
 ## Verify Connections
 
@@ -150,6 +153,12 @@ VLM camera summaries:
 ros2 topic echo --full-length /go2_vlm_checkpoint/status
 ```
 
+Resume/tour commands sent to semantic navigation:
+
+```bash
+ros2 topic echo --full-length /semantic_nav/command
+```
+
 TTS relay:
 
 ```bash
@@ -177,6 +186,8 @@ Hey Sparky, navigate to entrance.
 Hey Sparky, start the tour.
 Hey Sparky, continue the tour.
 ```
+
+Those tour commands should produce JSON on `/semantic_nav/command`, such as `start_tour`, `resume_tour`, or `advance_tour`. The semantic resume node owns the real checkpoint navigation from `route.yaml` and `places.yaml`.
 
 After Sparky asks for confirmation, say:
 
