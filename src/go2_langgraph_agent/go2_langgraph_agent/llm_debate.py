@@ -64,7 +64,7 @@ class LLMVoteClient:
         request_fn: Optional[Callable[[str, Dict[str, Any], Dict[str, str], float], Dict[str, Any]]] = None,
     ) -> None:
         self.provider = (provider or os.getenv("GO2_DEBATE_LLM_PROVIDER") or "ollama").strip().lower()
-        self.model = model or os.getenv("GO2_DEBATE_LLM_MODEL") or ("qwen3:14b" if self.provider == "ollama" else "openai/gpt-4o-mini")
+        self.model = model or os.getenv("GO2_DEBATE_LLM_MODEL") or ("gemma4:12b" if self.provider == "ollama" else "openai/gpt-4o-mini")
         self.timeout_sec = float(timeout_sec)
         self.temperature = float(temperature)
         self.request_fn = request_fn or self._http_json
@@ -161,6 +161,7 @@ class LLMVoteClient:
             "model": self.model,
             "stream": False,
             "format": "json",
+            "think": False,
             "messages": [
                 {"role": "system", "content": "You output valid JSON only."},
                 {"role": "user", "content": prompt},

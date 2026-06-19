@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -49,6 +50,27 @@ def _message_text(data: str) -> tuple[str, dict[str, Any]]:
     return raw, {"text": raw}
 
 
+def _plain_spoken_text(text: str, max_sentences: int = 0) -> str:
+    clean = str(text or "")
+    if not clean.strip():
+        return ""
+
+    clean = re.sub(r"```(?:\w+)?\s*(.*?)```", r"\1", clean, flags=re.DOTALL)
+    clean = re.sub(r"`([^`]*)`", r"\1", clean)
+    clean = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", clean)
+    clean = re.sub(r"!\[([^\]]*)\]\([^)]+\)", r"\1", clean)
+    clean = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", clean)
+    clean = re.sub(r"(?m)^\s*[-*+]\s+", "", clean)
+    clean = re.sub(r"(?m)^\s*\d+[.)]\s+", "", clean)
+    clean = re.sub(r"[*_~>#]+", "", clean)
+    clean = re.sub(r"\s+", " ", clean).strip()
+
+    if max_sentences > 0:
+        sentences = re.findall(r"[^.!?]+[.!?]+|[^.!?]+$", clean)
+        clean = " ".join(sentence.strip() for sentence in sentences[:max_sentences]).strip()
+    return clean
+
+
 class Go2TtsNode(Node):
     """Interruptible local speaker mirror for Go2/Omi speech topics.
 
@@ -74,6 +96,7 @@ class Go2TtsNode(Node):
         self.declare_parameter("computer_speaker_device", "")
         self.declare_parameter("interrupt_previous_by_default", False)
         self.declare_parameter("speak_vlm_status", True)
+        self.declare_parameter("max_spoken_sentences", 2)
 
         self.status_pub = self.create_publisher(String, "/go2_tts/status", 10)
         self._lock = threading.Lock()
@@ -135,6 +158,9 @@ class Go2TtsNode(Node):
         text, payload = _message_text(msg.data)
         if not text:
             return
+        text = _plain_spoken_text(text, self._param_int("max_spoken_sentences", 2))
+        if not text:
+            return
 
         interrupt = (
             bool(payload.get("interrupt", False))
@@ -147,6 +173,7 @@ class Go2TtsNode(Node):
         backend = self._select_backend()
         status = {
             "ok": True,
+            "event": "speech_queued",
             "source_topic": topic_name,
             "text_len": len(text),
             "category": payload.get("category", "speech"),
@@ -251,6 +278,25 @@ class Go2TtsNode(Node):
 
         cmd = self._build_command(exe, clean_text)
         timeout = self._param_float("local_speaker_timeout_sec", 60.0)
+        words = max(1, len(clean_text.split()))
+        words_per_minute = max(80, self._param_int("local_speaker_rate", 170))
+        estimated_duration_sec = max(2.0, (words / words_per_minute) * 60.0 + 1.0)
+
+        self.status_pub.publish(
+            String(
+                data=json.dumps(
+                    {
+                        "ok": True,
+                        "event": "local_speaker_start",
+                        "text_len": len(clean_text),
+                        "estimated_duration_sec": round(estimated_duration_sec, 2),
+                        "local_speaker_backend": os.path.basename(exe),
+                        "timeout_sec": timeout,
+                    },
+                    sort_keys=True,
+                )
+            )
+        )
 
         with self._lock:
             self._proc = subprocess.Popen(

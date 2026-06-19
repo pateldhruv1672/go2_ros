@@ -22,8 +22,12 @@ go2_voice_intent_gate:
     transcript_confidence_threshold: 0.70
     confirmation_timeout_sec: 15.0
     wake_words: ["sparky", "go2", "robot"]
+    require_wake_word: true
     require_confirmation_for_motion: true
     duplicate_suppression_sec: 5.0
+    ignore_transcripts_during_tts: true
+    tts_feedback_cooldown_sec: 5.0
+    tts_feedback_preroll_sec: 1.0
     publish_to_agent_topic: "/go2_agent/user_command"
     tts_topic: "/go2_tts/say"
     cmd_vel_topic: "/cmd_vel_out"
@@ -34,6 +38,7 @@ go2_tts_node:
     tts_enabled: true
     tts_backend: "local"
     espeak_voice: "en"
+    max_spoken_sentences: 2
 
 go2_tour_voice_command_router:
   ros__parameters:

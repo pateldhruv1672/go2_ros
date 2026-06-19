@@ -3,6 +3,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -25,6 +26,7 @@ def generate_launch_description():
     vlm_model = LaunchConfiguration("vlm_model")
     vlm_write_period_sec = LaunchConfiguration("vlm_write_period_sec")
     vlm_auto_write_checkpoints = LaunchConfiguration("vlm_auto_write_checkpoints")
+    vlm_prompt = LaunchConfiguration("vlm_prompt")
     camera_topic = LaunchConfiguration("camera_topic")
     require_confirmation_for_motion = LaunchConfiguration("require_confirmation_for_motion")
     session_root = LaunchConfiguration("session_root")
@@ -41,13 +43,21 @@ def generate_launch_description():
             DeclareLaunchArgument("agent_enabled", default_value="true"),
             DeclareLaunchArgument("enable_llm_debate", default_value="true"),
             DeclareLaunchArgument("debate_llm_provider", default_value="ollama"),
-            DeclareLaunchArgument("debate_llm_model", default_value="qwen3:14b"),
-            DeclareLaunchArgument("debate_llm_timeout_sec", default_value="8.0"),
+            DeclareLaunchArgument("debate_llm_model", default_value="gemma4:12b"),
+            DeclareLaunchArgument("debate_llm_timeout_sec", default_value="30.0"),
             DeclareLaunchArgument("enable_vlm_checkpointing", default_value="true"),
             DeclareLaunchArgument("vlm_provider", default_value="ollama"),
-            DeclareLaunchArgument("vlm_model", default_value="qwen3-vl:8b"),
+            DeclareLaunchArgument("vlm_model", default_value="gemma4:12b"),
             DeclareLaunchArgument("vlm_write_period_sec", default_value="30.0"),
             DeclareLaunchArgument("vlm_auto_write_checkpoints", default_value="false"),
+            DeclareLaunchArgument(
+                "vlm_prompt",
+                default_value=(
+                    "Answer this voice question in no more than two short sentences. "
+                    "Describe only the most important visible navigation cues, obstacles, hazards, and uncertainty. "
+                    "Use plain text only: no Markdown, no bullets, no headings, no asterisks."
+                ),
+            ),
             DeclareLaunchArgument("camera_topic", default_value="/camera/image_raw"),
             DeclareLaunchArgument("require_confirmation_for_motion", default_value="true"),
             DeclareLaunchArgument("session_root", default_value="~/.ros/go2_semantic_nav_sessions"),
@@ -85,6 +95,7 @@ def generate_launch_description():
                         "auto_write_checkpoints": vlm_auto_write_checkpoints,
                         "vlm_provider": vlm_provider,
                         "vlm_model": vlm_model,
+                        "vlm_prompt": ParameterValue(vlm_prompt, value_type=str),
                     }
                 ],
             ),

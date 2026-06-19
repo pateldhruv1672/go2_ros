@@ -243,19 +243,20 @@ class OmiBleAudioSource:
             return
         while not self._stop.is_set():
             try:
-                address = self.device_address or await self._find_device(BleakScanner)
-                if not address:
-                    self.callback(VoiceCommand("", "omi_ble_error", 0.0, {"error": "Omi BLE device not found"}))
+                device = await self._resolve_device(BleakScanner)
+                if not device:
+                    self.callback(VoiceCommand("", "omi_ble_error", 0.0, {"error": "Omi BLE device not found", "address": self.device_address, "name": self.device_name}))
                     await asyncio.sleep(3.0)
                     continue
-                async with BleakClient(address) as client:
+                async with BleakClient(device) as client:
                     try:
                         codec_raw = await client.read_gatt_char(self.codec_char_uuid)
                         self._codec = int(codec_raw[0]) if codec_raw else self._codec
                     except Exception:
                         pass
                     await client.start_notify(self.audio_char_uuid, self._on_ble_audio)
-                    self.callback(VoiceCommand("", "omi_ble_status", 1.0, {"connected": True, "address": str(address), "codec": self._codec}))
+                    connected_address = str(getattr(client, "address", "") or self.device_address or device)
+                    self.callback(VoiceCommand("", "omi_ble_status", 1.0, {"connected": True, "address": connected_address, "codec": self._codec}))
                     while not self._stop.is_set() and client.is_connected:
                         await asyncio.sleep(0.25)
                     await client.stop_notify(self.audio_char_uuid)
@@ -263,12 +264,44 @@ class OmiBleAudioSource:
                 self.callback(VoiceCommand("", "omi_ble_error", 0.0, {"error": str(exc)}))
                 await asyncio.sleep(2.0)
 
+    async def _resolve_device(self, scanner_cls: Any) -> Any:
+        target_address = (self.device_address or "").strip().lower()
+        if target_address:
+            finder = getattr(scanner_cls, "find_device_by_address", None)
+            if finder is not None:
+                try:
+                    device = await finder(self.device_address, timeout=5.0)
+                    if device is not None:
+                        return device
+                except Exception:
+                    pass
+            devices = await scanner_cls.discover(timeout=5.0)
+            for dev in devices:
+                address = str(getattr(dev, "address", "") or "").lower()
+                if address == target_address:
+                    return dev
+            try:
+                from bleak.backends.device import BLEDevice  # type: ignore
+
+                path = "/org/bluez/hci0/dev_" + self.device_address.replace(":", "_")
+                return BLEDevice(
+                    self.device_address,
+                    self.device_name,
+                    {
+                        "path": path,
+                        "props": {"Address": self.device_address, "Name": self.device_name},
+                    },
+                )
+            except Exception:
+                return self.device_address
+        return await self._find_device(scanner_cls)
+
     async def _find_device(self, scanner_cls: Any) -> str:
         devices = await scanner_cls.discover(timeout=5.0)
         for dev in devices:
             name = getattr(dev, "name", "") or ""
             if self.device_name.lower() in name.lower():
-                return str(getattr(dev, "address"))
+                return dev
         return ""
 
     def _on_ble_audio(self, sender: Any, data: bytearray) -> None:

@@ -9,7 +9,7 @@ Do not use the repo README as the source of truth for this flow. Use the scripts
 - Go2 is reachable at `192.168.12.1`.
 - Omi DevKit BLE address is `EF:1C:34:C6:25:92`.
 - Ollama is installed and serving at `http://127.0.0.1:11434`.
-- Recommended local models are pulled: `qwen3:14b` for text reasoning and `qwen3-vl:8b` for vision. Both stay under a practical 20B-parameter ceiling.
+- Recommended local model is pulled: `gemma4:12b` for both text reasoning and vision. It stays under a practical 20B-parameter ceiling.
 - Camera is publishing `/camera/image_raw`.
 - Robot base publishes `/odom` and `/scan`.
 
@@ -27,7 +27,7 @@ Check the install:
 ollama --version
 ```
 
-`qwen3-vl` requires a recent Ollama release. If the pull fails, update Ollama from `https://ollama.com/download`.
+`gemma4` requires a recent Ollama release. If the pull fails, update Ollama from `https://ollama.com/download`.
 
 Run once before launching the robot stack:
 
@@ -38,13 +38,13 @@ ollama serve
 In another terminal, pull the recommended local models:
 
 ```bash
-ollama pull qwen3:14b
-ollama pull qwen3-vl:8b
+ollama pull gemma4:12b
 ```
 
-Optional fallback if `qwen3-vl:8b` is not available on your installed Ollama version:
+Optional fallback if `gemma4:12b` is not available on your installed Ollama version:
 
 ```bash
+ollama pull qwen3:14b
 ollama pull qwen2.5vl:7b
 ```
 
@@ -98,10 +98,11 @@ ros2 launch go2_omi_voice_bridge omi_voice_stack.launch.py \
   agent_enabled:=true \
   enable_llm_debate:=true \
   debate_llm_provider:=ollama \
-  debate_llm_model:=qwen3:14b \
+  debate_llm_model:=gemma4:12b \
+  debate_llm_timeout_sec:=30.0 \
   enable_vlm_checkpointing:=true \
   vlm_provider:=ollama \
-  vlm_model:=qwen3-vl:8b \
+  vlm_model:=gemma4:12b \
   vlm_auto_write_checkpoints:=false \
   tts_enabled:=true \
   local_speaker_enabled:=true
@@ -157,6 +158,8 @@ ros2 topic echo --full-length /go2_tts/say
 ```
 
 ## Voice Commands To Try
+
+Start normal commands with `Sparky`, `Go2`, or `robot`. Background speech without a wake word is ignored. Emergency stop commands still work without a wake word.
 
 Non-motion commands:
 
@@ -257,8 +260,7 @@ If that fails, start Ollama and pull models:
 
 ```bash
 ollama serve
-ollama pull qwen3:14b
-ollama pull qwen3-vl:8b
+ollama pull gemma4:12b
 ```
 
 No VLM response:

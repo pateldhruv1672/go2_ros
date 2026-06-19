@@ -48,8 +48,12 @@ class VoiceIntentGateNode(Node):
         self.declare_parameter("transcript_confidence_threshold", 0.70)
         self.declare_parameter("confirmation_timeout_sec", 15.0)
         self.declare_parameter("wake_words", ["sparky", "go2", "robot"])
+        self.declare_parameter("require_wake_word", True)
         self.declare_parameter("require_confirmation_for_motion", True)
         self.declare_parameter("duplicate_suppression_sec", 5.0)
+        self.declare_parameter("ignore_transcripts_during_tts", True)
+        self.declare_parameter("tts_feedback_cooldown_sec", 5.0)
+        self.declare_parameter("tts_feedback_preroll_sec", 1.0)
         self.declare_parameter("publish_to_agent_topic", "/go2_agent/user_command")
         self.declare_parameter("tts_topic", "/go2_tts/say")
         self.declare_parameter("cmd_vel_topic", "/cmd_vel_out")
@@ -68,11 +72,13 @@ class VoiceIntentGateNode(Node):
         self.vlm_write_pub = self.create_publisher(String, "/go2_vlm_checkpoint/write_now", 10)
 
         self.create_subscription(String, "/go2_voice/transcript", self._on_transcript, 10)
+        self.create_subscription(String, "/go2_tts/status", self._on_tts_status, 10)
         self.create_subscription(String, "/go2_nav/status", self._on_nav_status, 10)
         self.create_subscription(String, "/collision_monitor_state", self._on_collision_state, 10)
         self.pending: PendingCommand | None = None
         self.latest_nav_status: Any = None
         self.latest_collision_state = ""
+        self.tts_ignore_until = 0.0
         self.last_transcript_text = ""
         self.last_transcript_time = 0.0
         self.timer = self.create_timer(1.0, self._check_timeout)
@@ -92,6 +98,11 @@ class VoiceIntentGateNode(Node):
             return value.strip().lower() in {"1", "true", "yes", "on"}
         return bool(value)
 
+    def _has_wake_word(self, text: str) -> bool:
+        norm = normalize_text(text)
+        tokens = set(norm.split())
+        return any(normalize_text(wake) in tokens for wake in self._wake_words())
+
     def _publish_state(self, payload: dict[str, Any]) -> None:
         self.state_pub.publish(String(data=json.dumps(payload, sort_keys=True, default=str)))
 
@@ -107,11 +118,49 @@ class VoiceIntentGateNode(Node):
     def _on_collision_state(self, msg: String) -> None:
         self.latest_collision_state = msg.data.strip()
 
+    def _on_tts_status(self, msg: String) -> None:
+        try:
+            payload = json.loads(msg.data)
+        except Exception:
+            return
+        if not self._param_bool("ignore_transcripts_during_tts"):
+            return
+        if not payload.get("local_speaker_enabled", True):
+            return
+        event = str(payload.get("event", ""))
+        now = time.time()
+        if event == "speech_queued":
+            preroll = float(self.get_parameter("tts_feedback_preroll_sec").value)
+            self.tts_ignore_until = max(self.tts_ignore_until, now + preroll)
+            return
+        if event == "local_speaker_start":
+            cooldown = float(self.get_parameter("tts_feedback_cooldown_sec").value)
+            estimated = float(payload.get("estimated_duration_sec") or 0.0)
+            self.tts_ignore_until = max(self.tts_ignore_until, now + estimated + cooldown)
+            return
+        if event == "local_speaker_done":
+            cooldown = float(self.get_parameter("tts_feedback_cooldown_sec").value)
+            self.tts_ignore_until = max(self.tts_ignore_until, now + cooldown)
+
     def _on_transcript(self, msg: String) -> None:
         payload = decode_json_or_text(msg.data)
         text = transcript_text(payload)
         confidence = transcript_confidence(payload)
         if not text:
+            return
+        intent_preview = parse_intent(text, confidence, self._wake_words())
+        if (
+            self._param_bool("ignore_transcripts_during_tts")
+            and time.time() < self.tts_ignore_until
+            and intent_preview.intent not in {INTENT_STOP, INTENT_CANCEL}
+        ):
+            self._publish_state(
+                {
+                    "state": "ignored_tts_feedback",
+                    "text": text,
+                    "ignore_until": self.tts_ignore_until,
+                }
+            )
             return
         now = time.time()
         if (
@@ -142,7 +191,10 @@ class VoiceIntentGateNode(Node):
             self._publish_state({"state": "low_confidence", "text": text, "confidence": confidence})
             return
 
-        intent = parse_intent(text, confidence, self._wake_words())
+        intent = intent_preview
+        if self._param_bool("require_wake_word") and not self._has_wake_word(text) and intent.intent not in {INTENT_STOP, INTENT_CANCEL}:
+            self._publish_state({"state": "ignored_no_wake_word", "text": text})
+            return
         if intent.intent in {INTENT_STOP, INTENT_CANCEL}:
             self._handle_immediate_stop(intent)
             return

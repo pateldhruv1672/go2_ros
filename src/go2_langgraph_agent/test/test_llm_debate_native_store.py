@@ -58,6 +58,23 @@ def test_ollama_debate_client_parses_chat_message_json():
     assert parsed["final_action"] == "speak"
 
 
+def test_ollama_debate_client_disables_thinking():
+    captured = {}
+
+    def fake_request(url, body, headers, timeout):
+        captured.update(body)
+        return {
+            "message": {
+                "content": '{"vote":"approve","confidence":0.7,"risk_level":"low","final_action":"speak","requires_human_interrupt":false,"rationale":"ok","fallback_plan":["stop_robot"]}'
+            }
+        }
+
+    client = LLMVoteClient(provider="ollama", model="fake", request_fn=fake_request)
+    client.vote("NavigatorAgent", "what do you see", {}, ["speak", "stop_robot"])
+
+    assert captured["think"] is False
+
+
 def test_store_adapter_mirror_fallback(tmp_path: Path):
     store = NativeLangGraphStoreAdapter(tmp_path / "store.sqlite", require_native=False)
     store.put(("threads", "demo", "facts"), "k1", {"fact": "robot has memory"})

@@ -29,14 +29,15 @@ class VLMClient:
 
     def __init__(self, provider: str = "offline", model: str = "", api_key: str = "", base_url: str = ""):
         self.provider = (provider or "offline").strip().lower()
-        self.model = model or ("qwen3-vl:8b" if self.provider == "ollama" else "google/gemini-2.5-flash")
+        self.model = model or ("gemma4:12b" if self.provider == "ollama" else "google/gemini-2.5-flash")
         self.api_key = api_key or self._default_key(self.provider)
         self.base_url = base_url or self._default_base_url(self.provider)
 
     def summarize_image(self, image_bytes: bytes | None, mime_type: str = "image/jpeg", prompt: str = "") -> VLMResult:
         prompt = prompt or (
-            "Describe the robot's current navigation checkpoint. Mention durable place cues, "
-            "doors, hallway geometry, signs, obstacles, hazards, and objects. Be concise and mark uncertainty."
+            "You are answering a voice question from a robot operator. Describe the current view "
+            "in no more than two short sentences. Mention only the most important navigation cues, "
+            "obstacles, hazards, and uncertainty. Use plain text only: no Markdown, no bullets, no headings, no asterisks."
         )
         if self.provider in {"offline", "none", "disabled"}:
             return VLMResult(True, "offline_vlm: image summary unavailable; checkpoint stores geometry/odom evidence only", "offline", self.model, {})
@@ -86,6 +87,7 @@ class VLMClient:
                 }
             ],
             "stream": False,
+            "think": False,
             "options": {
                 "temperature": 0.1,
                 "num_predict": 320,
@@ -112,8 +114,9 @@ class VLMClient:
 
     def _post_json(self, url: str, payload: Dict[str, Any], headers: Dict[str, str], provider: str) -> VLMResult:
         request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+        timeout_sec = float(os.environ.get("OLLAMA_TIMEOUT_SEC", "90")) if provider == "ollama" else 25
         try:
-            with urllib.request.urlopen(request, timeout=25) as response:
+            with urllib.request.urlopen(request, timeout=timeout_sec) as response:
                 raw = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
