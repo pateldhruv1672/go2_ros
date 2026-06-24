@@ -57,7 +57,7 @@ class MainSupervisor(Node):
         self.declare_parameter("debate_llm_timeout_sec", 8.0)
         self.declare_parameter("enable_tour_mode", False)
         self.declare_parameter("enable_explore_mode", False)
-        self.declare_parameter("enable_nav_publish", True)
+        self.declare_parameter("enable_nav_publish", False)
         self.declare_parameter("route_semantic_resume_commands", True)
         self.declare_parameter("enable_human_interrupts", False)
         self.declare_parameter("enable_langgraph_streaming", True)
@@ -92,7 +92,7 @@ class MainSupervisor(Node):
         self.checkpoint_pub = self.create_publisher(String, "/go2_agent/checkpoints", 10)
         self.store_pub = self.create_publisher(String, "/go2_agent/store_results", 10)
         self.interrupt_pub = self.create_publisher(String, "/go2_agent/interrupts", 10)
-        for topic in ("/go2_agent/command", "/go2_agent/user_command", "/semantic_nav/command"):
+        for topic in ("/go2_agent/command", "/go2_agent/user_command"):
             self.create_subscription(String, topic, self._on_command, 10)
         self.create_subscription(String, "/go2_agent/resume", self._on_resume, 10)
         self.create_subscription(String, "/go2_agent/checkpoints/request", self._on_checkpoint_request, 10)
@@ -107,6 +107,8 @@ class MainSupervisor(Node):
         self.create_subscription(String, "/go2_nav/frontier_candidates", lambda m: self._store_json("frontier_candidates", m), 10)
         self.create_subscription(String, "/go2_nav/coverage_plan", lambda m: self._store_json("coverage_waypoints", m), 10)
         self.create_subscription(String, "/go2_nav/status", lambda m: self._store_json("nav_status", m), 10)
+        self.create_subscription(String, "/semantic_nav/status", lambda m: self._store_json("semantic_nav_status", m), 10)
+        self.create_subscription(String, "/semantic_nav/event", lambda m: self._store_json("semantic_nav_event", m), 10)
         self.create_subscription(String, "/go2_vlm_checkpoint/status", lambda m: self._store_vlm(m), 10)
         self.create_subscription(Odometry, str(self.get_parameter("odom_topic").value), self._on_odom, 10)
         try:
@@ -165,7 +167,10 @@ class MainSupervisor(Node):
 
     def _publish_result(self, state: Dict[str, Any]) -> None:
         command = state.get("nav_command") or {}
-        if command and _as_bool(self.get_parameter("enable_nav_publish").value):
+        semantic_command = self._semantic_command_from_nav_command(command)
+        if semantic_command:
+            self.semantic_nav_pub.publish(String(data=json.dumps(semantic_command, sort_keys=True, default=str)))
+        elif command and _as_bool(self.get_parameter("enable_nav_publish").value):
             publish_nav_command(self.nav_pub, command.get("action", "none"), command)
         speech = state.get("speech_response", "")
         if speech:
@@ -202,6 +207,38 @@ class MainSupervisor(Node):
                 return {"type": "go", "source": "langgraph_agent", "place": destination}
         return {}
 
+    def _semantic_command_from_nav_command(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        if not command:
+            return {}
+        action = str(command.get("action") or "")
+        if action in {"", "none"}:
+            return {}
+        if action == "stop_robot":
+            return {
+                "type": "cancel",
+                "source": "langgraph_agent",
+                "reason": command.get("reason") or "langgraph_stop",
+            }
+        if action in {"navigate_to_place", "go", "navigate"}:
+            place = str(command.get("place") or command.get("destination") or command.get("semantic_target") or "").strip()
+            if place:
+                return {"type": "go", "source": "langgraph_agent", "place": place}
+        if action == "return_to_spawn":
+            return {"type": "go", "source": "langgraph_agent", "place": "spawn"}
+        if action == "navigate_tour_route":
+            return {
+                "type": "resume_tour",
+                "source": "langgraph_agent",
+                "speech": "tour: Resuming the saved route.",
+            }
+        if action in {"recover_nav_failure", "recover_localization"}:
+            return {
+                "type": "recover_route",
+                "source": "langgraph_agent",
+                "reason": command.get("reason") or command.get("issue") or action,
+            }
+        return {}
+
     def _on_command(self, msg: String) -> None:
         try:
             raw_payload = _json_or_text(msg)
@@ -236,7 +273,11 @@ class MainSupervisor(Node):
         except Exception as exc:
             self.get_logger().error(f"LangGraph invocation failed: {exc}\n{traceback.format_exc()}")
             command = {"action": "stop_robot", "reason": "langgraph_invocation_failed", "error": str(exc)}
-            publish_nav_command(self.nav_pub, "stop_robot", command)
+            semantic_command = self._semantic_command_from_nav_command(command)
+            if semantic_command:
+                self.semantic_nav_pub.publish(String(data=json.dumps(semantic_command, sort_keys=True, default=str)))
+            elif _as_bool(self.get_parameter("enable_nav_publish").value):
+                publish_nav_command(self.nav_pub, "stop_robot", command)
             self.speech_pub.publish(String(data="The LangGraph agent failed internally, so I am stopping instead of moving."))
             self._publish_status({"error": str(exc), "nav_action": "stop_robot"})
 

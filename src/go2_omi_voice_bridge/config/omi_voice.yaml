@@ -31,7 +31,7 @@ go2_voice_intent_gate:
     publish_to_agent_topic: "/go2_agent/user_command"
     tts_topic: "/go2_tts/say"
     cmd_vel_topic: "/cmd_vel_out"
-    nav_command_topic: "/go2_nav/command"
+    nav_command_topic: "/semantic_nav/command"
 
 go2_tts_node:
   ros__parameters:

@@ -101,11 +101,11 @@ controller_server:
       debug_trajectory_details: True
       min_vel_x: 0.0
       min_vel_y: 0.0
-      max_vel_x: 0.30
+      max_vel_x: 0.25 #0.50
       max_vel_y: 0.0
-      max_vel_theta: 0.8
+      max_vel_theta: 0.4
       min_speed_xy: 0.0
-      max_speed_xy: 0.30
+      max_speed_xy: 0.25
       min_speed_theta: 0.0
       # Add high threshold velocity for turtlebot 3 issue.
       # https://github.com/ROBOTIS-GIT/turtlebot3_simulations/issues/75
@@ -141,8 +141,8 @@ controller_server:
 local_costmap:
   local_costmap:
     ros__parameters:
-      update_frequency: 5.0
-      publish_frequency: 5.0
+      update_frequency: 8.0
+      publish_frequency: 8.0
       global_frame: odom
       robot_base_frame: base_link
       use_sim_time: False
@@ -180,8 +180,8 @@ local_costmap:
 global_costmap:
   global_costmap:
     ros__parameters:
-      update_frequency: 5.0
-      publish_frequency: 5.0
+      update_frequency: 8.0
+      publish_frequency: 8.0
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: False

@@ -79,7 +79,7 @@ def generate_launch_description():
                         "debate_llm_provider": debate_llm_provider,
                         "debate_llm_model": debate_llm_model,
                         "debate_llm_timeout_sec": debate_llm_timeout_sec,
-                        "enable_nav_publish": True,
+                        "enable_nav_publish": False,
                         "route_semantic_resume_commands": True,
                     }
                 ],

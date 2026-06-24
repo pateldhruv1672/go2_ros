@@ -57,7 +57,7 @@ class VoiceIntentGateNode(Node):
         self.declare_parameter("publish_to_agent_topic", "/go2_agent/user_command")
         self.declare_parameter("tts_topic", "/go2_tts/say")
         self.declare_parameter("cmd_vel_topic", "/cmd_vel_out")
-        self.declare_parameter("nav_command_topic", "/go2_nav/command")
+        self.declare_parameter("nav_command_topic", "/semantic_nav/command")
 
         self.agent_pub = self.create_publisher(String, str(self.get_parameter("publish_to_agent_topic").value), 10)
         self.verify_pub = self.create_publisher(String, "/go2_voice/verification_request", 10)
@@ -236,7 +236,7 @@ class VoiceIntentGateNode(Node):
     def _handle_immediate_stop(self, intent: ParsedIntent) -> None:
         self.pending = None
         self.cmd_pub.publish(Twist())
-        command = {"action": "stop_robot", "reason": "voice_stop", "source": "omi_voice", "text": intent.text}
+        command = {"type": "cancel", "reason": "voice_stop", "source": "omi_voice", "text": intent.text}
         self.nav_pub.publish(String(data=json.dumps(command, sort_keys=True)))
         self.tour_cancel_pub.publish(String(data=json.dumps(command, sort_keys=True)))
         self.agent_pub.publish(String(data=json.dumps(intent.to_agent_payload(verified=True), sort_keys=True)))

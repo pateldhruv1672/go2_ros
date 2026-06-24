@@ -116,7 +116,7 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str) -> str:
     # GO2_GLOBAL_LIVE_OBSTACLES_FLAG
     # GO2_GLOBAL_LIVE_OBSTACLES=0 -> stable static-map global planning
     # GO2_GLOBAL_LIVE_OBSTACLES=1 -> global rerouting using live scan obstacles
-    global_live_raw = os.environ.get('GO2_GLOBAL_LIVE_OBSTACLES', '1').strip().lower()
+    global_live_raw = os.environ.get('GO2_GLOBAL_LIVE_OBSTACLES', '0').strip().lower()
     global_live_obstacles = global_live_raw not in ('0', 'false', 'no', 'off')
 
     if global_live_obstacles:
@@ -218,9 +218,16 @@ def launch_setup(context, *args, **kwargs):
     scan_nav_topic = LaunchConfiguration('scan_nav_topic').perform(context).strip() or '/scan_nav'
     scan_frame_id = LaunchConfiguration('scan_frame_id').perform(context).strip() or 'base_link'
     scan_stamp_offset_sec = float(LaunchConfiguration('scan_stamp_offset_sec').perform(context))
-    if not session_name:
-        session_name = _latest_usable(session_root)
     store = SessionStore(session_root)
+    if not session_name or session_name.lower() in ('auto', 'latest', 'latest_usable'):
+        session_name = _latest_usable(session_root)
+    elif session_name.lower() == 'default':
+        try:
+            default_session = store.for_name(session_name)
+            if store.resolve_map_yaml(default_session) is None:
+                session_name = _latest_usable(session_root)
+        except Exception:
+            session_name = _latest_usable(session_root)
     session = store.for_name(session_name)
     if not os.path.isfile(session.session_yaml_path):
         raise RuntimeError(f'Resume session not found: {session.session_yaml_path}')

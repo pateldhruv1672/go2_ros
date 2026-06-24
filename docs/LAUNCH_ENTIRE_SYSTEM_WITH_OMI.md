@@ -63,62 +63,36 @@ print(json.loads(urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeo
 PY
 ```
 
-## Terminal 1: Start Robot + Nav2 Resume
+## Terminal 1: Start Robot + Semantic Resume + Omi
 
 From the workspace root:
 
 ```bash
 cd /home/digital-twin-admin/Dhruv/sparky/ros2_ws
-./scripts/run_semantic_nav_resume.sh
+./scripts/run_sparky_voice_resume.sh
 ```
 
 This script:
 
 - loads `.env.local`
 - starts base bringup if `/go2_driver_node`, `/odom`, and `/scan` are not already present
-- starts semantic resume navigation
-- starts RViz
-- owns the resume-mode Nav2 stack
+- starts semantic resume navigation, saved-map localization, Nav2, and RViz
+- starts Omi BLE audio, local STT, voice safety gate, LangGraph, VLM checkpointing, TTS, tour router, and lightweight perception context
+- makes `semantic_nav_node` the owner of all resume-mode movement through `/semantic_nav/command`
+
+`session_name:=auto` is intentional. It skips an empty `default` session and uses the latest usable semantic resume session containing `map.yaml`, `places.yaml`, or `route.yaml`.
 
 Wait until Nav2/RViz is up before issuing motion commands.
 
-## Terminal 2: Start Omi + Agent + VLM
-
-From the workspace root:
+To override defaults:
 
 ```bash
-cd /home/digital-twin-admin/Dhruv/sparky/ros2_ws
-source ./go2_env.sh
-source install/setup.bash
-
-ros2 launch go2_omi_voice_bridge omi_voice_stack.launch.py \
-  adapter_mode:=ble_audio \
-  ble_device_address:=EF:1C:34:C6:25:92 \
-  require_confirmation_for_motion:=true \
-  agent_enabled:=true \
-  enable_llm_debate:=true \
-  debate_llm_provider:=ollama \
-  debate_llm_model:=gemma4:12b \
-  debate_llm_timeout_sec:=30.0 \
-  session_name:=auto \
-  enable_vlm_checkpointing:=true \
-  vlm_provider:=ollama \
-  vlm_model:=gemma4:12b \
-  vlm_auto_write_checkpoints:=false \
-  tts_enabled:=true \
-  local_speaker_enabled:=true
+SESSION_NAME=lab_live_teach_20260608_151525 \
+OMI_BLE_DEVICE_ADDRESS=EF:1C:34:C6:25:92 \
+DEBATE_LLM_MODEL=gemma4:12b \
+VLM_MODEL=gemma4:12b \
+./scripts/run_sparky_voice_resume.sh
 ```
-
-This starts:
-
-- `go2_voice_stt_node`: Omi BLE audio to local faster-whisper transcript
-- `go2_voice_intent_gate`: wake words, intent parsing, confirmation gate
-- `go2_langgraph_main_supervisor`: LangGraph agent and local Ollama debate
-- `go2_vlm_checkpoint_node`: local Ollama camera summaries
-- `go2_tts_node`: response relay and local speaker output
-- `go2_tour_voice_command_router`: saved-tour voice adapter that routes start/continue/skip/cancel through semantic resume navigation
-
-`session_name:=auto` is intentional. It skips an empty `default` session and uses the latest usable semantic resume session containing `map.yaml`, `places.yaml`, or `route.yaml`.
 
 ## Verify Connections
 
@@ -240,14 +214,12 @@ Healthy output should be a fresh agent response with `nav_action: null` for non-
 
 ## Shutdown
 
-Stop the Omi/agent/VLM stack with `Ctrl+C` in Terminal 2.
+Stop the unified voice/resume stack with `Ctrl+C` in Terminal 1.
 
-Stop the robot/Nav2 resume stack with `Ctrl+C` in Terminal 1.
-
-If stale voice processes remain:
+If stale overlay processes remain:
 
 ```bash
-ps -eo pid,ppid,cmd | rg 'go2_omi_voice_bridge|go2_langgraph_agent|go2_memory_core|omi_voice_stack|main_supervisor|vlm_checkpoint_node'
+ps -eo pid,ppid,cmd | rg 'go2_omi_voice_bridge|go2_langgraph_agent|go2_memory_core|semantic_nav|sparky_voice_resume|main_supervisor|vlm_checkpoint_node'
 ```
 
 Then kill only the matching stale process IDs.
@@ -299,4 +271,4 @@ ros2 topic echo --full-length /go2_agent/speech
 ros2 topic echo --full-length /go2_vlm_checkpoint/status
 ```
 
-If transcripts appear but `/go2_agent/speech` and `/go2_vlm_checkpoint/status` do not, restart Terminal 2 with the full Omi launch command above.
+If transcripts appear but `/go2_agent/speech` and `/go2_vlm_checkpoint/status` do not, restart the unified script in Terminal 1.

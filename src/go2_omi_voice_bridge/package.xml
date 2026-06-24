@@ -11,5 +11,7 @@
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>go2_langgraph_agent</exec_depend>
   <exec_depend>go2_memory_core</exec_depend>
+  <exec_depend>go2_perception_tools</exec_depend>
+  <exec_depend>go2_semantic_nav_agent</exec_depend>
   <export><build_type>ament_python</build_type></export>
 </package>

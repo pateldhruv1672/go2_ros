@@ -45,7 +45,6 @@ flowchart TB
     Memory["memory and semantic context"]
     Perception["perception summaries\nscan, pointcloud, VLM, open vocab"]
     LangGraph["go2_langgraph_main_supervisor"]
-    NavTool["go2_nav2_tool_server\ndry-run first when enable_motion=false"]
   end
 
   subgraph Voice["Omi Voice and Tour Layer"]
@@ -94,15 +93,17 @@ flowchart TB
   Odom --> LangGraph
   Perception --> LangGraph
   Memory --> LangGraph
-  LangGraph --> NavTool --> BTN
+  LangGraph -->|/semantic_nav/command| ResumeNode
 
   Omi --> STT --> Gate
   Gate -->|verified /go2_agent/user_command| LangGraph
-  Gate -->|stop_robot /go2_nav/command| NavTool
+  Gate -->|cancel /semantic_nav/command| ResumeNode
   Gate -->|zero Twist| CmdOut
   Gate -->|tour commands| Tour
+  Tour -->|/semantic_nav/command| ResumeNode
   Tour --> TTS
   LangGraph --> TTS
+  ResumeNode -->|/agent/reply| TTS
 ```
 
 ## Runtime Ownership Rules
@@ -151,7 +152,7 @@ Mode defaults in `scripts/run_robot_live.sh`:
 | `teach` | true | false | false |
 | `resume` | false | true | true |
 
-For semantic resume overlay, prefer base bringup plus `scripts/run_semantic_nav_resume.sh` so the overlay owns the saved map, AMCL, and Nav2 instance.
+For the integrated voice/resume system, prefer `scripts/run_sparky_voice_resume.sh`. It starts base bringup if needed, then launches semantic resume, Omi voice, LangGraph, VLM, TTS, and perception context as one overlay.
 
 ## Semantic Teach Flow
 
@@ -229,24 +230,23 @@ flowchart LR
   ScanSummary["/go2_perception/scan_summary"] --> Supervisor
   PointSummary["/go2_perception/pointcloud_summary"] --> Supervisor
   VLM["/go2_vlm_checkpoint/status"] --> Supervisor
-  NavStatus["/go2_nav/status"] --> Supervisor
+  SemanticStatus["/semantic_nav/status"] --> Supervisor
   Memory["semantic/session memory"] --> Supervisor
   Supervisor --> Stream["/go2_agent/stream"]
   Supervisor --> Status["/go2_agent/status"]
   Supervisor --> Speech["/go2_agent/speech"]
-  Supervisor --> NavCommand["/go2_nav/command"]
-  NavCommand --> NavTool["go2_nav2_tool_server"]
-  NavTool -->|enable_motion=false| DryRun["dry-run status only"]
-  NavTool -->|enable_motion=true| Nav2Action["navigate_to_pose / navigate_through_poses"]
+  Supervisor --> SemanticCommand["/semantic_nav/command"]
+  SemanticCommand --> ResumeNode["semantic_nav_node"]
+  ResumeNode --> Nav2Action["navigate_to_pose through saved places/route"]
 ```
 
-The agentic layer should be brought up in observe-only mode first:
+The canonical voice/resume path is:
 
 ```bash
-ros2 launch go2_agentic_system explore_mode.launch.py enable_motion:=false
+./scripts/run_sparky_voice_resume.sh
 ```
 
-Enable motion only after base Nav2/resume mode is stable.
+Legacy `go2_nav_tools.nav2_tool_server` remains available for isolated exploration/tool-server tests, but it is not the default motion path.
 
 ## Omi Voice and Tour Flow
 
@@ -257,14 +257,14 @@ sequenceDiagram
   participant Gate as go2_voice_intent_gate
   participant Agent as go2_langgraph_main_supervisor
   participant Tour as go2_tour_voice_command_router
-  participant Nav as go2_nav2_tool_server
+  participant Nav as semantic_nav_node
   participant TTS as go2_tts_node
 
   Omi->>STT: /omi/transcript_raw
   STT->>Gate: /go2_voice/transcript JSON
   Gate->>Gate: parse intent and confidence
   alt stop command
-    Gate->>Nav: /go2_nav/command stop_robot
+    Gate->>Nav: /semantic_nav/command cancel
     Gate->>Nav: zero /cmd_vel_out
     Gate->>TTS: "Stopping now."
   else observe command
@@ -277,6 +277,7 @@ sequenceDiagram
     STT->>Gate: confirmation transcript
     Gate->>Agent: verified /go2_agent/user_command
     Gate->>Tour: /go2_tour/start or continue
+    Tour->>Nav: /semantic_nav/command start_tour/resume_tour
     Tour->>TTS: narration/status
   end
 ```
@@ -290,8 +291,9 @@ Key voice topics:
 | `/go2_voice/verification_request` | gate output | confirmation prompt |
 | `/go2_voice/verification_state` | gate output | state machine events |
 | `/go2_agent/user_command` | gate output | verified commands for LangGraph |
-| `/go2_nav/command` | gate/tool output | stop/navigation tool commands |
+| `/semantic_nav/command` | gate/agent/tour output | canonical resume navigation commands |
 | `/go2_tts/say` | gate output | immediate speech request |
+| `/agent/reply` | semantic nav output | resume/tour replies spoken by Omi TTS |
 | `/go2_tour/status` | tour output | tour state |
 | `/go2_tour/narration` | tour output | checkpoint narration |
 
@@ -303,27 +305,26 @@ Voice command policy:
 | where are we | no | none |
 | what do you see | no | none |
 | tell me a fun fact | no | none |
-| navigate to place | yes | via agent/Nav2 only |
-| start/continue tour | yes | via agent/Nav2 only |
+| navigate to place | yes | via semantic resume/Nav2 only |
+| start/continue tour | yes | via semantic resume/Nav2 only |
 
 ## Tour Route and Memory Files
 
 Tour router path:
 
 ```text
-~/.ros/go2_semantic_nav_sessions/<session_name>/tours/sjsu_ads_department_tour.json
+~/.ros/go2_semantic_nav_sessions/<session_name>/route.yaml
 ```
 
 Example session layout:
 
 ```text
-~/.ros/go2_semantic_nav_sessions/default/
+~/.ros/go2_semantic_nav_sessions/lab_live_teach_20260608_151525/
   map.yaml
   map.pgm
   places.yaml
+  route.yaml
   session.yaml
-  tours/
-    sjsu_ads_department_tour.json
 ```
 
 Example route:
@@ -345,7 +346,7 @@ Example route:
 }
 ```
 
-The current tour voice router prepares status and narration. It does not directly drive the robot. Navigation should still flow through the agentic supervisor and `go2_nav2_tool_server`.
+The current tour voice router prepares status and narration, then routes checkpoint movement through `/semantic_nav/command`. `semantic_nav_node` owns the saved route state and Nav2 goal execution.
 
 ## Safety-Critical Paths
 
@@ -353,9 +354,9 @@ The current tour voice router prepares status and narration. It does not directl
 flowchart TB
   VoiceStop["voice: stop/halt/freeze"] --> Gate["go2_voice_intent_gate"]
   Gate --> Zero["publish zero Twist\n/cmd_vel_out"]
-  Gate --> StopCmd["publish stop_robot\n/go2_nav/command"]
-  StopCmd --> NavTool["go2_nav2_tool_server"]
-  NavTool --> Zero2["publish zero Twist\n/cmd_vel_out"]
+  Gate --> StopCmd["publish cancel\n/semantic_nav/command"]
+  StopCmd --> SemanticNav["semantic_nav_node"]
+  SemanticNav --> Zero2["publish zero Twist\n/cmd_vel_out"]
   Gate --> CancelTour["/go2_tour/cancel"]
 
   Nav2Cmd["Nav2 controller\n/cmd_vel_nav"] --> Collision["collision_monitor"]
@@ -380,5 +381,4 @@ Direct autonomous movement around Nav2 is not part of the intended architecture.
 | map warnings in base mode | map-consuming path started without map source |
 | `navigate_to_pose` unavailable | Nav2 lifecycle did not reach active state |
 | voice asks confirmation but nothing moves | expected if `enable_motion:=false`, route missing, or agent/Nav2 not running |
-| tour says route missing | create the JSON route under the selected session `tours/` directory |
-
+| tour says route missing | check that the selected semantic session has `route.yaml` and usable places |

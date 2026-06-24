@@ -107,6 +107,7 @@ class Go2TtsNode(Node):
             "/go2_tts/say",
             "/go2_agent/response",
             "/go2_agent/speech",
+            "/agent/reply",
             "/go2_tour/narration",
             "/go2_vlm_checkpoint/status",
         )
