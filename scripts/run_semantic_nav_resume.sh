@@ -57,4 +57,8 @@ if [ "$BASE_READY" -eq 0 ]; then
   fi
 fi
 
-exec ros2 launch go2_semantic_nav_agent semantic_nav_resume.launch.py rviz2:=true restore_spawn_on_start:="${RESTORE_SPAWN_ON_START:-true}"
+exec ros2 launch go2_semantic_nav_agent semantic_nav_resume.launch.py \
+  rviz2:=true \
+  restore_spawn_on_start:="${RESTORE_SPAWN_ON_START:-true}" \
+  pointcloud_topic:="${POINTCLOUD_TOPIC:-/point_cloud2}" \
+  stvl_enabled:="${STVL_ENABLED:-auto}"

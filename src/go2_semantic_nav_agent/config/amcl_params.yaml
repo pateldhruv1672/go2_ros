@@ -18,4 +18,4 @@ amcl:
     update_min_d: 0.1
     update_min_a: 0.1
     resample_interval: 1
-    transform_tolerance: 1.0
+    transform_tolerance: 0.2

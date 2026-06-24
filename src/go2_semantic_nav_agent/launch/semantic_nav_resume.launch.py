@@ -5,6 +5,7 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import PackageNotFoundError
 import glob
 import os
 import tempfile
@@ -22,7 +23,188 @@ def _latest_usable(root: str) -> str:
     raise RuntimeError(f'No usable session found in {root}')
 
 
-def _build_semantic_nav2_params(source_path: str, scan_topic: str) -> str:
+def _bool_flag(value: str, default: bool = False) -> bool:
+    raw = (value or '').strip().lower()
+    if not raw:
+        return default
+    if raw in ('1', 'true', 'yes', 'on'):
+        return True
+    if raw in ('0', 'false', 'no', 'off'):
+        return False
+    return default
+
+
+def _package_available(package_name: str) -> bool:
+    try:
+        get_package_share_directory(package_name)
+        return True
+    except PackageNotFoundError:
+        return False
+
+
+def _mppi_follow_path_params() -> dict:
+    return {
+        'plugin': 'nav2_mppi_controller::MPPIController',
+        'time_steps': 40,
+        'model_dt': 0.05,
+        'batch_size': 1200,
+        'ax_max': 0.35,
+        'ax_min': -0.45,
+        'ay_max': 0.0,
+        'ay_min': 0.0,
+        'az_max': 0.65,
+        'vx_std': 0.12,
+        'vy_std': 0.0,
+        'wz_std': 0.25,
+        'vx_max': 0.30,
+        'vx_min': -0.08,
+        'vy_max': 0.0,
+        'wz_max': 0.65,
+        'iteration_count': 1,
+        'prune_distance': 1.5,
+        'transform_tolerance': 1.0,
+        'temperature': 0.3,
+        'gamma': 0.015,
+        'motion_model': 'DiffDrive',
+        'visualize': False,
+        'regenerate_noises': False,
+        'TrajectoryVisualizer': {
+            'trajectory_step': 5,
+            'time_step': 3,
+        },
+        'AckermannConstraints': {
+            'min_turning_r': 0.2,
+        },
+        'critics': [
+            'ConstraintCritic',
+            'CostCritic',
+            'GoalCritic',
+            'GoalAngleCritic',
+            'PathAlignCritic',
+            'PathFollowCritic',
+            'PathAngleCritic',
+            'PreferForwardCritic',
+        ],
+        'ConstraintCritic': {
+            'enabled': True,
+            'cost_power': 1,
+            'cost_weight': 4.0,
+        },
+        'GoalCritic': {
+            'enabled': True,
+            'cost_power': 1,
+            'cost_weight': 5.0,
+            'threshold_to_consider': 1.4,
+        },
+        'GoalAngleCritic': {
+            'enabled': True,
+            'cost_power': 1,
+            'cost_weight': 3.0,
+            'threshold_to_consider': 0.5,
+        },
+        'PreferForwardCritic': {
+            'enabled': True,
+            'cost_power': 1,
+            'cost_weight': 5.0,
+            'threshold_to_consider': 0.5,
+        },
+        'CostCritic': {
+            'enabled': True,
+            'cost_power': 1,
+            'cost_weight': 3.8,
+            'near_collision_cost': 253,
+            'critical_cost': 300.0,
+            'consider_footprint': True,
+            'collision_cost': 1000000.0,
+            'near_goal_distance': 1.0,
+            'trajectory_point_step': 2,
+        },
+        'PathAlignCritic': {
+            'enabled': True,
+            'cost_power': 1,
+            'cost_weight': 14.0,
+            'max_path_occupancy_ratio': 0.10,
+            'trajectory_point_step': 4,
+            'threshold_to_consider': 0.5,
+            'offset_from_furthest': 20,
+            'use_path_orientations': False,
+        },
+        'PathFollowCritic': {
+            'enabled': True,
+            'cost_power': 1,
+            'cost_weight': 5.0,
+            'offset_from_furthest': 5,
+            'threshold_to_consider': 1.4,
+        },
+        'PathAngleCritic': {
+            'enabled': True,
+            'cost_power': 1,
+            'cost_weight': 2.0,
+            'offset_from_furthest': 4,
+            'threshold_to_consider': 0.5,
+            'max_angle_to_furthest': 1.0,
+            'mode': 0,
+        },
+    }
+
+
+def _stvl_layer_params(pointcloud_topic: str) -> dict:
+    return {
+        'plugin': 'spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer',
+        'enabled': True,
+        'voxel_decay': 8.0,
+        'decay_model': 0,
+        'voxel_size': 0.05,
+        'track_unknown_space': True,
+        'unknown_threshold': 15,
+        'mark_threshold': 0,
+        'update_footprint_enabled': True,
+        'combination_method': 1,
+        'origin_z': 0.0,
+        'publish_voxel_map': False,
+        'transform_tolerance': 0.5,
+        'mapping_mode': False,
+        'map_save_duration': 60.0,
+        'observation_sources': 'pointcloud',
+        'pointcloud': {
+            'data_type': 'PointCloud2',
+            'topic': pointcloud_topic,
+            'marking': True,
+            'clearing': True,
+            'obstacle_range': 3.0,
+            'min_obstacle_height': 0.05,
+            'max_obstacle_height': 1.5,
+            'expected_update_rate': 0.0,
+            'observation_persistence': 0.0,
+            'inf_is_valid': False,
+            'filter': 'voxel',
+            'voxel_min_points': 0,
+            'clear_after_reading': True,
+            'max_z': 2.0,
+            'min_z': 0.05,
+            'vertical_fov_angle': 1.0,
+            'horizontal_fov_angle': 6.283,
+            'decay_acceleration': 10.0,
+            'model_type': 0,
+        },
+    }
+
+
+def _resolve_stvl_enabled(requested: str) -> bool:
+    raw = (requested or 'auto').strip().lower()
+    available = _package_available('spatio_temporal_voxel_layer')
+    if raw in ('auto', 'detect'):
+        return available
+    enabled = _bool_flag(raw, default=False)
+    if enabled and not available:
+        raise RuntimeError(
+            'stvl_enabled was requested, but spatio_temporal_voxel_layer is not installed. '
+            'Install it with: sudo apt install ros-jazzy-spatio-temporal-voxel-layer'
+        )
+    return enabled
+
+
+def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_topic: str, stvl_enabled: str) -> str:
     with open(source_path, 'r', encoding='utf-8') as f:
         params = yaml.safe_load(f) or {}
 
@@ -49,8 +231,24 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str) -> str:
     # Live obstacle handling:
     #   /scan -> /scan_nav -> costmaps + collision_monitor -> /cmd_vel_out -> Go2 Sport MOVE.
 
+    bt = params.setdefault('bt_navigator', {}).setdefault('ros__parameters', {})
+    bt['navigators'] = ['navigate_to_pose', 'navigate_through_poses']
+    bt['navigate_to_pose'] = {'plugin': 'nav2_bt_navigator::NavigateToPoseNavigator'}
+    bt['navigate_through_poses'] = {'plugin': 'nav2_bt_navigator::NavigateThroughPosesNavigator'}
+    bt['default_nav_to_pose_bt_xml'] = '$(find-pkg-share nav2_bt_navigator)/behavior_trees/nav_to_pose_with_consistent_replanning_and_if_path_becomes_invalid.xml'
+    bt['default_nav_through_poses_bt_xml'] = '$(find-pkg-share nav2_bt_navigator)/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml'
+    bt['follow_point_bt_xml'] = '$(find-pkg-share nav2_bt_navigator)/behavior_trees/follow_point.xml'
+    bt['odometry_calibration_bt_xml'] = '$(find-pkg-share nav2_bt_navigator)/behavior_trees/odometry_calibration.xml'
+    bt['error_code_names'] = ['compute_path_error_code', 'follow_path_error_code']
+
     ctrl = params.setdefault('controller_server', {}).setdefault('ros__parameters', {})
-    ctrl['controller_frequency'] = 5.0
+    ctrl['controller_frequency'] = 10.0
+    ctrl['costmap_update_timeout'] = 0.80
+    ctrl['progress_checker_plugins'] = ['progress_checker']
+    ctrl.pop('progress_checker_plugin', None)
+    ctrl['goal_checker_plugins'] = ['general_goal_checker']
+    ctrl['controller_plugins'] = ['FollowPath']
+    ctrl['use_realtime_priority'] = False
 
     progress = ctrl.setdefault('progress_checker', {})
     progress['plugin'] = 'nav2_controller::SimpleProgressChecker'
@@ -63,29 +261,15 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str) -> str:
     goal_checker['yaw_goal_tolerance'] = 0.45
     goal_checker['stateful'] = True
 
-    follow = ctrl.setdefault('FollowPath', {})
-    follow['max_vel_x'] = 0.28
-    follow['min_vel_x'] = 0.0
-    follow['max_vel_y'] = 0.0
-    follow['min_vel_y'] = 0.0
-    follow['max_vel_theta'] = 0.45
-    follow['min_speed_xy'] = 0.0
-    follow['max_speed_xy'] = 0.28
-    follow['min_speed_theta'] = 0.0
-    follow['acc_lim_x'] = 0.35
-    follow['acc_lim_y'] = 0.0
-    follow['acc_lim_theta'] = 0.5
-    follow['decel_lim_x'] = -0.45
-    follow['decel_lim_y'] = 0.0
-    follow['decel_lim_theta'] = -0.5
-    follow['BaseObstacle.scale'] = 0.03
+    ctrl['FollowPath'] = _mppi_follow_path_params()
 
     local = params.setdefault('local_costmap', {}).setdefault('local_costmap', {}).setdefault('ros__parameters', {})
     local['rolling_window'] = True
     local['width'] = 6
     local['height'] = 6
     local['resolution'] = 0.05
-    local['plugins'] = ['obstacle_layer', 'inflation_layer']
+    use_stvl = _resolve_stvl_enabled(stvl_enabled)
+    local['plugins'] = ['stvl_layer', 'inflation_layer'] if use_stvl else ['obstacle_layer', 'inflation_layer']
 
     local_obstacle = local.setdefault('obstacle_layer', {})
     local_obstacle['plugin'] = 'nav2_costmap_2d::ObstacleLayer'
@@ -111,6 +295,7 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str) -> str:
     local_inflation['plugin'] = 'nav2_costmap_2d::InflationLayer'
     local_inflation['inflation_radius'] = 0.45
     local_inflation['cost_scaling_factor'] = 3.0
+    local['stvl_layer'] = _stvl_layer_params(pointcloud_topic)
 
     global_cm = params.setdefault('global_costmap', {}).setdefault('global_costmap', {}).setdefault('ros__parameters', {})
     # GO2_GLOBAL_LIVE_OBSTACLES_FLAG
@@ -216,6 +401,8 @@ def launch_setup(context, *args, **kwargs):
     nav2_start_delay_sec = float(LaunchConfiguration('nav2_start_delay_sec').perform(context))
     scan_input_topic = LaunchConfiguration('scan_input_topic').perform(context).strip() or '/scan'
     scan_nav_topic = LaunchConfiguration('scan_nav_topic').perform(context).strip() or '/scan_nav'
+    pointcloud_topic = LaunchConfiguration('pointcloud_topic').perform(context).strip() or '/point_cloud2'
+    stvl_enabled = LaunchConfiguration('stvl_enabled').perform(context).strip() or 'auto'
     scan_frame_id = LaunchConfiguration('scan_frame_id').perform(context).strip() or 'base_link'
     scan_stamp_offset_sec = float(LaunchConfiguration('scan_stamp_offset_sec').perform(context))
     store = SessionStore(session_root)
@@ -247,6 +434,8 @@ def launch_setup(context, *args, **kwargs):
             'nav2_params.yaml',
         ),
         scan_nav_topic,
+        pointcloud_topic,
+        stvl_enabled,
     )
     if map_yaml is None:
         configured = str(meta.get('map_yaml', '') or '').strip() or os.path.join(session_dir, 'map.yaml')
@@ -316,7 +505,9 @@ def generate_launch_description():
         DeclareLaunchArgument('nav2_start_delay_sec', default_value='2.5'),
         DeclareLaunchArgument('scan_input_topic', default_value='/scan'),
         DeclareLaunchArgument('scan_nav_topic', default_value='/scan_nav'),
+        DeclareLaunchArgument('pointcloud_topic', default_value='/point_cloud2'),
+        DeclareLaunchArgument('stvl_enabled', default_value='auto'),
         DeclareLaunchArgument('scan_frame_id', default_value='base_link'),
-        DeclareLaunchArgument('scan_stamp_offset_sec', default_value='0.30'),
+        DeclareLaunchArgument('scan_stamp_offset_sec', default_value='0.0'),
         OpaqueFunction(function=launch_setup),
     ])

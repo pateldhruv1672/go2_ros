@@ -14,7 +14,7 @@ class ScanRetimestampNode(Node):
         self.declare_parameter('input_topic', '/scan')
         self.declare_parameter('output_topic', '/scan_fixed')
         self.declare_parameter('frame_id', 'base_link')
-        self.declare_parameter('stamp_offset_sec', 0.30)
+        self.declare_parameter('stamp_offset_sec', 0.0)
         input_topic = str(self.get_parameter('input_topic').value)
         output_topic = str(self.get_parameter('output_topic').value)
         self.frame_id = str(self.get_parameter('frame_id').value)
