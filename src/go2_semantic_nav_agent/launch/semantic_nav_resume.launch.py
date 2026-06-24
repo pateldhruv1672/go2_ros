@@ -45,9 +45,9 @@ def _package_available(package_name: str) -> bool:
 def _mppi_follow_path_params() -> dict:
     return {
         'plugin': 'nav2_mppi_controller::MPPIController',
-        'time_steps': 40,
+        'time_steps': 32,
         'model_dt': 0.05,
-        'batch_size': 1200,
+        'batch_size': 700,
         'ax_max': 0.35,
         'ax_min': -0.45,
         'ay_max': 0.0,
@@ -117,16 +117,16 @@ def _mppi_follow_path_params() -> dict:
             'consider_footprint': True,
             'collision_cost': 1000000.0,
             'near_goal_distance': 1.0,
-            'trajectory_point_step': 2,
+            'trajectory_point_step': 3,
         },
         'PathAlignCritic': {
             'enabled': True,
             'cost_power': 1,
             'cost_weight': 14.0,
             'max_path_occupancy_ratio': 0.10,
-            'trajectory_point_step': 4,
+            'trajectory_point_step': 6,
             'threshold_to_consider': 0.5,
-            'offset_from_furthest': 20,
+            'offset_from_furthest': 16,
             'use_path_orientations': False,
         },
         'PathFollowCritic': {
@@ -245,10 +245,13 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     ctrl['controller_frequency'] = 10.0
     ctrl['costmap_update_timeout'] = 0.80
     ctrl['progress_checker_plugins'] = ['progress_checker']
+    ctrl['current_progress_checker'] = 'progress_checker'
     ctrl.pop('progress_checker_plugin', None)
     ctrl['goal_checker_plugins'] = ['general_goal_checker']
+    ctrl['current_goal_checker'] = 'general_goal_checker'
     ctrl['controller_plugins'] = ['FollowPath']
     ctrl['use_realtime_priority'] = False
+    ctrl['enable_stamped_cmd_vel'] = False
 
     progress = ctrl.setdefault('progress_checker', {})
     progress['plugin'] = 'nav2_controller::SimpleProgressChecker'
@@ -264,9 +267,11 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     ctrl['FollowPath'] = _mppi_follow_path_params()
 
     local = params.setdefault('local_costmap', {}).setdefault('local_costmap', {}).setdefault('ros__parameters', {})
+    local['update_frequency'] = 5.0
+    local['publish_frequency'] = 2.0
     local['rolling_window'] = True
-    local['width'] = 6
-    local['height'] = 6
+    local['width'] = 5
+    local['height'] = 5
     local['resolution'] = 0.05
     use_stvl = _resolve_stvl_enabled(stvl_enabled)
     local['plugins'] = ['stvl_layer', 'inflation_layer'] if use_stvl else ['obstacle_layer', 'inflation_layer']
@@ -293,7 +298,9 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
 
     local_inflation = local.setdefault('inflation_layer', {})
     local_inflation['plugin'] = 'nav2_costmap_2d::InflationLayer'
-    local_inflation['inflation_radius'] = 0.45
+    # Must stay larger than the footprint circumscribed radius (~0.51 m) so
+    # MPPI's SE2 collision checker can use the costmap potential field.
+    local_inflation['inflation_radius'] = 0.65
     local_inflation['cost_scaling_factor'] = 3.0
     local['stvl_layer'] = _stvl_layer_params(pointcloud_topic)
 
@@ -331,11 +338,12 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
 
     global_inflation = global_cm.setdefault('inflation_layer', {})
     global_inflation['plugin'] = 'nav2_costmap_2d::InflationLayer'
-    global_inflation['inflation_radius'] = 0.52
+    global_inflation['inflation_radius'] = 0.70
     global_inflation['cost_scaling_factor'] = 3.0
 
     cm = params.setdefault('collision_monitor', {}).setdefault('ros__parameters', {})
     cm['enabled'] = True
+    cm['enable_stamped_cmd_vel'] = False
     cm['base_frame_id'] = 'base_link'
     cm['odom_frame_id'] = 'odom'
     cm['cmd_vel_in_topic'] = 'cmd_vel_nav'
@@ -368,6 +376,9 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     cm_scan['type'] = 'scan'
     cm_scan['topic'] = scan_topic
     cm_scan['enabled'] = True
+
+    behavior = params.setdefault('behavior_server', {}).setdefault('ros__parameters', {})
+    behavior['enable_stamped_cmd_vel'] = False
     try:
         params.setdefault('amcl', {}).setdefault('ros__parameters', {})['scan_topic'] = scan_topic
     except Exception:
@@ -455,6 +466,9 @@ def launch_setup(context, *args, **kwargs):
                 'output_topic': scan_nav_topic,
                 'frame_id': scan_frame_id,
                 'stamp_offset_sec': scan_stamp_offset_sec,
+                'use_latest_tf_stamp': True,
+                'tf_target_frame': 'odom',
+                'tf_source_frame': scan_frame_id,
             }],
         ),
         Node(package='nav2_map_server', executable='map_server', name='resume_map_server', output='screen', parameters=[{'yaml_filename': map_yaml}]),
@@ -484,6 +498,8 @@ def launch_setup(context, *args, **kwargs):
             'auto_save_use_vlm': False,
             'restore_spawn_on_start': restore_spawn_on_start,
             'allow_manual_initialpose_override': True,
+            'fallback_cmd_topic': '/cmd_vel_nav',
+            'initialpose_stamp_backdate_sec': 0.10,
             'scan_topic': scan_nav_topic,
         }]),
     ]
@@ -508,6 +524,6 @@ def generate_launch_description():
         DeclareLaunchArgument('pointcloud_topic', default_value='/point_cloud2'),
         DeclareLaunchArgument('stvl_enabled', default_value='auto'),
         DeclareLaunchArgument('scan_frame_id', default_value='base_link'),
-        DeclareLaunchArgument('scan_stamp_offset_sec', default_value='0.0'),
+        DeclareLaunchArgument('scan_stamp_offset_sec', default_value='0.25'),
         OpaqueFunction(function=launch_setup),
     ])

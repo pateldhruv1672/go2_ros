@@ -100,7 +100,7 @@ def generate_launch_description():
             DeclareLaunchArgument("scan_input_topic", default_value="/scan"),
             DeclareLaunchArgument("scan_nav_topic", default_value="/scan_nav"),
             DeclareLaunchArgument("scan_frame_id", default_value="base_link"),
-            DeclareLaunchArgument("scan_stamp_offset_sec", default_value="0.30"),
+            DeclareLaunchArgument("scan_stamp_offset_sec", default_value="0.25"),
             DeclareLaunchArgument("adapter_mode", default_value="ble_audio"),
             DeclareLaunchArgument("ble_device_address", default_value="EF:1C:34:C6:25:92"),
             DeclareLaunchArgument("require_confirmation_for_motion", default_value="true"),

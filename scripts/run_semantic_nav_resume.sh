@@ -27,6 +27,10 @@ export CONN_TYPE="${CONN_TYPE:-webrtc}"
 
 # Only stop the semantic resume overlay and resume-owned Nav2 nodes.
 # Do not kill the base robot bringup, driver, state publisher, or teleop stack here.
+# Kill the parent launch first so old generated /tmp/launch_params_* files cannot
+# keep stale Nav2 parameters alive after a source/config edit.
+pkill -f "ros2 launch go2_semantic_nav_agent semantic_nav_resume.launch.py" || true
+sleep 1
 pkill -f "semantic_nav_node|scan_retimestamp_node|resume_map_server|resume_map_lifecycle_manager|semantic_nav_rviz2|controller_server|planner_server|bt_navigator|waypoint_follower|collision_monitor|lifecycle_manager_navigation|behavior_server|opennav_docking" || true
 sleep 2
 

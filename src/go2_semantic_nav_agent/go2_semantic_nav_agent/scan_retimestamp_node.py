@@ -5,7 +5,9 @@ from rclpy.executors import ExternalShutdownException
 import rclpy.duration
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
+from rclpy.time import Time
 from sensor_msgs.msg import LaserScan
+from tf2_ros import Buffer, TransformException, TransformListener
 
 
 class ScanRetimestampNode(Node):
@@ -14,26 +16,58 @@ class ScanRetimestampNode(Node):
         self.declare_parameter('input_topic', '/scan')
         self.declare_parameter('output_topic', '/scan_fixed')
         self.declare_parameter('frame_id', 'base_link')
-        self.declare_parameter('stamp_offset_sec', 0.0)
+        self.declare_parameter('stamp_offset_sec', 0.25)
+        self.declare_parameter('use_latest_tf_stamp', True)
+        self.declare_parameter('tf_target_frame', 'odom')
+        self.declare_parameter('tf_source_frame', 'base_link')
         input_topic = str(self.get_parameter('input_topic').value)
         output_topic = str(self.get_parameter('output_topic').value)
         self.frame_id = str(self.get_parameter('frame_id').value)
         self.stamp_offset_sec = float(self.get_parameter('stamp_offset_sec').value)
+        self.use_latest_tf_stamp = bool(self.get_parameter('use_latest_tf_stamp').value)
+        self.tf_target_frame = str(self.get_parameter('tf_target_frame').value)
+        self.tf_source_frame = str(self.get_parameter('tf_source_frame').value)
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        qos = QoSProfile(
+        input_qos = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
         )
-        self.pub = self.create_publisher(LaserScan, output_topic, qos)
-        self.sub = self.create_subscription(LaserScan, input_topic, self.scan_cb, qos)
-        self.get_logger().info(f'Retimestamping {input_topic} -> {output_topic} with BEST_EFFORT QoS')
+        output_qos = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.VOLATILE,
+        )
+        self.pub = self.create_publisher(LaserScan, output_topic, output_qos)
+        self.sub = self.create_subscription(LaserScan, input_topic, self.scan_cb, input_qos)
+        self.get_logger().info(
+            f'Retimestamping {input_topic} -> {output_topic}; input_qos=BEST_EFFORT '
+            f'output_qos=RELIABLE use_latest_tf_stamp={self.use_latest_tf_stamp}'
+        )
+
+    def output_stamp(self):
+        if self.use_latest_tf_stamp:
+            try:
+                tf = self.tf_buffer.lookup_transform(
+                    self.tf_target_frame,
+                    self.tf_source_frame,
+                    Time(),
+                    timeout=rclpy.duration.Duration(seconds=0.02),
+                )
+                if int(tf.header.stamp.sec) > 0 or int(tf.header.stamp.nanosec) > 0:
+                    return tf.header.stamp
+            except TransformException:
+                pass
+        stamp = self.get_clock().now() + rclpy.duration.Duration(seconds=self.stamp_offset_sec)
+        return stamp.to_msg()
 
     def scan_cb(self, msg: LaserScan) -> None:
         out = LaserScan()
-        stamp = self.get_clock().now() + rclpy.duration.Duration(seconds=self.stamp_offset_sec)
-        out.header.stamp = stamp.to_msg()
+        out.header.stamp = self.output_stamp()
         out.header.frame_id = self.frame_id or msg.header.frame_id
         out.angle_min = msg.angle_min
         out.angle_max = msg.angle_max

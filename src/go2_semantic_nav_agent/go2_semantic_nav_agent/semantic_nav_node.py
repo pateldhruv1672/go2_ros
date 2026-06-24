@@ -248,6 +248,7 @@ class SemanticNavNode(Node):
         self.declare_parameter('restore_spawn_yaw_tolerance_rad', 0.75)
         self.declare_parameter('restore_spawn_position_covariance', 0.5)
         self.declare_parameter('restore_spawn_yaw_covariance', 0.5)
+        self.declare_parameter('initialpose_stamp_backdate_sec', 0.10)
         self.declare_parameter('save_spawn_on_start', True)
         self.declare_parameter('fallback_enable', True)
         self.declare_parameter('fallback_max_attempts', 3)
@@ -598,7 +599,8 @@ class SemanticNavNode(Node):
 
         msg = PoseWithCovarianceStamped()
         msg.header.frame_id = (spawn.get('frame_id') or self.map_frame or 'map').strip() or 'map'
-        msg.header.stamp = self.get_clock().now().to_msg()
+        backdate_sec = max(0.0, float(self.get_parameter('initialpose_stamp_backdate_sec').value))
+        msg.header.stamp = (self.get_clock().now() - Duration(seconds=backdate_sec)).to_msg()
 
         msg.pose.pose.position.x = float(spawn.get('x', 0.0))
         msg.pose.pose.position.y = float(spawn.get('y', 0.0))
@@ -626,6 +628,8 @@ class SemanticNavNode(Node):
         self._restore_spawn_last_publish_ns = now_ns
         self._restore_next_attempt_ns = now_ns + retry_interval_ns
         self._restore_spawn_verified = False
+        if bool(self.get_parameter('restore_spawn_only_once').value):
+            self._restore_done = True
 
         self.publish_status(
             f'restored_spawn_initialpose name=spawn '
@@ -649,9 +653,6 @@ class SemanticNavNode(Node):
             matched, _, _ = self.current_pose_matches_spawn(pose, spawn)
             if matched:
                 return
-
-        if self._restore_done:
-            return
 
         pose_x = float(msg.pose.pose.position.x)
         pose_y = float(msg.pose.pose.position.y)
@@ -761,7 +762,7 @@ class SemanticNavNode(Node):
             label.id = stable_marker_id(p.name, 1)
             label.type = Marker.TEXT_VIEW_FACING
             label.action = Marker.ADD
-            label.scale.z = 0.5
+            label.scale.z = 0.22
             label.pose.position.x = p.x
             label.pose.position.y = p.y
             label.pose.position.z = 0.60
@@ -807,7 +808,7 @@ class SemanticNavNode(Node):
             label.id = stable_marker_id(stop.name, 11)
             label.type = Marker.TEXT_VIEW_FACING
             label.action = Marker.ADD
-            label.scale.z = 0.4
+            label.scale.z = 0.20
             label.pose.position.x = place.x
             label.pose.position.y = place.y
             label.pose.position.z = 0.86
@@ -815,7 +816,7 @@ class SemanticNavNode(Node):
             label.color.r = 1.0
             label.color.g = 0.9
             label.color.b = 0.3
-            label.text = f'{idx + 1}. {stop.name} [{stop.status}]'
+            label.text = f'{idx + 1}. {stop.name}'
             route_arr.markers.append(label)
         self.preview_pub.publish(route_arr)
 

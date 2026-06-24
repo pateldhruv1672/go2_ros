@@ -145,6 +145,21 @@ class Go2NodeFactory:
     
     def _create_pointcloud_to_laserscan_node(self, namespace: str = None) -> Node:
         """Create pointcloud to laserscan conversion node"""
+        target_frame = f'{namespace}/base_link' if namespace else 'base_link'
+        parameters = {
+            'target_frame': target_frame,
+            'transform_tolerance': 0.2,
+            'min_height': 0.05,
+            'max_height': 1.20,
+            'angle_min': -3.14159,
+            'angle_max': 3.14159,
+            'angle_increment': 0.00872665,
+            'scan_time': 0.1,
+            'range_min': 0.35,
+            'range_max': 8.0,
+            'use_inf': True,
+            'concurrency_level': 1,
+        }
         if namespace:
             # Multi-robot setup
             return Node(
@@ -155,18 +170,7 @@ class Go2NodeFactory:
                     ('cloud_in', f'{namespace}/pointcloud/filtered'),
                     ('scan', f'{namespace}/scan'),
                 ],
-                parameters=[{
-                    'target_frame': f'{namespace}/base_link',
-                    'max_height': 2.0,
-                    'min_height': -0.2,
-                    'angle_min': -3.14159,
-                    'angle_max': 3.14159,
-                    'angle_increment': 0.00872665,  # 0.5 degrees
-                    'scan_time': 0.1,
-                    'range_min': 0.1,
-                    'range_max': 20.0,
-                    'use_inf': True,
-                }],
+                parameters=[parameters],
                 output='screen',
             )
         else:
@@ -179,18 +183,7 @@ class Go2NodeFactory:
                     ('cloud_in', '/pointcloud/aggregated'),
                     ('scan', '/scan'),
                 ],
-                parameters=[{
-                    'target_frame': 'base_link',
-                    'max_height': 2.0,
-                    'min_height': -0.2,
-                    'angle_min': -3.14159,
-                    'angle_max': 3.14159,
-                    'angle_increment': 0.00872665,  # 0.5 degrees
-                    'scan_time': 0.1,
-                    'range_min': 0.1,
-                    'range_max': 20.0,
-                    'use_inf': True,
-                }],
+                parameters=[parameters],
                 output='screen',
             )
     
