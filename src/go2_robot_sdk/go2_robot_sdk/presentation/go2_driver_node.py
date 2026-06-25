@@ -99,6 +99,12 @@ class Go2DriverNode(Node):
                 ('decode_lidar', True),
                 ('publish_raw_voxel', False),
                 ('obstacle_avoidance', True),
+                ('cmd_vel_linear_gain', 2.5),
+                ('cmd_vel_angular_gain', 0.8),
+                ('cmd_vel_min_linear_x', 0.0),
+                ('cmd_vel_min_angular_z', 0.0),
+                ('cmd_vel_max_linear_x', 0.30),
+                ('cmd_vel_max_angular_z', 0.35),
             ]
         )
 
@@ -112,7 +118,13 @@ class Go2DriverNode(Node):
             enable_video=self.get_parameter('enable_video').get_parameter_value().bool_value,
             decode_lidar=self.get_parameter('decode_lidar').get_parameter_value().bool_value,
             publish_raw_voxel=self.get_parameter('publish_raw_voxel').get_parameter_value().bool_value,
-            obstacle_avoidance=self.get_parameter('obstacle_avoidance').get_parameter_value().bool_value
+            obstacle_avoidance=self.get_parameter('obstacle_avoidance').get_parameter_value().bool_value,
+            cmd_vel_linear_gain=self.get_parameter('cmd_vel_linear_gain').get_parameter_value().double_value,
+            cmd_vel_angular_gain=self.get_parameter('cmd_vel_angular_gain').get_parameter_value().double_value,
+            cmd_vel_min_linear_x=self.get_parameter('cmd_vel_min_linear_x').get_parameter_value().double_value,
+            cmd_vel_min_angular_z=self.get_parameter('cmd_vel_min_angular_z').get_parameter_value().double_value,
+            cmd_vel_max_linear_x=self.get_parameter('cmd_vel_max_linear_x').get_parameter_value().double_value,
+            cmd_vel_max_angular_z=self.get_parameter('cmd_vel_max_angular_z').get_parameter_value().double_value
         )
 
         # Log configuration
@@ -123,6 +135,12 @@ class Go2DriverNode(Node):
         self.get_logger().info(f"Decode lidar: {config.decode_lidar}")
         self.get_logger().info(f"Publish raw voxel: {config.publish_raw_voxel}")
         self.get_logger().info(f"Obstacle avoidance: {config.obstacle_avoidance}")
+        self.get_logger().info(
+            "Cmd vel adapter: "
+            f"linear_gain={config.cmd_vel_linear_gain} angular_gain={config.cmd_vel_angular_gain} "
+            f"min_linear_x={config.cmd_vel_min_linear_x} min_angular_z={config.cmd_vel_min_angular_z} "
+            f"max_linear_x={config.cmd_vel_max_linear_x} max_angular_z={config.cmd_vel_max_angular_z}"
+        )
 
         return config
 

@@ -6,7 +6,7 @@ from typing import List
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
 from launch.launch_description_sources import FrontendLaunchDescriptionSource, PythonLaunchDescriptionSource
@@ -21,7 +21,7 @@ class Go2LaunchConfig:
         self.robot_ip = os.getenv('ROBOT_IP', '')
         self.robot_ip_list = self._parse_ip_list(self.robot_ip)
         self.map_name = os.getenv('MAP_NAME', '3d_map')
-        self.save_map = os.getenv('MAP_SAVE', 'true')
+        self.save_map = os.getenv('MAP_SAVE', 'false')
         self.conn_type = os.getenv('CONN_TYPE', 'webrtc')
         
         # Derived configurations
@@ -84,8 +84,13 @@ class Go2NodeFactory:
             DeclareLaunchArgument('nav2', default_value='true', description='Launch Nav2'),
             DeclareLaunchArgument('slam', default_value='true', description='Launch SLAM'),
             DeclareLaunchArgument('foxglove', default_value='true', description='Launch Foxglove Bridge'),
-            DeclareLaunchArgument('joystick', default_value='true', description='Launch joystick'),
-            DeclareLaunchArgument('teleop', default_value='true', description='Launch teleoperation'),
+            DeclareLaunchArgument('joystick', default_value='false', description='Launch joystick'),
+            DeclareLaunchArgument('teleop', default_value='false', description='Launch teleoperation'),
+            DeclareLaunchArgument(
+                'pointcloud_aggregator',
+                default_value='false',
+                description='Publish accumulated debug pointcloud history',
+            ),
         ]
     
     def create_robot_state_nodes(self) -> List[Node]:
@@ -146,18 +151,18 @@ class Go2NodeFactory:
         target_frame = f'{namespace}/base_link' if namespace else 'base_link'
         parameters = {
             'target_frame': target_frame,
-            'transform_tolerance': 0.2,
+            'transform_tolerance': 0.5,
             # Keep the scan focused on obstacle-height returns. The raw Go2
             # cloud can include floor, body/leg, and far sparse points that
             # make Nav2 mark the robot/start as occupied.
-            'min_height': 0.05,
-            'max_height': 1.20,
+            'min_height': 0.15,
+            'max_height': 1.00,
             'angle_min': -3.14159,
             'angle_max': 3.14159,
             'angle_increment': 0.00872665,
             'scan_time': 0.1,
-            'range_min': 0.35,
-            'range_max': 8.0,
+            'range_min': 0.55,
+            'range_max': 5.0,
             'use_inf': True,
             'concurrency_level': 1,
         }
@@ -190,6 +195,7 @@ class Go2NodeFactory:
     
     def create_core_nodes(self) -> List[Node]:
         """Create core Go2 robot nodes"""
+        with_pointcloud_aggregator = LaunchConfiguration('pointcloud_aggregator', default='false')
         return [
             # Main robot driver (clean architecture)
             Node(
@@ -202,6 +208,12 @@ class Go2NodeFactory:
                     'token': self.config.robot_token,
                     'conn_type': self.config.conn_type,
                     'obstacle_avoidance': False,
+                    'cmd_vel_linear_gain': 2.5,
+                    'cmd_vel_angular_gain': 0.8,
+                    'cmd_vel_min_linear_x': 0.0,
+                    'cmd_vel_min_angular_z': 0.0,
+                    'cmd_vel_max_linear_x': 0.30,
+                    'cmd_vel_max_angular_z': 0.35,
                 }],
             ),
             # LiDAR processing node (new separate package)
@@ -220,6 +232,7 @@ class Go2NodeFactory:
                 package='lidar_processor',
                 executable='pointcloud_aggregator',
                 name='pointcloud_aggregator',
+                condition=IfCondition(with_pointcloud_aggregator),
                 parameters=[{
                     'max_range': 20.0,
                     'min_range': 0.1,
@@ -248,8 +261,12 @@ class Go2NodeFactory:
     def create_teleop_nodes(self) -> List[Node]:
         """Create teleoperation and joystick nodes"""
         use_sim_time = LaunchConfiguration('use_sim_time', default='false')
-        with_joystick = LaunchConfiguration('joystick', default='true')
-        with_teleop = LaunchConfiguration('teleop', default='true')
+        with_joystick = LaunchConfiguration('joystick', default='false')
+        with_teleop = LaunchConfiguration('teleop', default='false')
+        with_nav2 = LaunchConfiguration('nav2', default='true')
+        teleop_without_nav2 = PythonExpression([
+            "'", with_teleop, "' == 'true' and '", with_nav2, "' != 'true'"
+        ])
         
         return [
             # Joystick node
@@ -272,7 +289,7 @@ class Go2NodeFactory:
                 package='twist_mux',
                 executable='twist_mux',
                 output='screen',
-                condition=IfCondition(with_teleop),
+                condition=IfCondition(teleop_without_nav2),
                 parameters=[
                     {'use_sim_time': use_sim_time},
                     self.config.config_paths['twist_mux']

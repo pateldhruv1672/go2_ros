@@ -28,27 +28,44 @@ set -u
 
 export ROBOT_IP="${ROBOT_IP:-192.168.12.1}"
 export CONN_TYPE="${CONN_TYPE:-webrtc}"
+export GO2_RESUME_INTERNAL_RVIZ="${GO2_RESUME_INTERNAL_RVIZ:-1}"
 
 # Keep the base driver alive, but clear stale resume, Nav2, voice, and agent overlays.
+pkill -f "ros2 launch go2_omi_voice_bridge sparky_voice_resume.launch.py" || true
+pkill -f "ros2 launch go2_omi_voice_bridge omi_voice_stack.launch.py" || true
+pkill -f "ros2 launch go2_semantic_nav_agent semantic_nav_resume.launch.py" || true
 pkill -f "semantic_nav_node|scan_retimestamp_node|resume_map_server|resume_map_lifecycle_manager|semantic_nav_rviz2|controller_server|planner_server|bt_navigator|waypoint_follower|collision_monitor|lifecycle_manager_navigation|behavior_server|opennav_docking|go2_omi_bridge|go2_voice_stt_node|go2_voice_intent_gate|go2_tts_node|go2_tour_voice_command_router|go2_langgraph_main_supervisor|go2_vlm_checkpoint_node|go2_lidar_geometry_node|go2_pointcloud_analyzer_node|go2_traversability_node|go2_dynamic_obstacle_tracker|go2_open_vocab_detector" || true
 sleep 2
 
 ros2 daemon stop || true
 ros2 daemon start || true
 
+base_ready() {
+  ros2 node list 2>/dev/null | grep -q "^/go2_driver_node$" && \
+  ros2 topic list 2>/dev/null | grep -q "^/odom$" && \
+  ros2 topic list 2>/dev/null | grep -q "^/point_cloud2$" && \
+  ros2 topic list 2>/dev/null | grep -q "^/scan$"
+}
+
 BASE_READY=0
-if ros2 node list 2>/dev/null | grep -q "^/go2_driver_node$"; then
+if base_ready; then
   BASE_READY=1
 fi
 
 if [ "$BASE_READY" -eq 0 ]; then
+  echo "[run_sparky_voice_resume] base bringup is missing driver/odom/point_cloud2/scan; clearing stale base launch"
+  pkill -f "ros2 launch go2_robot_sdk robot.launch.py" || true
+  pkill -f "go2_driver_node|lidar_to_pointcloud|pointcloud_aggregator|go2_pointcloud_to_laserscan|go2_robot_state_publisher|tts_node|joy_node|go2_teleop_node|twist_mux" || true
+  pkill -f "speech_processor/lib/speech_processor/tts_node" || true
+  pkill -f "/joy/joy_node" || true
+  pkill -f "teleop_twist_joy/teleop_node" || true
+  pkill -f "/twist_mux" || true
+  sleep 2
   echo "[run_sparky_voice_resume] base bringup not detected; starting robot base in the background"
   BASE_LOG=/tmp/go2_base_bringup.log
   nohup ros2 launch go2_robot_sdk robot.launch.py foxglove:=false slam:=false nav2:=false rviz2:=false >"$BASE_LOG" 2>&1 </dev/null &
   for _ in $(seq 1 45); do
-    if ros2 node list 2>/dev/null | grep -q "^/go2_driver_node$" && \
-       ros2 topic list 2>/dev/null | grep -q "^/odom$" && \
-       ros2 topic list 2>/dev/null | grep -q "^/scan$"; then
+    if base_ready; then
       echo "[run_sparky_voice_resume] base bringup is ready"
       break
     fi

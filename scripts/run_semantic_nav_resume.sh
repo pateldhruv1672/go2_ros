@@ -24,9 +24,10 @@ set -u
 
 export ROBOT_IP="${ROBOT_IP:-192.168.12.1}"
 export CONN_TYPE="${CONN_TYPE:-webrtc}"
+export GO2_RESUME_INTERNAL_RVIZ="${GO2_RESUME_INTERNAL_RVIZ:-1}"
 
 # Only stop the semantic resume overlay and resume-owned Nav2 nodes.
-# Do not kill the base robot bringup, driver, state publisher, or teleop stack here.
+# Do not kill a healthy base robot bringup, driver, state publisher, or teleop stack here.
 # Kill the parent launch first so old generated /tmp/launch_params_* files cannot
 # keep stale Nav2 parameters alive after a source/config edit.
 pkill -f "ros2 launch go2_semantic_nav_agent semantic_nav_resume.launch.py" || true
@@ -37,19 +38,32 @@ sleep 2
 ros2 daemon stop || true
 ros2 daemon start || true
 
+base_ready() {
+  ros2 node list 2>/dev/null | grep -q "^/go2_driver_node$" && \
+  ros2 topic list 2>/dev/null | grep -q "^/odom$" && \
+  ros2 topic list 2>/dev/null | grep -q "^/point_cloud2$" && \
+  ros2 topic list 2>/dev/null | grep -q "^/scan$"
+}
+
 BASE_READY=0
-if ros2 node list 2>/dev/null | grep -q "^/go2_driver_node$"; then
+if base_ready; then
   BASE_READY=1
 fi
 
 if [ "$BASE_READY" -eq 0 ]; then
+  echo "[run_semantic_nav_resume] base bringup is missing driver/odom/point_cloud2/scan; clearing stale base launch"
+  pkill -f "ros2 launch go2_robot_sdk robot.launch.py" || true
+  pkill -f "go2_driver_node|lidar_to_pointcloud|pointcloud_aggregator|go2_pointcloud_to_laserscan|go2_robot_state_publisher|tts_node|joy_node|go2_teleop_node|twist_mux" || true
+  pkill -f "speech_processor/lib/speech_processor/tts_node" || true
+  pkill -f "/joy/joy_node" || true
+  pkill -f "teleop_twist_joy/teleop_node" || true
+  pkill -f "/twist_mux" || true
+  sleep 2
   echo "[run_semantic_nav_resume] base bringup not detected; starting BASE_MODE=base in the background"
   BASE_LOG=/tmp/go2_base_bringup.log
   nohup ros2 launch go2_robot_sdk robot.launch.py foxglove:=false slam:=false nav2:=false rviz2:=false >"$BASE_LOG" 2>&1 </dev/null &
   for _ in $(seq 1 45); do
-    if ros2 node list 2>/dev/null | grep -q "^/go2_driver_node$" && \
-       ros2 topic list 2>/dev/null | grep -q "^/odom$" && \
-       ros2 topic list 2>/dev/null | grep -q "^/scan$"; then
+    if base_ready; then
       echo "[run_semantic_nav_resume] base bringup is ready"
       break
     fi
@@ -62,7 +76,10 @@ if [ "$BASE_READY" -eq 0 ]; then
 fi
 
 exec ros2 launch go2_semantic_nav_agent semantic_nav_resume.launch.py \
-  rviz2:=true \
+  rviz2:="${RVIZ2:-true}" \
   restore_spawn_on_start:="${RESTORE_SPAWN_ON_START:-true}" \
+  nav2_start_delay_sec:="${NAV2_START_DELAY_SEC:-6.0}" \
+  scan_input_topic:="${SCAN_INPUT_TOPIC:-/scan}" \
+  scan_nav_topic:="${SCAN_NAV_TOPIC:-/scan_nav}" \
   pointcloud_topic:="${POINTCLOUD_TOPIC:-/point_cloud2}" \
   stvl_enabled:="${STVL_ENABLED:-auto}"

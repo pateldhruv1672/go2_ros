@@ -119,13 +119,44 @@ class WebRTCAdapter(IRobotDataReceiver, IRobotController):
         except Exception as e:
             logger.error(f"Error in async send command: {e}")
 
+    @staticmethod
+    def _apply_axis_gain(value: float, gain: float, minimum: float, maximum: float) -> float:
+        """Convert ROS Twist-scale values into bounded Go2 sport command values."""
+        if value == 0.0:
+            return 0.0
+        sign = 1.0 if value > 0.0 else -1.0
+        scaled = abs(value) * gain
+        if minimum > 0.0:
+            scaled = max(scaled, minimum)
+        if maximum > 0.0:
+            scaled = min(scaled, maximum)
+        return sign * scaled
+
     def send_movement_command(self, robot_id: str, x: float, y: float, z: float) -> None:
         """Send movement command to robot"""
         try:
+            cmd_x = self._apply_axis_gain(
+                x,
+                self.config.cmd_vel_linear_gain,
+                self.config.cmd_vel_min_linear_x,
+                self.config.cmd_vel_max_linear_x,
+            )
+            cmd_y = self._apply_axis_gain(
+                y,
+                self.config.cmd_vel_linear_gain,
+                0.0,
+                self.config.cmd_vel_max_linear_x,
+            )
+            cmd_z = self._apply_axis_gain(
+                z,
+                self.config.cmd_vel_angular_gain,
+                self.config.cmd_vel_min_angular_z,
+                self.config.cmd_vel_max_angular_z,
+            )
             command = gen_mov_command(
-                round(x, 2), 
-                round(y, 2), 
-                round(z, 2), 
+                round(cmd_x, 2),
+                round(cmd_y, 2),
+                round(cmd_z, 2),
                 self.config.obstacle_avoidance
             )
             self.send_command(robot_id, command)
@@ -196,4 +227,4 @@ class WebRTCAdapter(IRobotDataReceiver, IRobotController):
                 self.data_callback(msg, robot_id)  # Передаем сырые данные для обработки
                 
         except Exception as e:
-            logger.error(f"Error processing data channel message: {e}") 
+            logger.error(f"Error processing data channel message: {e}")

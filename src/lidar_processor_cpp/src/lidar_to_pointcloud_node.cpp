@@ -262,9 +262,9 @@ void LidarToPointCloudNode::saveMapCallback()
       int total_points = aggregator_->getPointCount();
       aggregator_->markSaved();
       
-      RCLCPP_INFO(this->get_logger(),
-        "💾 Saved map: %s (%d downsampled / %d total points)",
-        map_filename.c_str(), point_count, total_points);
+      // RCLCPP_INFO(this->get_logger(),
+      //   "💾 Saved map: %s (%d downsampled / %d total points)",
+      //   map_filename.c_str(), point_count, total_points);
     } else {
       RCLCPP_ERROR(this->get_logger(), "Failed to save map: %s", map_filename.c_str());
     }

@@ -45,21 +45,21 @@ def _package_available(package_name: str) -> bool:
 def _mppi_follow_path_params() -> dict:
     return {
         'plugin': 'nav2_mppi_controller::MPPIController',
-        'time_steps': 32,
-        'model_dt': 0.05,
-        'batch_size': 700,
+        'time_steps': 24,
+        'model_dt': 0.10,
+        'batch_size': 500,
         'ax_max': 0.35,
         'ax_min': -0.45,
         'ay_max': 0.0,
         'ay_min': 0.0,
-        'az_max': 0.65,
-        'vx_std': 0.12,
+        'az_max': 0.45,
+        'vx_std': 0.20,
         'vy_std': 0.0,
         'wz_std': 0.25,
-        'vx_max': 0.30,
-        'vx_min': -0.08,
+        'vx_max': 0.35,
+        'vx_min': 0.0,
         'vy_max': 0.0,
-        'wz_max': 0.65,
+        'wz_max': 0.45,
         'iteration_count': 1,
         'prune_distance': 1.5,
         'transform_tolerance': 1.0,
@@ -79,6 +79,7 @@ def _mppi_follow_path_params() -> dict:
             'ConstraintCritic',
             'CostCritic',
             'GoalCritic',
+            'VelocityDeadbandCritic',
             'GoalAngleCritic',
             'PathAlignCritic',
             'PathFollowCritic',
@@ -105,41 +106,47 @@ def _mppi_follow_path_params() -> dict:
         'PreferForwardCritic': {
             'enabled': True,
             'cost_power': 1,
-            'cost_weight': 5.0,
+            'cost_weight': 8.0,
             'threshold_to_consider': 0.5,
         },
         'CostCritic': {
             'enabled': True,
             'cost_power': 1,
-            'cost_weight': 3.8,
+            'cost_weight': 1.2,
             'near_collision_cost': 253,
             'critical_cost': 300.0,
-            'consider_footprint': True,
+            'consider_footprint': False,
             'collision_cost': 1000000.0,
             'near_goal_distance': 1.0,
             'trajectory_point_step': 3,
         },
+        'VelocityDeadbandCritic': {
+            'enabled': True,
+            'cost_power': 1,
+            'cost_weight': 35.0,
+            'deadband_velocities': [0.14, 0.0, 0.08],
+        },
         'PathAlignCritic': {
             'enabled': True,
             'cost_power': 1,
-            'cost_weight': 14.0,
-            'max_path_occupancy_ratio': 0.10,
+            'cost_weight': 4.0,
+            'max_path_occupancy_ratio': 0.30,
             'trajectory_point_step': 6,
             'threshold_to_consider': 0.5,
-            'offset_from_furthest': 16,
+            'offset_from_furthest': 8,
             'use_path_orientations': False,
         },
         'PathFollowCritic': {
             'enabled': True,
             'cost_power': 1,
-            'cost_weight': 5.0,
+            'cost_weight': 8.0,
             'offset_from_furthest': 5,
             'threshold_to_consider': 1.4,
         },
         'PathAngleCritic': {
             'enabled': True,
             'cost_power': 1,
-            'cost_weight': 2.0,
+            'cost_weight': 0.5,
             'offset_from_furthest': 4,
             'threshold_to_consider': 0.5,
             'max_angle_to_furthest': 1.0,
@@ -240,6 +247,8 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     bt['follow_point_bt_xml'] = '$(find-pkg-share nav2_bt_navigator)/behavior_trees/follow_point.xml'
     bt['odometry_calibration_bt_xml'] = '$(find-pkg-share nav2_bt_navigator)/behavior_trees/odometry_calibration.xml'
     bt['error_code_names'] = ['compute_path_error_code', 'follow_path_error_code']
+    bt['wait_for_service_timeout'] = 5000
+    bt['bond_heartbeat_period'] = 0.10
 
     ctrl = params.setdefault('controller_server', {}).setdefault('ros__parameters', {})
     ctrl['controller_frequency'] = 10.0
@@ -254,9 +263,10 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     ctrl['enable_stamped_cmd_vel'] = False
 
     progress = ctrl.setdefault('progress_checker', {})
-    progress['plugin'] = 'nav2_controller::SimpleProgressChecker'
-    progress['required_movement_radius'] = 0.03
-    progress['movement_time_allowance'] = 120.0
+    progress['plugin'] = 'nav2_controller::PoseProgressChecker'
+    progress['required_movement_radius'] = 0.005
+    progress['required_movement_angle'] = 0.02
+    progress['movement_time_allowance'] = 600.0
 
     goal_checker = ctrl.setdefault('general_goal_checker', {})
     goal_checker['plugin'] = 'nav2_controller::SimpleGoalChecker'
@@ -293,7 +303,7 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     local_scan['raytrace_max_range'] = 3.5
     local_scan['max_obstacle_height'] = 2.0
     local_scan['inf_is_valid'] = True
-    local_scan['observation_persistence'] = 0.5
+    local_scan['observation_persistence'] = 0.0
     local_scan['expected_update_rate'] = 0.0
 
     local_inflation = local.setdefault('inflation_layer', {})
@@ -333,7 +343,7 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     global_scan['raytrace_max_range'] = 3.5
     global_scan['max_obstacle_height'] = 2.0
     global_scan['inf_is_valid'] = True
-    global_scan['observation_persistence'] = 2.0
+    global_scan['observation_persistence'] = 0.0
     global_scan['expected_update_rate'] = 0.0
 
     global_inflation = global_cm.setdefault('inflation_layer', {})
@@ -357,17 +367,17 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
 
     stop = cm.setdefault('StopPolygon', {})
     stop['type'] = 'polygon'
-    stop['points'] = '[[0.68, 0.32], [0.68, -0.32], [-0.25, -0.32], [-0.25, 0.32]]'
+    stop['points'] = '[[0.90, 0.36], [0.90, -0.36], [-0.35, -0.36], [-0.35, 0.36]]'
     stop['action_type'] = 'stop'
-    stop['min_points'] = 3
+    stop['min_points'] = 4
     stop['visualize'] = True
     stop['polygon_pub_topic'] = 'stop_polygon'
 
     slow = cm.setdefault('SlowdownPolygon', {})
     slow['type'] = 'polygon'
-    slow['points'] = '[[1.00, 0.42], [1.00, -0.42], [-0.35, -0.42], [-0.35, 0.42]]'
+    slow['points'] = '[[1.60, 0.55], [1.60, -0.55], [-0.45, -0.55], [-0.45, 0.55]]'
     slow['action_type'] = 'slowdown'
-    slow['slowdown_ratio'] = 0.85
+    slow['slowdown_ratio'] = 0.25
     slow['min_points'] = 3
     slow['visualize'] = True
     slow['polygon_pub_topic'] = 'slowdown_polygon'
@@ -408,6 +418,11 @@ def launch_setup(context, *args, **kwargs):
     session_name = LaunchConfiguration('session_name').perform(context).strip()
     rviz = LaunchConfiguration('rviz').perform(context).lower() in ('1', 'true', 'yes')
     rviz2 = LaunchConfiguration('rviz2').perform(context).lower() in ('1', 'true', 'yes')
+    # Do not let RViz start before /navigate_to_pose exists.
+    # External wrapper will launch RViz only after Nav2 is ready.
+    if os.environ.get('GO2_RESUME_INTERNAL_RVIZ', '0').strip().lower() not in ('1', 'true', 'yes', 'on'):
+        rviz = False
+        rviz2 = False
     restore_spawn_on_start = LaunchConfiguration('restore_spawn_on_start').perform(context).lower() in ('1', 'true', 'yes')
     nav2_start_delay_sec = float(LaunchConfiguration('nav2_start_delay_sec').perform(context))
     scan_input_topic = LaunchConfiguration('scan_input_topic').perform(context).strip() or '/scan'
@@ -456,21 +471,15 @@ def launch_setup(context, *args, **kwargs):
         )
     print(f'[semantic_nav_resume] using session={session_name} map={map_yaml}')
     nodes = [
-        Node(
-            package='go2_semantic_nav_agent',
-            executable='scan_retimestamp_node',
-            name='scan_retimestamp_node',
-            output='screen',
-            parameters=[{
-                'input_topic': scan_input_topic,
-                'output_topic': scan_nav_topic,
-                'frame_id': scan_frame_id,
-                'stamp_offset_sec': scan_stamp_offset_sec,
-                'use_latest_tf_stamp': True,
-                'tf_target_frame': 'odom',
-                'tf_source_frame': scan_frame_id,
-            }],
-        ),
+        Node(package='go2_semantic_nav_agent', executable='scan_retimestamp_node', name='scan_retimestamp_node', output='screen', parameters=[{
+            'input_topic': scan_input_topic,
+            'output_topic': scan_nav_topic,
+            'frame_id': scan_frame_id,
+            'stamp_offset_sec': scan_stamp_offset_sec,
+            'use_latest_tf_stamp': True,
+            'tf_target_frame': 'odom',
+            'tf_source_frame': scan_frame_id,
+        }]),
         Node(package='nav2_map_server', executable='map_server', name='resume_map_server', output='screen', parameters=[{'yaml_filename': map_yaml}]),
         Node(package='nav2_amcl', executable='amcl', name='amcl', output='screen', parameters=[amcl_cfg, {'scan_topic': scan_nav_topic}]),
         Node(package='nav2_lifecycle_manager', executable='lifecycle_manager', name='resume_map_lifecycle_manager', output='screen', parameters=[{
@@ -518,7 +527,7 @@ def generate_launch_description():
         DeclareLaunchArgument('rviz', default_value='false'),
         DeclareLaunchArgument('rviz2', default_value='false'),
         DeclareLaunchArgument('restore_spawn_on_start', default_value='true'),
-        DeclareLaunchArgument('nav2_start_delay_sec', default_value='2.5'),
+        DeclareLaunchArgument('nav2_start_delay_sec', default_value='8.0'),
         DeclareLaunchArgument('scan_input_topic', default_value='/scan'),
         DeclareLaunchArgument('scan_nav_topic', default_value='/scan_nav'),
         DeclareLaunchArgument('pointcloud_topic', default_value='/point_cloud2'),

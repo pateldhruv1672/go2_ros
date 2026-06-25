@@ -96,7 +96,7 @@ def generate_launch_description():
             DeclareLaunchArgument("session_name", default_value="auto"),
             DeclareLaunchArgument("rviz2", default_value="true"),
             DeclareLaunchArgument("restore_spawn_on_start", default_value="true"),
-            DeclareLaunchArgument("nav2_start_delay_sec", default_value="2.5"),
+            DeclareLaunchArgument("nav2_start_delay_sec", default_value="8.0"),
             DeclareLaunchArgument("scan_input_topic", default_value="/scan"),
             DeclareLaunchArgument("scan_nav_topic", default_value="/scan_nav"),
             DeclareLaunchArgument("scan_frame_id", default_value="base_link"),
