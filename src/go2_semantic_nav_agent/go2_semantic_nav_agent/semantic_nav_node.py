@@ -10,6 +10,10 @@ import re
 import zlib
 import shlex
 import subprocess
+import threading
+import urllib.error
+import urllib.request
+from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError
 from dataclasses import asdict
 from typing import Optional
 
@@ -41,7 +45,6 @@ from std_msgs.msg import String
 from tf2_ros import Buffer, TransformException, TransformListener
 from visualization_msgs.msg import Marker, MarkerArray
 
-from go2_agentic_system.openrouter_client import OpenRouterClient
 from go2_agentic_system.patrol_events import PatrolEvent
 from go2_agentic_system.storage import MemoryStore as SharedMemoryStore
 
@@ -112,10 +115,11 @@ class SemanticNavNode(Node):
             _p.frame_id = (getattr(_p, 'frame_id', '') or self.map_frame or 'map').strip() or 'map'
         self.memory = SemanticMemory()
         self.agent_memory = SharedMemoryStore(str(self.get_parameter('agent_memory_root').value))
-        self.openrouter = OpenRouterClient(
-            model=str(self.get_parameter('openrouter_model').value),
-            base_url=str(self.get_parameter('openrouter_base_url').value),
-        )
+
+        self.vlm_provider = str(self.get_parameter('vlm_provider').value).strip().lower()
+        self.vlm_model = str(self.get_parameter('vlm_model').value).strip()
+        self.vlm_base_url = str(self.get_parameter('vlm_base_url').value).strip()
+        self.vlm_timeout_sec = float(self.get_parameter('vlm_timeout_sec').value)
         self.route_store = RouteStore(self.session.session_dir)
         self.route = self._load_or_create_route()
         self._last_status = ''
@@ -161,6 +165,11 @@ class SemanticNavNode(Node):
         self._goal_send_in_flight = False
         self._pending_recovery_goal: Optional[Place] = None
         self._teach_auto_save_count = sum(1 for p in self.place_store.places.values() if getattr(p, 'source', '') == 'vlm_auto')
+        self._shutdown_done = False
+        self._vlm_lock = threading.Lock()
+        self._vlm_future: Optional[Future] = None
+        self._vlm_job: Optional[dict] = None
+        self._vlm_executor: Optional[ThreadPoolExecutor] = ThreadPoolExecutor(max_workers=1, thread_name_prefix='semantic_nav_vlm') if self.mode == 'teach' else None
 
         self.buffer = Buffer(node=self)
         self.listener = TransformListener(self.buffer, self, spin_thread=True)
@@ -195,6 +204,7 @@ class SemanticNavNode(Node):
         self.auto_save_timer = None
         if self.mode == 'teach' and bool(self.get_parameter('auto_save_places').value):
             self.auto_save_timer = self.create_timer(float(self.get_parameter('auto_save_interval_sec').value), self.auto_save_tick)
+            self.create_timer(0.25, self.process_teach_vlm_result)
         if self.mode == 'teach' and bool(self.get_parameter('save_spawn_on_start').value):
             self.create_timer(0.5, self.persist_spawn_when_tf_ready)
         if self.mode == 'resume' and bool(self.get_parameter('restore_spawn_on_start').value):
@@ -208,9 +218,10 @@ class SemanticNavNode(Node):
             f'stops={len(self.route.stops)} | tour_mode={"on" if bool(self.get_parameter("tour_mode").value) else "off"} | '
             f'auto_save={"on" if bool(self.get_parameter("auto_save_places").value) and self.mode=="teach" else "off"} '
             f'every={float(self.get_parameter("auto_save_interval_sec").value):.1f}s | '
-            f'vlm={"on" if bool(self.get_parameter("auto_save_use_vlm").value) else "off"} | '
+            f'vlm={"on" if bool(self.get_parameter("auto_save_use_vlm").value) else "off"} model={str(self.get_parameter("vlm_model").value)} | '
             f'fallback={"on" if bool(self.get_parameter("fallback_enable").value) else "off"}'
         )
+        self.validate_teach_vlm_startup()
         self.publish_markers()
 
     def _declare_parameters(self) -> None:
@@ -226,8 +237,12 @@ class SemanticNavNode(Node):
         self.declare_parameter('camera_image_topic', '/camera/image_raw')
         self.declare_parameter('camera_compressed_topic', '/camera/image_raw/compressed')
         self.declare_parameter('scan_topic', '/scan')
-        self.declare_parameter('openrouter_model', 'google/gemini-2.5-flash')
-        self.declare_parameter('openrouter_base_url', 'https://openrouter.ai/api/v1/chat/completions')
+        self.declare_parameter('vlm_provider', 'ollama')
+        self.declare_parameter('vlm_model', 'gemma4:12b')
+        self.declare_parameter('vlm_base_url', 'http://127.0.0.1:11434/api/chat')
+        self.declare_parameter('vlm_timeout_sec', 90.0)
+        self.declare_parameter('vlm_fail_fast_on_start', True)
+        self.declare_parameter('vlm_shutdown_wait_sec', 300.0)
         self.declare_parameter('tour_mode', True)
         self.declare_parameter('tour_default_pause_sec', 4.0)
         self.declare_parameter('route_name', '')
@@ -348,6 +363,10 @@ class SemanticNavNode(Node):
                     sample_index=int(pose.get('sample_index', 0) or 0),
                     sample_group=str(pose.get('sample_group', '')),
                     captured_at=str(pose.get('captured_at', '')),
+                    image_path=str(pose.get('image_path', '') or ''),
+                    image_rel_path=str(pose.get('image_rel_path', '') or ''),
+                    agent_memory_image_path=str(pose.get('agent_memory_image_path', '') or ''),
+                    image_id=str(pose.get('image_id', '') or ''),
                     confidence=float(pose.get('confidence', 1.0) or 1.0),
                     source=str(pose.get('source', 'event_memory')),
                     frame_id=str(pose.get('frame_id', self.map_frame) or self.map_frame),
@@ -440,6 +459,24 @@ class SemanticNavNode(Node):
         self.latest_scan = msg
         self._latest_scan_received_ns = self.get_clock().now().nanoseconds
 
+    def scan_sector_ranges(self, center_rad: float, width_rad: float) -> list[float]:
+        if self.latest_scan is None:
+            return []
+        msg = self.latest_scan
+        if not msg.ranges or msg.angle_increment == 0.0:
+            return []
+        half_width = abs(width_rad) * 0.5
+        values: list[float] = []
+        for idx, raw in enumerate(msg.ranges):
+            value = float(raw)
+            if not math.isfinite(value) or value <= 0.0:
+                continue
+            angle = float(msg.angle_min) + float(idx) * float(msg.angle_increment)
+            delta = math.atan2(math.sin(angle - center_rad), math.cos(angle - center_rad))
+            if abs(delta) <= half_width:
+                values.append(value)
+        return values
+
     def scan_ready_for_initialpose(self) -> bool:
         if self.latest_scan is None:
             return False
@@ -453,15 +490,21 @@ class SemanticNavNode(Node):
         ranges = [float(r) for r in self.latest_scan.ranges if math.isfinite(r) and float(r) > 0.0]
         if not ranges:
             return {'available': True, 'range_count': 0}
-        front = ranges[:20]
-        rear = ranges[-20:]
+        front = self.scan_sector_ranges(0.0, math.radians(35.0))
+        rear = self.scan_sector_ranges(math.pi, math.radians(45.0))
+        left = self.scan_sector_ranges(math.pi / 2.0, math.radians(45.0))
+        right = self.scan_sector_ranges(-math.pi / 2.0, math.radians(45.0))
         return {
             'available': True,
             'range_count': len(ranges),
             'min_range': min(ranges),
             'mean_range': float(sum(ranges) / len(ranges)),
-            'front_clear': min(front) > 0.75 if front else True,
-            'rear_clear': min(rear) > 0.45 if rear else True,
+            'front_min': min(front) if front else None,
+            'rear_min': min(rear) if rear else None,
+            'left_min': min(left) if left else None,
+            'right_min': min(right) if right else None,
+            'front_clear': min(front) > 0.90 if front else True,
+            'rear_clear': min(rear) > 0.55 if rear else True,
         }
 
     def pose_summary(self) -> dict:
@@ -888,13 +931,72 @@ class SemanticNavNode(Node):
             'sample_index': int(place.sample_index or 0),
             'sample_group': place.sample_group or '',
             'captured_at': place.captured_at or '',
+            'image_path': place.image_path or '',
+            'image_rel_path': place.image_rel_path or '',
+            'agent_memory_image_path': place.agent_memory_image_path or '',
+            'image_id': place.image_id or '',
             'aliases': list(place.aliases or []),
             'tags': list(place.tags or []),
             'confidence': confidence,
             'source': place.source,
         }
 
-    def save_place(self, place: Place, source_text: str = 'manual') -> None:
+    def save_place_image_artifact(self, place: Place, source_text: str, image_bytes: Optional[bytes] = None) -> dict:
+        image_bytes = image_bytes or self.latest_image_bytes
+        if not image_bytes:
+            return {}
+        stamp_ns = self.get_clock().now().nanoseconds
+        safe_route = route_slugify(self.route.name or self.session.session_name)
+        safe_place = route_slugify(place.name or 'place')
+        sample_index = int(place.sample_index or 0)
+        source = route_slugify(source_text or place.source or 'teach')
+        image_id = f'{safe_route}_{safe_place}_{sample_index}_{stamp_ns}'
+        filename = f'{stamp_ns}_{safe_place}_{sample_index}_{source}.jpg'
+
+        session_image_dir = os.path.join(self.session.session_dir, 'images')
+        os.makedirs(session_image_dir, exist_ok=True)
+        session_image_path = os.path.join(session_image_dir, filename)
+        with open(session_image_path, 'wb') as f:
+            f.write(image_bytes)
+
+        agent_image_dir = self.agent_memory.paths.images / safe_route
+        agent_image_dir.mkdir(parents=True, exist_ok=True)
+        agent_image_path = agent_image_dir / filename
+        agent_image_path.write_bytes(image_bytes)
+
+        rel_path = os.path.relpath(session_image_path, self.session.session_dir)
+        refs = {
+            'image_id': image_id,
+            'image_path': session_image_path,
+            'image_rel_path': rel_path,
+            'agent_memory_image_path': str(agent_image_path),
+            'image_saved_at': str(stamp_ns),
+        }
+        index_payload = {
+            **refs,
+            'session_name': self.session.session_name,
+            'route_name': self.route.name,
+            'place_name': place.name,
+            'source': source_text,
+            'sample_index': sample_index,
+            'pose': {'x': place.x, 'y': place.y, 'yaw': place.yaw, 'frame_id': place.frame_id or self.map_frame},
+            'summary': place.summary or place.description or place.tour_fact or '',
+        }
+        index_path = os.path.join(session_image_dir, 'index.jsonl')
+        with open(index_path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(index_payload, ensure_ascii=False) + '\n')
+        self.agent_memory.log_event('semantic_teach_image_saved', index_payload)
+        return refs
+
+    def save_place(self, place: Place, source_text: str = 'manual', image_bytes: Optional[bytes] = None) -> None:
+        image_refs = self.save_place_image_artifact(place, source_text, image_bytes=image_bytes)
+        if image_refs:
+            place.image_id = image_refs.get('image_id', '')
+            place.image_path = image_refs.get('image_path', '')
+            place.image_rel_path = image_refs.get('image_rel_path', '')
+            place.agent_memory_image_path = image_refs.get('agent_memory_image_path', '')
+            if not place.captured_at:
+                place.captured_at = image_refs.get('image_saved_at', '')
         self.place_store.upsert(place)
         self.place_store.save()
         self.persist_spawn_if_needed(place)
@@ -911,6 +1013,10 @@ class SemanticNavNode(Node):
             'safety_notes': place.safety_notes or '',
             'scene_context': place.scene_context or '',
             'pose': {'x': place.x, 'y': place.y, 'yaw': place.yaw, 'frame_id': place.frame_id or self.map_frame},
+            'image_path': place.image_path or '',
+            'image_rel_path': place.image_rel_path or '',
+            'agent_memory_image_path': place.agent_memory_image_path or '',
+            'image_id': place.image_id or '',
             'aliases': list(place.aliases or []),
             'objects': list(place.tags or []),
             'sample_index': int(place.sample_index or 0),
@@ -978,6 +1084,10 @@ class SemanticNavNode(Node):
             sample_index=int(extra.get('sample_index', 0) or 0),
             sample_group=extra.get('sample_group', ''),
             captured_at=str(extra.get('captured_at', '')),
+            image_path=str(extra.get('image_path', '') or ''),
+            image_rel_path=str(extra.get('image_rel_path', '') or ''),
+            agent_memory_image_path=str(extra.get('agent_memory_image_path', '') or ''),
+            image_id=str(extra.get('image_id', '') or ''),
             confidence=float(confidence),
             source=source,
             frame_id=(pose.header.frame_id or self.map_frame or 'map').strip() or 'map',
@@ -997,45 +1107,265 @@ class SemanticNavNode(Node):
         return self.place_store.unique_name(base)
 
     def extract_json(self, text: str) -> Optional[dict]:
+        """Parse a JSON object from model output.
+
+        Ollama/Gemma may still wrap JSON in ```json fences or add short prose
+        even when format=json is requested. This parser accepts direct JSON,
+        fenced JSON, or the first embedded balanced JSON object.
+        """
+        if isinstance(text, dict):
+            return text
+        if text is None:
+            return None
+        raw = str(text).strip()
+        if not raw:
+            return None
+
+        raw = re.sub(r'^\s*```(?:json)?\s*', '', raw, flags=re.IGNORECASE)
+        raw = re.sub(r'\s*```\s*$', '', raw)
+        raw = raw.strip()
+
         try:
-            return json.loads(text)
+            obj = json.loads(raw)
+            return obj if isinstance(obj, dict) else None
         except Exception:
             pass
-        m = re.search(r'\{.*\}', text, re.S)
-        if not m:
-            return None
-        try:
-            return json.loads(m.group(0))
-        except Exception:
-            return None
 
-    def _call_openrouter(self, prompt: str, *, max_tokens: int = 350) -> Optional[dict]:
-        if not self.latest_image_bytes:
-            self.publish_status('No camera frame received yet.')
+        decoder = json.JSONDecoder()
+        for idx, ch in enumerate(raw):
+            if ch != '{':
+                continue
+            try:
+                obj, _ = decoder.raw_decode(raw[idx:])
+                if isinstance(obj, dict):
+                    return obj
+            except Exception:
+                continue
+
+        # Balanced-object fallback for text with trailing tokens after the JSON.
+        start = raw.find('{')
+        if start < 0:
             return None
-        if not self.openrouter.available:
-            self.publish_status('VLM is disabled or OPENROUTER_API_KEY is missing.')
-            return None
-        try:
-            b64 = base64.b64encode(self.latest_image_bytes).decode('ascii')
-            result = self.openrouter.complete_json(
-                prompt,
-                image_data_urls=[f'data:image/jpeg;base64,{b64}'],
-                temperature=0.1,
-                max_tokens=max_tokens,
-                default={},
-            )
-            if not result.get('ok'):
-                self.publish_status(f'VLM call failed: {result.get("error")}')
-                return None
-            parsed = result.get('parsed')
-            if isinstance(parsed, dict):
-                return parsed
-        except Exception as exc:
-            self.publish_status(f'VLM call failed: {exc}')
+        depth = 0
+        in_str = False
+        esc = False
+        for i, ch in enumerate(raw[start:], start=start):
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == '\\':
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+                continue
+            if ch == '"':
+                in_str = True
+            elif ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    try:
+                        obj = json.loads(raw[start:i + 1])
+                        return obj if isinstance(obj, dict) else None
+                    except Exception:
+                        return None
         return None
 
-    def vlm_label_current_view(self) -> Optional[dict]:
+
+    def normalize_ollama_chat_url(self, url: str) -> str:
+        value = (url or '').strip() or 'http://127.0.0.1:11434/api/chat'
+        value = value.rstrip('/')
+        if value.endswith('/api/chat'):
+            return value
+        if value.endswith('/api/generate'):
+            return value[:-len('/api/generate')] + '/api/chat'
+        if value.endswith('/api'):
+            return value + '/chat'
+        return value + '/api/chat'
+
+    def ollama_tags_url(self, chat_url: str) -> str:
+        normalized = self.normalize_ollama_chat_url(chat_url)
+        return normalized[:-len('/api/chat')] + '/api/tags'
+
+    def validate_teach_vlm_startup(self) -> None:
+        if self.mode != 'teach':
+            return
+        if not bool(self.get_parameter('auto_save_use_vlm').value):
+            return
+        if not bool(self.get_parameter('vlm_fail_fast_on_start').value):
+            return
+
+        provider = str(self.get_parameter('vlm_provider').value).strip().lower()
+        if provider in {'', 'local_ollama'}:
+            provider = 'ollama'
+        if provider != 'ollama':
+            self.fatal_teach_vlm_failure(f'teach mode requires vlm_provider=ollama, got {provider}')
+            return
+
+        model = str(self.get_parameter('vlm_model').value).strip() or 'gemma4:12b'
+        chat_url = self.normalize_ollama_chat_url(str(self.get_parameter('vlm_base_url').value))
+        tags_url = self.ollama_tags_url(chat_url)
+        try:
+            req = urllib.request.Request(tags_url, headers={'Accept': 'application/json'}, method='GET')
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                data = json.loads(resp.read().decode('utf-8', errors='replace'))
+        except Exception as exc:
+            self.fatal_teach_vlm_failure(f'Ollama is not reachable at {tags_url}: {exc}')
+            return
+
+        models = data.get('models', []) if isinstance(data, dict) else []
+        names = {
+            str(item.get('name') or item.get('model') or '').strip()
+            for item in models
+            if isinstance(item, dict)
+        }
+        if model not in names:
+            available = ', '.join(sorted(n for n in names if n)) or 'none'
+            self.fatal_teach_vlm_failure(f'Ollama model {model} is not pulled. Available models: {available}')
+            return
+        self.publish_status(f'ollama_ready model={model} url={chat_url}')
+
+    def _call_openrouter(self, prompt: str, *, max_tokens: int = 260, image_bytes: Optional[bytes] = None) -> Optional[dict]:
+        """Compatibility wrapper: teach mode now uses local Ollama vision.
+
+        Kept as _call_openrouter so existing vlm_label_current_view call sites
+        continue to work, but no cloud OpenRouter request is made.
+        """
+        image_bytes = image_bytes or self.latest_image_bytes
+        if not image_bytes:
+            self.publish_status('No camera frame received yet.')
+            return None
+
+        provider = str(self.get_parameter('vlm_provider').value).strip().lower()
+        if provider and provider != 'ollama':
+            self.publish_status(f'vlm_provider={provider} requested; using local ollama in teach mode')
+
+        model = str(self.get_parameter('vlm_model').value).strip() or 'gemma4:12b'
+        url = self.normalize_ollama_chat_url(str(self.get_parameter('vlm_base_url').value))
+        try:
+            timeout = float(self.get_parameter('vlm_timeout_sec').value)
+        except Exception:
+            timeout = 90.0
+        timeout = max(5.0, timeout)
+
+        b64 = base64.b64encode(image_bytes).decode('ascii')
+        payload = {
+            'model': model,
+            'stream': False,
+            'think': False,
+            'format': 'json',
+            'messages': [
+                {
+                    'role': 'system',
+                    'content': (
+                        'You are a robot semantic mapping labeler. '
+                        'Return exactly one compact JSON object. '
+                        'Do not use markdown, code fences, comments, or prose.'
+                    ),
+                },
+                {
+                    'role': 'user',
+                    'content': prompt,
+                    'images': [b64],
+                },
+            ],
+            'options': {
+                'temperature': 0.1,
+                'top_p': 0.9,
+                'num_predict': int(max(180, max_tokens)),
+            },
+        }
+
+        try:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode('utf-8'),
+                headers={'Content-Type': 'application/json'},
+                method='POST',
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                body = resp.read().decode('utf-8', errors='replace')
+            data = json.loads(body)
+            if isinstance(data, dict) and data.get('error'):
+                self.publish_status(f'Ollama VLM error: {data.get("error")}')
+                return None
+            content = ''
+            if isinstance(data, dict):
+                msg = data.get('message') or {}
+                if isinstance(msg, dict):
+                    content = str(msg.get('content') or '')
+                if not content and isinstance(data.get('response'), str):
+                    content = str(data.get('response') or '')
+            parsed = self.extract_json(content)
+            if isinstance(parsed, dict):
+                return parsed
+            self.publish_status(f'Ollama VLM did not return JSON: {content[:240]}')
+            return None
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode('utf-8', errors='replace')
+            self.publish_status(f'Ollama VLM HTTP {exc.code}: {body[:240]}')
+            return None
+        except urllib.error.URLError as exc:
+            self.publish_status(f'Ollama VLM connection failed: {exc}')
+            return None
+        except Exception as exc:
+            self.publish_status(f'Ollama VLM call failed: {exc}')
+            return None
+
+
+
+    def fatal_teach_vlm_failure(self, reason: str) -> None:
+        msg = f'fatal_teach_vlm_failure: {reason}'
+        try:
+            self.publish_status(msg)
+        except Exception:
+            pass
+        try:
+            self.get_logger().fatal(msg)
+        except Exception:
+            pass
+        try:
+            self.on_shutdown()
+        except Exception as exc:
+            try:
+                self.get_logger().warn(f'on_shutdown during fatal VLM failure failed: {exc}')
+            except Exception:
+                pass
+        os._exit(42)
+
+    def drain_teach_vlm_jobs(self) -> None:
+        if self.mode != 'teach':
+            return
+        with self._vlm_lock:
+            future = self._vlm_future
+            job = self._vlm_job
+        if future is not None:
+            if not future.done():
+                self.publish_status('shutdown_waiting_for_vlm_labeling')
+            try:
+                wait_sec = float(self.get_parameter('vlm_shutdown_wait_sec').value)
+            except Exception:
+                wait_sec = 300.0
+            timeout = None if wait_sec <= 0.0 else max(1.0, wait_sec)
+            try:
+                meta = future.result(timeout=timeout)
+            except TimeoutError:
+                self.publish_status(f'shutdown_vlm_labeling_timeout wait_sec={timeout}')
+                return
+            except Exception as exc:
+                self.publish_status(f'shutdown_vlm_labeling_failed: {exc}')
+                return
+            with self._vlm_lock:
+                if self._vlm_future is future:
+                    self._vlm_future = None
+                    self._vlm_job = None
+            self.finish_teach_vlm_job(job or {}, meta)
+        if self._vlm_executor is not None:
+            self._vlm_executor.shutdown(wait=True, cancel_futures=False)
+            self._vlm_executor = None
+
+    def vlm_label_current_view(self, image_bytes: Optional[bytes] = None) -> Optional[dict]:
         existing = [
             {
                 'name': p.name,
@@ -1046,53 +1376,143 @@ class SemanticNavNode(Node):
             for p in list(self.place_store.places.values())[:12]
         ]
         prompt = (
-            'Look at this indoor robot camera view and return ONLY JSON with keys: '
-            'label, room, category, aliases, tags, summary, description, tour_fact, navigation_hint, resume_hook, '
-            'safety_notes, scene_context, capture_kind, confidence. '
-            'Use human-friendly snake_case labels and keep names stable with prior places when appropriate. '
-            'If this scene appears to be the same physical location as an existing place, reuse that place identity instead of inventing a new one. '
-            'Keep every string short and concrete. Use at most 12 words per field and at most 3 aliases/tags. '
-            'summary should explain why the place matters to navigation, resume, and tours. '
-            'tour_fact should be a short visitor-facing fact grounded in the visible scene. '
-            'navigation_hint should tell Sparky how to approach or re-find this spot. '
-            'resume_hook should describe what to remember when resuming between nearby nodes. '
-            'capture_kind should be one of place, landmark, transition, safe_anchor, obstacle, viewpoint. '
-            'confidence must be a float between 0.0 and 1.0. '
-            f'Existing places for naming context: {json.dumps(existing)}'
+            'Label the robot current indoor camera view for a semantic navigation map. '
+            'Return exactly one compact JSON object with these keys: '
+            'label, room, category, aliases, tags, summary, description, tour_fact, '
+            'navigation_hint, resume_hook, safety_notes, scene_context, capture_kind, confidence. '
+            'Use lowercase snake_case for label, room, category, aliases, and tags. '
+            'aliases and tags must be arrays of short strings. '
+            'confidence must be a number from 0.0 to 1.0. '
+            'Keep every text field short. No markdown. No code fences. '
+            f'Existing place hints: {json.dumps(existing, ensure_ascii=False)[:900]}'
         )
-        meta = self._call_openrouter(prompt, max_tokens=700)
-        if not meta:
+        meta = self._call_openrouter(prompt, max_tokens=260, image_bytes=image_bytes)
+        if not isinstance(meta, dict):
             return None
-        meta['label'] = slugify(str(meta.get('label', '')))
-        meta['room'] = slugify(str(meta.get('room', '')))
-        meta['category'] = slugify(str(meta.get('category', '')))
-        meta['aliases'] = [slugify(str(x)) for x in meta.get('aliases', []) if slugify(str(x))]
-        meta['tags'] = [slugify(str(x)) for x in meta.get('tags', []) if slugify(str(x))]
-        meta['summary'] = str(meta.get('summary', '') or meta.get('description', '')).strip()
-        meta['description'] = str(meta.get('description', '')).strip()
-        meta['tour_fact'] = str(meta.get('tour_fact', '')).strip()
-        meta['navigation_hint'] = str(meta.get('navigation_hint', '')).strip()
-        meta['resume_hook'] = str(meta.get('resume_hook', '')).strip()
-        meta['safety_notes'] = str(meta.get('safety_notes', '')).strip()
-        meta['scene_context'] = str(meta.get('scene_context', '')).strip()
-        meta['capture_kind'] = slugify(str(meta.get('capture_kind', '')).strip())
-        meta['sample_group'] = str(meta.get('sample_group', '')).strip()
-        meta['sample_index'] = int(meta.get('sample_index', 0) or 0)
-        meta['captured_at'] = str(meta.get('captured_at', '')).strip()
+
+        label = slugify(str(meta.get('label') or meta.get('name') or ''))
+        if not label or label == 'unknown':
+            return None
+        meta['label'] = label
+        meta['room'] = slugify(str(meta.get('room') or 'main_area')) or 'main_area'
+        meta['category'] = slugify(str(meta.get('category') or 'place')) or 'place'
+        meta['capture_kind'] = slugify(str(meta.get('capture_kind') or 'view')) or 'view'
+
+        for key in ('aliases', 'tags'):
+            value = meta.get(key, [])
+            if isinstance(value, str):
+                value = [value]
+            if not isinstance(value, list):
+                value = []
+            meta[key] = [slugify(str(x)) for x in value if slugify(str(x))][:8]
+
+        for key in (
+            'summary', 'description', 'tour_fact', 'navigation_hint', 'resume_hook',
+            'safety_notes', 'scene_context'
+        ):
+            value = str(meta.get(key) or '').strip()
+            meta[key] = value[:240]
+
         try:
-            meta['confidence'] = float(meta.get('confidence', 0.0))
+            conf = float(meta.get('confidence', 0.75))
         except Exception:
-            meta['confidence'] = 0.0
-        meta['confidence'] = max(0.0, min(1.0, meta['confidence']))
-        if not meta['label']:
-            meta['label'] = '_'.join([x for x in [meta['room'], meta['category']] if x]) or 'labeled_place'
+            conf = 0.75
+        meta['confidence'] = max(0.0, min(1.0, conf))
         return meta
+
+
+    def teach_vlm_in_progress(self) -> bool:
+        with self._vlm_lock:
+            return self._vlm_future is not None and not self._vlm_future.done()
+
+    def submit_teach_vlm_job(self, pose: PoseStamped, *, reason: str = 'auto_save') -> bool:
+        if self._vlm_executor is None:
+            return False
+        image_bytes = bytes(self.latest_image_bytes or b'')
+        if not image_bytes:
+            self.publish_status('vlm_labeling_skipped no_camera_frame')
+            return False
+        with self._vlm_lock:
+            if self._vlm_future is not None and not self._vlm_future.done():
+                return False
+            job = {
+                'reason': reason,
+                'pose': pose,
+                'image_bytes': image_bytes,
+                'submitted_count': self._teach_auto_save_count,
+                'submitted_ns': self.get_clock().now().nanoseconds,
+            }
+            self._vlm_job = job
+            self._vlm_future = self._vlm_executor.submit(self.vlm_label_current_view, image_bytes)
+        self.publish_status(f'vlm_labeling_started reason={reason} sample={self._teach_auto_save_count + 1}')
+        return True
+
+    def process_teach_vlm_result(self) -> None:
+        with self._vlm_lock:
+            future = self._vlm_future
+            job = self._vlm_job
+            if future is None or not future.done():
+                return
+            self._vlm_future = None
+            self._vlm_job = None
+        try:
+            meta = future.result()
+        except Exception as exc:
+            self.fatal_teach_vlm_failure(f'Ollama VLM background job failed: {exc}')
+            return
+        self.finish_teach_vlm_job(job or {}, meta)
+
+    def finish_teach_vlm_job(self, job: dict, meta: Optional[dict]) -> None:
+        if not meta:
+            self.fatal_teach_vlm_failure('Ollama VLM returned no parseable JSON label during teach auto-save')
+            return
+        if float(meta.get('confidence', 0.0)) < float(self.get_parameter('auto_save_min_confidence').value):
+            self.publish_status(f'vlm_low_confidence skipped confidence={float(meta.get("confidence", 0.0)):.2f}')
+            return
+        pose = job.get('pose')
+        if pose is None:
+            self.publish_status('vlm_labeling_skipped missing_pose_context')
+            return
+        target_samples = max(0, int(self.get_parameter('auto_save_target_samples').value))
+        allow_repeat_samples = bool(self.get_parameter('auto_save_allow_repeat_samples').value)
+        if target_samples and self._teach_auto_save_count >= target_samples:
+            self.publish_status(f'vlm_labeling_result_ignored target_samples_reached count={self._teach_auto_save_count}')
+            return
+        if int(meta.get('sample_index', 0) or 0) <= 0:
+            meta['sample_index'] = self._teach_auto_save_count + 1
+        if not str(meta.get('sample_group', '') or '').strip():
+            meta['sample_group'] = self.route.name
+        if not str(meta.get('captured_at', '') or '').strip():
+            meta['captured_at'] = str(job.get('submitted_ns') or self.get_clock().now().nanoseconds)
+        name = self.choose_place_name(meta, pose)
+        merged_existing = name in self.place_store.places
+        if allow_repeat_samples or (target_samples and self._teach_auto_save_count < target_samples):
+            if not merged_existing:
+                name = self.place_store.unique_name(name)
+        place = self.make_place(name, pose, meta, source='vlm_auto', confidence=float(meta.get('confidence', 1.0)))
+        near = self.place_store.nearest_within(place.x, place.y, float(self.get_parameter('auto_save_merge_distance_m').value))
+        if near and near.name == name and not allow_repeat_samples:
+            place.name = near.name
+        self.save_place(place, source_text='vlm_auto', image_bytes=job.get('image_bytes'))
+        self.last_auto_save_xy = (place.x, place.y)
+        if not merged_existing:
+            self._teach_auto_save_count += 1
+        else:
+            self.publish_status(f'vlm_merged_duplicate_place name={place.name} sample_index={place.sample_index}')
+        self.publish_status(
+            f'vlm_labeled_place name={place.name} confidence={place.confidence:.2f} room={place.room or "-"} '
+            f'category={place.category or "-"} tags={place.tags} summary={place.summary or place.description or "-"} '
+            f'hint={place.navigation_hint or "-"} resume={place.resume_hook or "-"} image={place.image_rel_path or "-"}'
+        )
 
     def auto_save_tick(self) -> None:
         pose = self.lookup_current_pose()
         if pose is None:
             return
         self.publish_status('auto_save_tick: running')
+        if self.teach_vlm_in_progress():
+            self.publish_status('auto_save_tick: vlm_labeling_in_progress')
+            return
         target_samples = max(0, int(self.get_parameter('auto_save_target_samples').value))
         allow_repeat_samples = bool(self.get_parameter('auto_save_allow_repeat_samples').value)
         if target_samples and self._teach_auto_save_count >= target_samples:
@@ -1105,39 +1525,7 @@ class SemanticNavNode(Node):
                 return
         if not bool(self.get_parameter('auto_save_use_vlm').value):
             return
-        meta = self.vlm_label_current_view()
-        if not meta:
-            self.publish_status('auto_save_tick: vlm returned no label')
-            return
-        if float(meta.get('confidence', 0.0)) < float(self.get_parameter('auto_save_min_confidence').value):
-            self.publish_status(f'vlm_low_confidence skipped confidence={float(meta.get("confidence", 0.0)):.2f}')
-            return
-        if int(meta.get('sample_index', 0) or 0) <= 0:
-            meta['sample_index'] = self._teach_auto_save_count + 1
-        if not str(meta.get('sample_group', '') or '').strip():
-            meta['sample_group'] = self.route.name
-        if not str(meta.get('captured_at', '') or '').strip():
-            meta['captured_at'] = str(self.get_clock().now().nanoseconds)
-        name = self.choose_place_name(meta, pose)
-        merged_existing = name in self.place_store.places
-        if allow_repeat_samples or (target_samples and self._teach_auto_save_count < target_samples):
-            if not merged_existing:
-                name = self.place_store.unique_name(name)
-        place = self.make_place(name, pose, meta, source='vlm_auto', confidence=float(meta.get('confidence', 1.0)))
-        near = self.place_store.nearest_within(place.x, place.y, float(self.get_parameter('auto_save_merge_distance_m').value))
-        if near and near.name == name and not allow_repeat_samples:
-            place.name = near.name
-        self.save_place(place, source_text='vlm_auto')
-        self.last_auto_save_xy = (place.x, place.y)
-        if not merged_existing:
-            self._teach_auto_save_count += 1
-        else:
-            self.publish_status(f'vlm_merged_duplicate_place name={place.name} sample_index={place.sample_index}')
-        self.publish_status(
-            f'vlm_labeled_place name={place.name} confidence={place.confidence:.2f} room={place.room or "-"} '
-            f'category={place.category or "-"} tags={place.tags} summary={place.summary or place.description or "-"} '
-            f'hint={place.navigation_hint or "-"} resume={place.resume_hook or "-"}'
-        )
+        self.submit_teach_vlm_job(pose, reason='auto_save')
 
     def describe(self) -> None:
         meta = self.vlm_label_current_view()
@@ -1469,6 +1857,73 @@ class SemanticNavNode(Node):
         if self.route.state == 'touring' and self._goal_place is None and self.current_route_stop() is not None:
             self.send_stop(self.current_route_stop(), reason='resume_tick')
 
+    def local_navigation_failure_plan(self, reason: str, scan: dict, pose: dict, goal: dict) -> dict:
+        tf_age = self.tf_age_seconds(self.map_frame, self.base_frame)
+        tf_max_age = float(self.get_parameter('tf_max_age_sec').value)
+        meta = {
+            'failure_type': 'nav2_controller_failure',
+            'action': 'retry_nav',
+            'safe_anchor': '',
+            'alternate_query': '',
+            'note': f'Nav2 reported {reason}.',
+            'speech': 'tour: I am retrying the planned route once.',
+            'confidence': 0.45,
+        }
+        if tf_age is None:
+            meta.update({
+                'failure_type': 'missing_tf',
+                'action': 'relocalize',
+                'safe_anchor': 'spawn',
+                'alternate_query': 'spawn',
+                'note': 'Localization transform is unavailable.',
+                'speech': 'tour: I need localization before continuing.',
+                'confidence': 0.8,
+            })
+            return meta
+        if tf_age > tf_max_age:
+            meta.update({
+                'failure_type': 'stale_tf',
+                'action': 'wait',
+                'note': f'Localization transform is stale by {tf_age:.1f}s.',
+                'speech': 'tour: I am waiting for fresh localization before moving.',
+                'confidence': 0.8,
+            })
+            return meta
+        if scan.get('available') and scan.get('front_clear') is False:
+            meta.update({
+                'failure_type': 'blocked_front',
+                'action': 'stop',
+                'note': f'Front sector is blocked at {scan.get("front_min")}.',
+                'speech': 'tour: I am stopping because the front path is blocked.',
+                'confidence': 0.75,
+            })
+            return meta
+        if self._recovery_retries >= 2:
+            anchor_name = ''
+            if self.route.safe_anchors:
+                anchor_name = next(iter(self.route.safe_anchors.values()), '') or ''
+            if not anchor_name and self.place_store.get('spawn'):
+                anchor_name = 'spawn'
+            if anchor_name:
+                meta.update({
+                    'failure_type': 'repeated_nav_failure',
+                    'action': 'safe_anchor',
+                    'safe_anchor': anchor_name,
+                    'alternate_query': anchor_name,
+                    'note': 'Repeated controller failure; returning to a known anchor before retrying.',
+                    'speech': 'tour: I am returning to a known anchor before retrying.',
+                    'confidence': 0.65,
+                })
+            else:
+                meta.update({
+                    'failure_type': 'repeated_nav_failure',
+                    'action': 'stop',
+                    'note': 'Repeated controller failure and no safe anchor is available.',
+                    'speech': 'tour: I am pausing because the route is not safe to continue.',
+                    'confidence': 0.65,
+                })
+        return meta
+
     def recover_from_failure(self, reason: str) -> None:
         if self._goal_place is None and self.current_route_stop() is None:
             self.publish_status('recovery_without_goal')
@@ -1478,25 +1933,7 @@ class SemanticNavNode(Node):
         scan = self.scan_summary()
         pose = self.pose_summary()
         goal = asdict(self._goal_place) if self._goal_place else {}
-        meta = self.openrouter.analyze_navigation_failure(
-            reason=reason,
-            goal=goal,
-            route_summary=self.route_summary(),
-            scan_summary=scan,
-            pose_summary=pose,
-        )
-        tf_age = self.tf_age_seconds(self.map_frame, self.base_frame)
-        tf_max_age = float(self.get_parameter('tf_max_age_sec').value)
-        if tf_age is None:
-            meta['failure_type'] = 'missing_tf'
-            meta['action'] = 'relocalize'
-            meta['safe_anchor'] = meta.get('safe_anchor') or 'spawn'
-            meta['alternate_query'] = meta.get('alternate_query') or 'spawn'
-            meta['note'] = 'Localization transform is unavailable.'
-        elif tf_age > tf_max_age:
-            meta['failure_type'] = 'stale_tf'
-            meta['action'] = 'wait'
-            meta['note'] = f'Localization transform is stale by {tf_age:.1f}s.'
+        meta = self.local_navigation_failure_plan(reason, scan, pose, goal)
         failure_type = str(meta.get('failure_type', 'unknown')).strip()
         action = str(meta.get('action', 'retry_nav')).strip()
         safe_anchor_name = str(meta.get('safe_anchor', '')).strip()
@@ -1568,23 +2005,7 @@ class SemanticNavNode(Node):
                 return
             self.pause_tour('tour: I am re-checking the route before continuing.')
         else:
-            waypoint = self.openrouter.propose_waypoint(
-                context={'route': self.route_summary(), 'scan': scan, 'pose': pose, 'reason': reason},
-                image_data_url=f'data:image/jpeg;base64,{base64.b64encode(self.latest_image_bytes).decode("ascii")}' if self.latest_image_bytes else None,
-            )
-            if waypoint.get('action') in {'forward', 'turn_left', 'turn_right', 'backup'}:
-                action2 = waypoint.get('action')
-                if action2 == 'forward':
-                    self.start_motion(float(self.get_parameter('fallback_linear_speed').value), 0.0, 2.0, self._goal_place, route_goal_active=True)
-                elif action2 == 'backup':
-                    self.start_motion(-float(self.get_parameter('fallback_linear_speed').value), 0.0, 2.0, self._goal_place, route_goal_active=True)
-                elif action2 == 'turn_left':
-                    self.start_motion(0.0, float(self.get_parameter('fallback_angular_speed').value), 2.0, self._goal_place, route_goal_active=True)
-                elif action2 == 'turn_right':
-                    self.start_motion(0.0, -float(self.get_parameter('fallback_angular_speed').value), 2.0, self._goal_place, route_goal_active=True)
-                self.publish_reply(str(waypoint.get('speech') or 'tour: I am making a small visual recovery move.'))
-                return
-            self.pause_tour('tour: I am pausing to recover localization.')
+            self.pause_tour(str(meta.get('speech') or 'tour: I am pausing because recovery is not safe.'))
 
     def validate_goal_pose(self, pose: PoseStamped) -> bool:
         frame = (pose.header.frame_id or '').strip()
@@ -1708,17 +2129,16 @@ class SemanticNavNode(Node):
             self.handle_goal_failure(f'status_{status}')
 
     def scan_clear(self, forward: bool = True) -> bool:
-        if self.latest_scan is None:
-            return True
-        ranges = [r for r in self.latest_scan.ranges if math.isfinite(r)]
+        center = 0.0 if forward else math.pi
+        ranges = self.scan_sector_ranges(center, math.radians(35.0 if forward else 45.0))
         if not ranges:
             return True
-        threshold = 0.55 if forward else 0.35
-        return min(ranges[:20] + ranges[-20:]) > threshold
+        threshold = 0.80 if forward else 0.45
+        return min(ranges) > threshold
 
     def classify_failure_with_vlm(self, reason: str) -> dict:
         if not self.latest_image_bytes:
-            return {'cause': 'unknown', 'action': 'rotate_left', 'confidence': 0.2}
+            return {'cause': 'unknown', 'action': 'retry_nav', 'confidence': 0.2}
         goal = asdict(self._goal_place) if self._goal_place else {}
         existing = [asdict(p) for p in list(self.place_store.places.values())[:12]]
         prompt = (
@@ -1729,7 +2149,7 @@ class SemanticNavNode(Node):
         )
         meta = self._call_openrouter(prompt)
         if not meta:
-            return {'cause': 'unknown', 'action': 'rotate_left', 'confidence': 0.2}
+            return {'cause': 'unknown', 'action': 'retry_nav', 'confidence': 0.2}
         meta['action'] = slugify(str(meta.get('action', 'rotate_left')))
         meta['cause'] = slugify(str(meta.get('cause', 'unknown')))
         meta['alternate_query'] = str(meta.get('alternate_query', '')).strip()
@@ -1914,7 +2334,11 @@ class SemanticNavNode(Node):
             self.publish_status(f'map_save_failed: {exc}')
 
     def on_shutdown(self) -> None:
+        if self._shutdown_done:
+            return
+        self._shutdown_done = True
         try:
+            self.drain_teach_vlm_jobs()
             self.route_store.save(self.route)
             self.place_store.save()
             meta = self.session_store.load_session_yaml(self.session)
@@ -1934,6 +2358,13 @@ class SemanticNavNode(Node):
                 self.save_map_snapshot(force=False)
         except Exception:
             pass
+        finally:
+            if self._vlm_executor is not None:
+                try:
+                    self._vlm_executor.shutdown(wait=False, cancel_futures=False)
+                except Exception:
+                    pass
+                self._vlm_executor = None
 
 
 def main(args=None) -> None:

@@ -45,46 +45,56 @@ def _package_available(package_name: str) -> bool:
 def _mppi_follow_path_params() -> dict:
     return {
         'plugin': 'nav2_mppi_controller::MPPIController',
-        'time_steps': 24,
+        'time_steps': 30,
         'model_dt': 0.10,
-        'batch_size': 500,
+        'batch_size': 1000,
+        'iteration_count': 1,
+        'vx_std': 0.18,
+        'vy_std': 0.0,
+        'wz_std': 0.18,
+        'vx_max': 0.32,
+        'vx_min': 0.0,
+        'vy_max': 0.0,
+        'wz_max': 0.40,
         'ax_max': 0.35,
-        'ax_min': -0.45,
+        'ax_min': -0.30,
         'ay_max': 0.0,
         'ay_min': 0.0,
         'az_max': 0.45,
-        'vx_std': 0.20,
-        'vy_std': 0.0,
-        'wz_std': 0.25,
-        'vx_max': 0.35,
-        'vx_min': 0.0,
-        'vy_max': 0.0,
-        'wz_max': 0.45,
-        'iteration_count': 1,
-        'prune_distance': 1.5,
+        'prune_distance': 1.2,
         'transform_tolerance': 1.0,
         'temperature': 0.3,
         'gamma': 0.015,
         'motion_model': 'DiffDrive',
+        'diff_drive': {
+            'plugin': 'mppi::DiffDriveMotionModel',
+        },
         'visualize': False,
+        'critic_index_to_visualize': 0,
+        'publish_optimal_trajectory': False,
+        'publish_critics_stats': False,
+        'open_loop': False,
         'regenerate_noises': False,
+        'sgf_order': 2,
         'TrajectoryVisualizer': {
             'trajectory_step': 5,
             'time_step': 3,
         },
-        'AckermannConstraints': {
-            'min_turning_r': 0.2,
+        'TrajectoryValidator': {
+            'plugin': 'mppi::DefaultOptimalTrajectoryValidator',
+            'collision_lookahead_time': 2.0,
+            'consider_footprint': True,
         },
         'critics': [
             'ConstraintCritic',
             'CostCritic',
             'GoalCritic',
-            'VelocityDeadbandCritic',
             'GoalAngleCritic',
             'PathAlignCritic',
             'PathFollowCritic',
             'PathAngleCritic',
             'PreferForwardCritic',
+            'VelocityDeadbandCritic',
         ],
         'ConstraintCritic': {
             'enabled': True,
@@ -106,51 +116,51 @@ def _mppi_follow_path_params() -> dict:
         'PreferForwardCritic': {
             'enabled': True,
             'cost_power': 1,
-            'cost_weight': 8.0,
+            'cost_weight': 5.0,
             'threshold_to_consider': 0.5,
         },
         'CostCritic': {
             'enabled': True,
             'cost_power': 1,
-            'cost_weight': 1.2,
-            'near_collision_cost': 253,
+            'cost_weight': 2.0,
             'critical_cost': 300.0,
-            'consider_footprint': False,
+            'near_collision_cost': 253,
+            'consider_footprint': True,
             'collision_cost': 1000000.0,
             'near_goal_distance': 1.0,
-            'trajectory_point_step': 3,
-        },
-        'VelocityDeadbandCritic': {
-            'enabled': True,
-            'cost_power': 1,
-            'cost_weight': 35.0,
-            'deadband_velocities': [0.14, 0.0, 0.08],
+            'trajectory_point_step': 2,
         },
         'PathAlignCritic': {
             'enabled': True,
             'cost_power': 1,
-            'cost_weight': 4.0,
-            'max_path_occupancy_ratio': 0.30,
-            'trajectory_point_step': 6,
+            'cost_weight': 10.0,
+            'max_path_occupancy_ratio': 0.20,
+            'trajectory_point_step': 4,
             'threshold_to_consider': 0.5,
-            'offset_from_furthest': 8,
+            'offset_from_furthest': 12,
             'use_path_orientations': False,
         },
         'PathFollowCritic': {
             'enabled': True,
             'cost_power': 1,
-            'cost_weight': 8.0,
+            'cost_weight': 6.0,
             'offset_from_furthest': 5,
             'threshold_to_consider': 1.4,
         },
         'PathAngleCritic': {
             'enabled': True,
             'cost_power': 1,
-            'cost_weight': 0.5,
+            'cost_weight': 2.0,
             'offset_from_furthest': 4,
             'threshold_to_consider': 0.5,
             'max_angle_to_furthest': 1.0,
             'mode': 0,
+        },
+        'VelocityDeadbandCritic': {
+            'enabled': True,
+            'cost_power': 1,
+            'cost_weight': 60.0,
+            'deadband_velocities': [0.09, 0.0, 0.08],
         },
     }
 
@@ -252,7 +262,7 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
 
     ctrl = params.setdefault('controller_server', {}).setdefault('ros__parameters', {})
     ctrl['controller_frequency'] = 10.0
-    ctrl['costmap_update_timeout'] = 0.80
+    ctrl['costmap_update_timeout'] = 1.0
     ctrl['progress_checker_plugins'] = ['progress_checker']
     ctrl['current_progress_checker'] = 'progress_checker'
     ctrl.pop('progress_checker_plugin', None)
@@ -367,18 +377,18 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
 
     stop = cm.setdefault('StopPolygon', {})
     stop['type'] = 'polygon'
-    stop['points'] = '[[0.90, 0.36], [0.90, -0.36], [-0.35, -0.36], [-0.35, 0.36]]'
+    stop['points'] = '[[0.45, 0.26], [0.45, -0.26], [-0.25, -0.26], [-0.25, 0.26]]'
     stop['action_type'] = 'stop'
-    stop['min_points'] = 4
+    stop['min_points'] = 25
     stop['visualize'] = True
     stop['polygon_pub_topic'] = 'stop_polygon'
 
     slow = cm.setdefault('SlowdownPolygon', {})
     slow['type'] = 'polygon'
-    slow['points'] = '[[1.60, 0.55], [1.60, -0.55], [-0.45, -0.55], [-0.45, 0.55]]'
+    slow['points'] = '[[0.50, 0.30], [0.50, -0.30], [-0.30, -0.32], [-0.30, 0.32]]'
     slow['action_type'] = 'slowdown'
-    slow['slowdown_ratio'] = 0.25
-    slow['min_points'] = 3
+    slow['slowdown_ratio'] = 0.20
+    slow['min_points'] = 30
     slow['visualize'] = True
     slow['polygon_pub_topic'] = 'slowdown_polygon'
 

@@ -4,7 +4,7 @@
 import asyncio
 import json
 import logging
-from typing import Callable, Dict, Any
+from typing import Callable, Dict, Any, Optional
 
 from ...domain.interfaces import IRobotDataReceiver, IRobotController
 from ...domain.entities import RobotData, RobotConfig
@@ -18,13 +18,21 @@ logger = logging.getLogger(__name__)
 class WebRTCAdapter(IRobotDataReceiver, IRobotController):
     """WebRTC adapter for robot communication"""
 
-    def __init__(self, config: RobotConfig, on_validated_callback: Callable, on_video_frame_callback: Callable = None, event_loop=None):
+    def __init__(
+        self,
+        config: RobotConfig,
+        on_validated_callback: Callable,
+        on_video_frame_callback: Callable = None,
+        event_loop=None,
+        on_movement_command_callback: Optional[Callable[[str, float, float, float], None]] = None,
+    ):
         self.config = config
         self.connections: Dict[str, Go2Connection] = {}
         self.data_callback: Callable[[RobotData], None] = None
         self.webrtc_msgs = asyncio.Queue()
         self.on_validated_callback = on_validated_callback
         self.on_video_frame_callback = on_video_frame_callback
+        self.on_movement_command_callback = on_movement_command_callback
         # Store the event loop (passed from main thread or detect current)
         if event_loop:
             self.main_loop = event_loop
@@ -135,20 +143,31 @@ class WebRTCAdapter(IRobotDataReceiver, IRobotController):
     def send_movement_command(self, robot_id: str, x: float, y: float, z: float) -> None:
         """Send movement command to robot"""
         try:
+            if self.config.cmd_vel_axis_mode == 'swap_xy':
+                sdk_x = y
+                sdk_y = x
+            else:
+                sdk_x = x
+                sdk_y = y
+
+            adapted_x = -sdk_x if self.config.cmd_vel_invert_linear_x else sdk_x
+            adapted_y = -sdk_y if self.config.cmd_vel_invert_linear_y else sdk_y
+            adapted_z = -z if self.config.cmd_vel_invert_angular_z else z
+            y_min = self.config.cmd_vel_min_linear_x if self.config.cmd_vel_axis_mode == 'swap_xy' else 0.0
             cmd_x = self._apply_axis_gain(
-                x,
+                adapted_x,
                 self.config.cmd_vel_linear_gain,
                 self.config.cmd_vel_min_linear_x,
                 self.config.cmd_vel_max_linear_x,
             )
             cmd_y = self._apply_axis_gain(
-                y,
+                adapted_y,
                 self.config.cmd_vel_linear_gain,
-                0.0,
+                y_min,
                 self.config.cmd_vel_max_linear_x,
             )
             cmd_z = self._apply_axis_gain(
-                z,
+                adapted_z,
                 self.config.cmd_vel_angular_gain,
                 self.config.cmd_vel_min_angular_z,
                 self.config.cmd_vel_max_angular_z,
@@ -159,6 +178,13 @@ class WebRTCAdapter(IRobotDataReceiver, IRobotController):
                 round(cmd_z, 2),
                 self.config.obstacle_avoidance
             )
+            if self.on_movement_command_callback:
+                self.on_movement_command_callback(
+                    robot_id,
+                    round(cmd_x, 2),
+                    round(cmd_y, 2),
+                    round(cmd_z, 2),
+                )
             self.send_command(robot_id, command)
         except Exception as e:
             logger.error(f"Error sending movement command: {e}")

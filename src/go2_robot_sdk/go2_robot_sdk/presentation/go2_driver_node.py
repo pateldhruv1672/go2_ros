@@ -68,7 +68,8 @@ class Go2DriverNode(Node):
             config=self.config,
             on_validated_callback=self._on_robot_validated,
             on_video_frame_callback=self._on_video_frame if self.config.enable_video else None,
-            event_loop=self.event_loop
+            event_loop=self.event_loop,
+            on_movement_command_callback=self._on_sdk_movement_command,
         )
         
         self.robot_control_service = RobotControlService(self.webrtc_adapter)
@@ -81,6 +82,7 @@ class Go2DriverNode(Node):
         
         # State
         self.joy_state = Joy()
+        self.cmd_vel_sdk_pub = self.create_publisher(Twist, 'cmd_vel_sdk', QoSProfile(depth=10))
 
     def _setup_configuration(self) -> RobotConfig:
         """Configuration setup"""
@@ -99,12 +101,16 @@ class Go2DriverNode(Node):
                 ('decode_lidar', True),
                 ('publish_raw_voxel', False),
                 ('obstacle_avoidance', True),
-                ('cmd_vel_linear_gain', 2.5),
+                ('cmd_vel_linear_gain', 4.0),
                 ('cmd_vel_angular_gain', 0.8),
-                ('cmd_vel_min_linear_x', 0.0),
-                ('cmd_vel_min_angular_z', 0.0),
-                ('cmd_vel_max_linear_x', 0.30),
-                ('cmd_vel_max_angular_z', 0.35),
+                ('cmd_vel_min_linear_x', 0.22),
+                ('cmd_vel_min_angular_z', 0.12),
+                ('cmd_vel_max_linear_x', 0.40),
+                ('cmd_vel_max_angular_z', 0.80),
+                ('cmd_vel_axis_mode', 'standard'),
+                ('cmd_vel_invert_linear_x', False),
+                ('cmd_vel_invert_linear_y', False),
+                ('cmd_vel_invert_angular_z', False),
             ]
         )
 
@@ -124,7 +130,11 @@ class Go2DriverNode(Node):
             cmd_vel_min_linear_x=self.get_parameter('cmd_vel_min_linear_x').get_parameter_value().double_value,
             cmd_vel_min_angular_z=self.get_parameter('cmd_vel_min_angular_z').get_parameter_value().double_value,
             cmd_vel_max_linear_x=self.get_parameter('cmd_vel_max_linear_x').get_parameter_value().double_value,
-            cmd_vel_max_angular_z=self.get_parameter('cmd_vel_max_angular_z').get_parameter_value().double_value
+            cmd_vel_max_angular_z=self.get_parameter('cmd_vel_max_angular_z').get_parameter_value().double_value,
+            cmd_vel_axis_mode=self.get_parameter('cmd_vel_axis_mode').get_parameter_value().string_value,
+            cmd_vel_invert_linear_x=self.get_parameter('cmd_vel_invert_linear_x').get_parameter_value().bool_value,
+            cmd_vel_invert_linear_y=self.get_parameter('cmd_vel_invert_linear_y').get_parameter_value().bool_value,
+            cmd_vel_invert_angular_z=self.get_parameter('cmd_vel_invert_angular_z').get_parameter_value().bool_value,
         )
 
         # Log configuration
@@ -139,7 +149,11 @@ class Go2DriverNode(Node):
             "Cmd vel adapter: "
             f"linear_gain={config.cmd_vel_linear_gain} angular_gain={config.cmd_vel_angular_gain} "
             f"min_linear_x={config.cmd_vel_min_linear_x} min_angular_z={config.cmd_vel_min_angular_z} "
-            f"max_linear_x={config.cmd_vel_max_linear_x} max_angular_z={config.cmd_vel_max_angular_z}"
+            f"max_linear_x={config.cmd_vel_max_linear_x} max_angular_z={config.cmd_vel_max_angular_z} "
+            f"axis_mode={config.cmd_vel_axis_mode} "
+            f"invert_linear_x={config.cmd_vel_invert_linear_x} "
+            f"invert_linear_y={config.cmd_vel_invert_linear_y} "
+            f"invert_angular_z={config.cmd_vel_invert_angular_z}"
         )
 
         return config
@@ -277,6 +291,81 @@ class Go2DriverNode(Node):
                     result.successful = True
                     result.reason = 'Updated obstacle_avoidance'
                     break
+                if p.name == 'cmd_vel_linear_gain':
+                    value = float(p.value)
+                    if value < 0.0:
+                        result.successful = False
+                        result.reason = 'cmd_vel_linear_gain must be >= 0.0'
+                        break
+                    self.get_logger().info(f'New cmd_vel_linear_gain value: {value}')
+                    self.config.cmd_vel_linear_gain = value
+                    result.reason = 'Updated cmd_vel_linear_gain'
+                elif p.name == 'cmd_vel_angular_gain':
+                    value = float(p.value)
+                    if value < 0.0:
+                        result.successful = False
+                        result.reason = 'cmd_vel_angular_gain must be >= 0.0'
+                        break
+                    self.get_logger().info(f'New cmd_vel_angular_gain value: {value}')
+                    self.config.cmd_vel_angular_gain = value
+                    result.reason = 'Updated cmd_vel_angular_gain'
+                elif p.name == 'cmd_vel_min_linear_x':
+                    value = float(p.value)
+                    if value < 0.0:
+                        result.successful = False
+                        result.reason = 'cmd_vel_min_linear_x must be >= 0.0'
+                        break
+                    self.get_logger().info(f'New cmd_vel_min_linear_x value: {value}')
+                    self.config.cmd_vel_min_linear_x = value
+                    result.reason = 'Updated cmd_vel_min_linear_x'
+                elif p.name == 'cmd_vel_min_angular_z':
+                    value = float(p.value)
+                    if value < 0.0:
+                        result.successful = False
+                        result.reason = 'cmd_vel_min_angular_z must be >= 0.0'
+                        break
+                    self.get_logger().info(f'New cmd_vel_min_angular_z value: {value}')
+                    self.config.cmd_vel_min_angular_z = value
+                    result.reason = 'Updated cmd_vel_min_angular_z'
+                elif p.name == 'cmd_vel_max_linear_x':
+                    value = float(p.value)
+                    if value < 0.0:
+                        result.successful = False
+                        result.reason = 'cmd_vel_max_linear_x must be >= 0.0'
+                        break
+                    self.get_logger().info(f'New cmd_vel_max_linear_x value: {value}')
+                    self.config.cmd_vel_max_linear_x = value
+                    result.reason = 'Updated cmd_vel_max_linear_x'
+                elif p.name == 'cmd_vel_max_angular_z':
+                    value = float(p.value)
+                    if value < 0.0:
+                        result.successful = False
+                        result.reason = 'cmd_vel_max_angular_z must be >= 0.0'
+                        break
+                    self.get_logger().info(f'New cmd_vel_max_angular_z value: {value}')
+                    self.config.cmd_vel_max_angular_z = value
+                    result.reason = 'Updated cmd_vel_max_angular_z'
+                elif p.name == 'cmd_vel_axis_mode':
+                    value = str(p.value)
+                    if value not in ('standard', 'swap_xy'):
+                        result.successful = False
+                        result.reason = 'cmd_vel_axis_mode must be standard or swap_xy'
+                        break
+                    self.get_logger().info(f'New cmd_vel_axis_mode value: {value}')
+                    self.config.cmd_vel_axis_mode = value
+                    result.reason = 'Updated cmd_vel_axis_mode'
+                elif p.name == 'cmd_vel_invert_linear_x':
+                    self.get_logger().info(f'New cmd_vel_invert_linear_x value: {p.value}')
+                    self.config.cmd_vel_invert_linear_x = bool(p.value)
+                    result.reason = 'Updated cmd_vel_invert_linear_x'
+                elif p.name == 'cmd_vel_invert_linear_y':
+                    self.get_logger().info(f'New cmd_vel_invert_linear_y value: {p.value}')
+                    self.config.cmd_vel_invert_linear_y = bool(p.value)
+                    result.reason = 'Updated cmd_vel_invert_linear_y'
+                elif p.name == 'cmd_vel_invert_angular_z':
+                    self.get_logger().info(f'New cmd_vel_invert_angular_z value: {p.value}')
+                    self.config.cmd_vel_invert_angular_z = bool(p.value)
+                    result.reason = 'Updated cmd_vel_invert_angular_z'
         except Exception as e:
             self.get_logger().error(f"Error setting parameters: {e}")
             result.successful = False
@@ -290,6 +379,14 @@ class Go2DriverNode(Node):
             msg.linear.x, msg.linear.y, msg.angular.z, 
             robot_id, self.config.obstacle_avoidance
         )
+
+    def _on_sdk_movement_command(self, robot_id: str, x: float, y: float, z: float) -> None:
+        """Publish the rounded command values sent into the Go2 sport Move API."""
+        msg = Twist()
+        msg.linear.x = x
+        msg.linear.y = y
+        msg.angular.z = z
+        self.cmd_vel_sdk_pub.publish(msg)
 
     def _on_webrtc_req(self, msg: WebRtcReq, robot_id: str) -> None:
         """Callback for WebRTC requests"""

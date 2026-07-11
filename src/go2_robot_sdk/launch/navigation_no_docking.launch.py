@@ -125,10 +125,17 @@ def generate_launch_description():
             Node(
                 package='nav2_controller',
                 executable='controller_server',
+                name='controller_server',
                 output='screen',
                 respawn=use_respawn,
                 respawn_delay=2.0,
-                parameters=[configured_params],
+                parameters=[
+                    configured_params,
+                    {
+                        'current_goal_checker': 'general_goal_checker',
+                        'current_progress_checker': 'progress_checker',
+                    },
+                ],
                 arguments=['--ros-args', '--log-level', log_level],
                 remappings=remappings + [('cmd_vel', 'cmd_vel_nav')],
             ),
@@ -209,7 +216,13 @@ def generate_launch_description():
                         package='nav2_controller',
                         plugin='nav2_controller::ControllerServer',
                         name='controller_server',
-                        parameters=[configured_params],
+                        parameters=[
+                            configured_params,
+                            {
+                                'current_goal_checker': 'general_goal_checker',
+                                'current_progress_checker': 'progress_checker',
+                            },
+                        ],
                         remappings=remappings + [('cmd_vel', 'cmd_vel_nav')],
                     ),
                     ComposableNode(

@@ -8,7 +8,7 @@ from launch import LaunchDescription
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction
 from launch.launch_description_sources import FrontendLaunchDescriptionSource, PythonLaunchDescriptionSource
 
 
@@ -87,9 +87,34 @@ class Go2NodeFactory:
             DeclareLaunchArgument('joystick', default_value='false', description='Launch joystick'),
             DeclareLaunchArgument('teleop', default_value='false', description='Launch teleoperation'),
             DeclareLaunchArgument(
+                'nav2_params_file',
+                default_value=self.config.config_paths['nav2'],
+                description='Nav2 parameter file',
+            ),
+            DeclareLaunchArgument(
+                'nav2_start_delay_sec',
+                default_value='10.0',
+                description='Delay Nav2 until live SLAM, TF, and sensing topics are publishing',
+            ),
+            DeclareLaunchArgument(
+                'rviz_start_delay_sec',
+                default_value='14.0',
+                description='Delay RViz so Nav2 action servers are available before sending goals',
+            ),
+            DeclareLaunchArgument(
+                'cmd_vel_axis_mode',
+                default_value='standard',
+                description='Go2 command adapter axis mode: standard or swap_xy',
+            ),
+            DeclareLaunchArgument(
                 'pointcloud_aggregator',
                 default_value='false',
                 description='Publish accumulated debug pointcloud history',
+            ),
+            DeclareLaunchArgument(
+                'scan_retimestamp',
+                default_value='true',
+                description='Publish /scan_nav with timestamps aligned to the current base TF for Nav2',
             ),
         ]
     
@@ -97,6 +122,7 @@ class Go2NodeFactory:
         """Create robot state publisher nodes"""
         nodes = []
         use_sim_time = LaunchConfiguration('use_sim_time', default='false')
+        with_scan_retimestamp = LaunchConfiguration('scan_retimestamp', default='true')
         
         if self.config.conn_mode == 'single':
             # Single robot configuration
@@ -114,7 +140,9 @@ class Go2NodeFactory:
                     }],
                     arguments=[self.config.config_paths['urdf']]
                 ),
-                self._create_pointcloud_to_laserscan_node()
+                self._create_pointcloud_retimestamp_node(),
+                self._create_pointcloud_to_laserscan_node(),
+                self._create_scan_retimestamp_node(condition=IfCondition(with_scan_retimestamp)),
             ])
         else:
             # Multi-robot configuration
@@ -136,7 +164,12 @@ class Go2NodeFactory:
                         }],
                         arguments=[self.config.config_paths['urdf']]
                     ),
-                    self._create_pointcloud_to_laserscan_node(f"robot{i}")
+                    self._create_pointcloud_retimestamp_node(f"robot{i}"),
+                    self._create_pointcloud_to_laserscan_node(f"robot{i}"),
+                    self._create_scan_retimestamp_node(
+                        namespace=f"robot{i}",
+                        condition=IfCondition(with_scan_retimestamp),
+                    ),
                 ])
         
         return nodes
@@ -145,13 +178,40 @@ class Go2NodeFactory:
         """Load URDF file content"""
         with open(urdf_path, 'r') as file:
             return file.read()
+
+    def _create_pointcloud_retimestamp_node(self, namespace: str = None) -> Node:
+        """Create TF-aligned pointcloud topic for pointcloud_to_laserscan."""
+        if namespace:
+            input_topic = f'/{namespace}/point_cloud2'
+            output_topic = f'/{namespace}/point_cloud2_nav'
+            target_frame = f'{namespace}/base_link'
+        else:
+            input_topic = '/point_cloud2'
+            output_topic = '/point_cloud2_nav'
+            target_frame = 'base_link'
+
+        return Node(
+            package='go2_robot_sdk',
+            executable='pointcloud_retimestamp_node',
+            name='go2_pointcloud_retimestamp_node' if not namespace else f'{namespace}_pointcloud_retimestamp_node',
+            output='screen',
+            parameters=[{
+                'input_topic': input_topic,
+                'output_topic': output_topic,
+                'frame_id': '',
+                'stamp_offset_sec': 0.0,
+                'use_latest_tf_stamp': True,
+                'tf_target_frame': target_frame,
+                'tf_source_frame': '',
+            }],
+        )
     
     def _create_pointcloud_to_laserscan_node(self, namespace: str = None) -> Node:
         """Create pointcloud to laserscan conversion node"""
         target_frame = f'{namespace}/base_link' if namespace else 'base_link'
         parameters = {
             'target_frame': target_frame,
-            'transform_tolerance': 0.5,
+            'transform_tolerance': 1.0,
             # Keep the scan focused on obstacle-height returns. The raw Go2
             # cloud can include floor, body/leg, and far sparse points that
             # make Nav2 mark the robot/start as occupied.
@@ -173,7 +233,7 @@ class Go2NodeFactory:
                 executable='pointcloud_to_laserscan_node',
                 name=f'{namespace}_pointcloud_to_laserscan',
                 remappings=[
-                    ('cloud_in', f'{namespace}/point_cloud2'),
+                    ('cloud_in', f'{namespace}/point_cloud2_nav'),
                     ('scan', f'{namespace}/scan'),
                 ],
                 parameters=[parameters],
@@ -186,12 +246,40 @@ class Go2NodeFactory:
                 executable='pointcloud_to_laserscan_node',
                 name='go2_pointcloud_to_laserscan',
                 remappings=[
-                    ('cloud_in', 'point_cloud2'),
+                    ('cloud_in', 'point_cloud2_nav'),
                     ('scan', 'scan'),
                 ],
                 parameters=[parameters],
                 output='screen',
             )
+
+    def _create_scan_retimestamp_node(self, namespace: str = None, condition=None) -> Node:
+        """Create reliable, TF-aligned scan topic for Nav2 consumers."""
+        if namespace:
+            input_topic = f'/{namespace}/scan'
+            output_topic = f'/{namespace}/scan_nav'
+            frame_id = f'{namespace}/base_link'
+        else:
+            input_topic = '/scan'
+            output_topic = '/scan_nav'
+            frame_id = 'base_link'
+
+        return Node(
+            package='go2_robot_sdk',
+            executable='scan_retimestamp_node',
+            name='go2_scan_retimestamp_node' if not namespace else f'{namespace}_scan_retimestamp_node',
+            condition=condition,
+            output='screen',
+            parameters=[{
+                'input_topic': input_topic,
+                'output_topic': output_topic,
+                'frame_id': frame_id,
+                'stamp_offset_sec': 0.0,
+                'use_latest_tf_stamp': True,
+                'tf_target_frame': 'odom',
+                'tf_source_frame': frame_id,
+            }],
+        )
     
     def create_core_nodes(self) -> List[Node]:
         """Create core Go2 robot nodes"""
@@ -208,12 +296,16 @@ class Go2NodeFactory:
                     'token': self.config.robot_token,
                     'conn_type': self.config.conn_type,
                     'obstacle_avoidance': False,
-                    'cmd_vel_linear_gain': 2.5,
+                    'cmd_vel_linear_gain': 4.0,
                     'cmd_vel_angular_gain': 0.8,
-                    'cmd_vel_min_linear_x': 0.0,
-                    'cmd_vel_min_angular_z': 0.0,
-                    'cmd_vel_max_linear_x': 0.30,
-                    'cmd_vel_max_angular_z': 0.35,
+                    'cmd_vel_min_linear_x': 0.22,
+                    'cmd_vel_min_angular_z': 0.12,
+                    'cmd_vel_max_linear_x': 0.40,
+                    'cmd_vel_max_angular_z': 0.80,
+                    'cmd_vel_axis_mode': LaunchConfiguration('cmd_vel_axis_mode'),
+                    'cmd_vel_invert_linear_x': False,
+                    'cmd_vel_invert_linear_y': False,
+                    'cmd_vel_invert_angular_z': False,
                 }],
             ),
             # LiDAR processing node (new separate package)
@@ -300,17 +392,23 @@ class Go2NodeFactory:
     def create_visualization_nodes(self) -> List[Node]:
         """Create visualization nodes (RViz, Foxglove)"""
         with_rviz2 = LaunchConfiguration('rviz2', default='true')
+        rviz_start_delay_sec = LaunchConfiguration('rviz_start_delay_sec')
         
         return [
-            # RViz2
-            Node(
-                package='rviz2',
-                executable='rviz2',
-                condition=IfCondition(with_rviz2),
-                name='go2_rviz2',
-                output='screen',
-                arguments=['-d', self.config.config_paths['rviz']],
-                parameters=[{'use_sim_time': False}]
+            # RViz2 starts after Nav2 has had time to activate its action servers.
+            TimerAction(
+                period=rviz_start_delay_sec,
+                actions=[
+                    Node(
+                        package='rviz2',
+                        executable='rviz2',
+                        condition=IfCondition(with_rviz2),
+                        name='go2_rviz2',
+                        output='screen',
+                        arguments=['-d', self.config.config_paths['rviz']],
+                        parameters=[{'use_sim_time': False}]
+                    ),
+                ],
             ),
         ]
     
@@ -320,6 +418,8 @@ class Go2NodeFactory:
         with_foxglove = LaunchConfiguration('foxglove', default='true')
         with_slam = LaunchConfiguration('slam', default='true')
         with_nav2 = LaunchConfiguration('nav2', default='true')
+        nav2_params_file = LaunchConfiguration('nav2_params_file')
+        nav2_start_delay_sec = LaunchConfiguration('nav2_start_delay_sec')
         
         foxglove_launch = os.path.join(
             get_package_share_directory('foxglove_bridge'),
@@ -349,18 +449,23 @@ class Go2NodeFactory:
                     'use_sim_time': use_sim_time,
                 }.items(),
             ),
-            # Nav2
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([nav2_launch]),
-                condition=IfCondition(with_nav2),
-                launch_arguments={
-                    'params_file': self.config.config_paths['nav2'],
-                    'use_sim_time': use_sim_time,
-                    'autostart': 'true',
-                    'use_composition': 'False',
-                    'use_respawn': 'False',
-                    'log_level': 'info',
-                }.items(),
+            # Nav2 needs the live SLAM map/TF and scan chain before lifecycle autostart.
+            TimerAction(
+                period=nav2_start_delay_sec,
+                actions=[
+                    IncludeLaunchDescription(
+                        PythonLaunchDescriptionSource([nav2_launch]),
+                        condition=IfCondition(with_nav2),
+                        launch_arguments={
+                            'params_file': nav2_params_file,
+                            'use_sim_time': use_sim_time,
+                            'autostart': 'true',
+                            'use_composition': 'False',
+                            'use_respawn': 'False',
+                            'log_level': 'info',
+                        }.items(),
+                    ),
+                ],
             ),
         ]
 

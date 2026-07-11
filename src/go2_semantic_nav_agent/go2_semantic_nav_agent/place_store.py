@@ -28,6 +28,10 @@ class Place:
     sample_index: int = 0
     sample_group: str = ''
     captured_at: str = ''
+    image_path: str = ''
+    image_rel_path: str = ''
+    agent_memory_image_path: str = ''
+    image_id: str = ''
     confidence: float = 1.0
     source: str = 'manual'
     frame_id: str = 'map'
