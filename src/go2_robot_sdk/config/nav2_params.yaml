@@ -50,7 +50,7 @@ amcl:
     z_rand: 0.5
     z_short: 0.05
 
-    scan_topic: /scan_nav
+    scan_topic: /scan
     set_initial_pose: false
     always_reset_initial_pose: false
     first_map_only: false
@@ -293,7 +293,7 @@ local_costmap:
         observation_sources: scan
 
         scan:
-          topic: /scan_nav
+          topic: /scan
           max_obstacle_height: 2.0
           clearing: true
           marking: true

@@ -361,7 +361,7 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     global_inflation['inflation_radius'] = 0.70
     global_inflation['cost_scaling_factor'] = 3.0
 
-    cm = params.setdefault('collision_monitor', {}).setdefault('ros__parameters', {})
+    cm = params.setdefault({}).setdefault('ros__parameters', {})
     cm['enabled'] = True
     cm['enable_stamped_cmd_vel'] = False
     cm['base_frame_id'] = 'base_link'
