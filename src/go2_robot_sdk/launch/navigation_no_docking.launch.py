@@ -69,6 +69,109 @@ def generate_launch_description():
         allow_substs=True,
     )
 
+    # Direct MPPI override. RotationShim is disabled for now because
+    # FollowPath.primary_controller.* params were not reaching controller_server.
+    shim_mppi_overrides = {
+        'FollowPath.plugin': 'nav2_mppi_controller::MPPIController',
+
+        'FollowPath.motion_model': 'DiffDrive',
+        'FollowPath.time_steps': 12,
+        'FollowPath.model_dt': 0.5,
+        'FollowPath.batch_size': 250,
+        'FollowPath.iteration_count': 1,
+
+        'FollowPath.vx_min': 0.0,
+        'FollowPath.vx_max': 0.35,
+        'FollowPath.vy_max': 0.0,
+        'FollowPath.wz_max': 0.35,
+
+        'FollowPath.ax_max': 0.25,
+        'FollowPath.ax_min': -0.25,
+        'FollowPath.ay_max': 0.0,
+        'FollowPath.ay_min': 0.0,
+        'FollowPath.az_max': 0.60,
+
+        'FollowPath.vx_std': 0.14,
+        'FollowPath.vy_std': 0.0,
+        'FollowPath.wz_std': 0.14,
+
+        'FollowPath.temperature': 0.30,
+        'FollowPath.gamma': 0.015,
+        'FollowPath.visualize': False,
+        'FollowPath.regenerate_noises': False,
+        'FollowPath.open_loop': False,
+        'FollowPath.transform_tolerance': 0.5,
+        'FollowPath.prune_distance': 1.0,
+
+        'FollowPath.critics': [
+            'ConstraintCritic',
+            'CostCritic',
+            'GoalCritic',
+            'GoalAngleCritic',
+            'PathAlignCritic',
+            'PathFollowCritic',
+            'PathAngleCritic',
+            'PreferForwardCritic',
+            'VelocityDeadbandCritic',
+        ],
+
+        'FollowPath.ConstraintCritic.enabled': True,
+        'FollowPath.ConstraintCritic.cost_power': 1,
+        'FollowPath.ConstraintCritic.cost_weight': 4.0,
+
+        'FollowPath.CostCritic.enabled': True,
+        'FollowPath.CostCritic.cost_power': 1,
+        'FollowPath.CostCritic.cost_weight': 4.0,
+        'FollowPath.CostCritic.critical_cost': 300.0,
+        'FollowPath.CostCritic.collision_cost': 1000000.0,
+        'FollowPath.CostCritic.consider_footprint': False,
+        'FollowPath.CostCritic.near_goal_distance': 0.5,
+        'FollowPath.CostCritic.trajectory_point_step': 3,
+
+        'FollowPath.GoalCritic.enabled': True,
+        'FollowPath.GoalCritic.cost_power': 1,
+        'FollowPath.GoalCritic.cost_weight': 8.0,
+        'FollowPath.GoalCritic.threshold_to_consider': 1.2,
+
+        'FollowPath.GoalAngleCritic.enabled': True,
+        'FollowPath.GoalAngleCritic.cost_power': 1,
+        'FollowPath.GoalAngleCritic.cost_weight': 1.5,
+        'FollowPath.GoalAngleCritic.threshold_to_consider': 0.5,
+
+        'FollowPath.PathAlignCritic.enabled': True,
+        'FollowPath.PathAlignCritic.cost_power': 1,
+        'FollowPath.PathAlignCritic.cost_weight': 2.0,
+        'FollowPath.PathAlignCritic.max_path_occupancy_ratio': 0.30,
+        'FollowPath.PathAlignCritic.trajectory_point_step': 6,
+        'FollowPath.PathAlignCritic.threshold_to_consider': 0.6,
+        'FollowPath.PathAlignCritic.offset_from_furthest': 6,
+        'FollowPath.PathAlignCritic.use_path_orientations': False,
+
+        'FollowPath.PathFollowCritic.enabled': True,
+        'FollowPath.PathFollowCritic.cost_power': 1,
+        'FollowPath.PathFollowCritic.cost_weight': 18.0,
+        'FollowPath.PathFollowCritic.offset_from_furthest': 5,
+        'FollowPath.PathFollowCritic.threshold_to_consider': 1.2,
+
+        'FollowPath.PathAngleCritic.enabled': True,
+        'FollowPath.PathAngleCritic.cost_power': 1,
+        'FollowPath.PathAngleCritic.cost_weight': 0.2,
+        'FollowPath.PathAngleCritic.offset_from_furthest': 4,
+        'FollowPath.PathAngleCritic.threshold_to_consider': 0.5,
+        'FollowPath.PathAngleCritic.max_angle_to_furthest': 1.0,
+        'FollowPath.PathAngleCritic.mode': 0,
+
+        'FollowPath.PreferForwardCritic.enabled': True,
+        'FollowPath.PreferForwardCritic.cost_power': 1,
+        'FollowPath.PreferForwardCritic.cost_weight': 6.0,
+        'FollowPath.PreferForwardCritic.threshold_to_consider': 0.5,
+
+        'FollowPath.VelocityDeadbandCritic.enabled': True,
+        'FollowPath.VelocityDeadbandCritic.cost_power': 1,
+        'FollowPath.VelocityDeadbandCritic.cost_weight': 20.0,
+        'FollowPath.VelocityDeadbandCritic.deadband_velocities': [0.0, 0.0, 0.0],
+    }
+
     stdout_linebuf_envvar = SetEnvironmentVariable(
         'RCUTILS_LOGGING_BUFFERED_STREAM', '1'
     )

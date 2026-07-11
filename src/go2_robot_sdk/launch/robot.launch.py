@@ -233,7 +233,7 @@ class Go2NodeFactory:
                     'cmd_vel_min_linear_x': 0.22,
                     'cmd_vel_min_angular_z': 0.18,
                     'cmd_vel_max_linear_x': 0.500,
-                    'cmd_vel_max_angular_z': 0.45,
+                    'cmd_vel_max_angular_z': 0.40,
                     'cmd_vel_axis_mode': LaunchConfiguration('cmd_vel_axis_mode'),
                     'cmd_vel_invert_linear_x': False,
                     'cmd_vel_invert_linear_y': False,
