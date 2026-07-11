@@ -109,7 +109,7 @@ controller_server:
     use_sim_time: false
 
     controller_frequency: 10.0
-    costmap_update_timeout: 1.20
+    costmap_update_timeout: 2.0
 
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.001
@@ -156,7 +156,7 @@ controller_server:
       iteration_count: 1
 
       vx_max: 0.30
-      vx_min: 0.06
+      vx_min: 0.0
       vy_max: 0.0
       wz_max: 0.22
 
@@ -177,7 +177,7 @@ controller_server:
 
       visualize: false
       regenerate_noises: false
-      open_loop: true
+      open_loop: false
 
       TrajectoryValidator:
         plugin: "mppi::DefaultOptimalTrajectoryValidator"
