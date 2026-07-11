@@ -69,59 +69,52 @@ def generate_launch_description():
         allow_substs=True,
     )
 
-    # Runtime override: DWB local planner. MPPI parked aside.
+    # Runtime override: DWB local planner with live obstacle avoidance.
     shim_mppi_overrides = {
-        'controller_frequency': 8.0,
+        'controller_frequency': 10.0,
         'current_goal_checker': 'general_goal_checker',
         'current_progress_checker': 'progress_checker',
 
         'FollowPath.plugin': 'dwb_core::DWBLocalPlanner',
 
         'FollowPath.min_vel_x': 0.0,
-        'FollowPath.max_vel_x': 0.60,
+        'FollowPath.max_vel_x': 0.40,
         'FollowPath.min_vel_y': 0.0,
         'FollowPath.max_vel_y': 0.0,
         'FollowPath.max_vel_theta': 0.85,
 
         'FollowPath.min_speed_xy': 0.0,
-        'FollowPath.max_speed_xy': 0.60,
+        'FollowPath.max_speed_xy': 0.40,
         'FollowPath.min_speed_theta': 0.0,
 
-        'FollowPath.acc_lim_x': 0.80,
+        'FollowPath.acc_lim_x': 0.90,
         'FollowPath.acc_lim_y': 0.0,
-        'FollowPath.acc_lim_theta': 1.60,
-        'FollowPath.decel_lim_x': -0.80,
+        'FollowPath.acc_lim_theta': 1.80,
+        'FollowPath.decel_lim_x': -0.90,
         'FollowPath.decel_lim_y': 0.0,
-        'FollowPath.decel_lim_theta': -1.60,
+        'FollowPath.decel_lim_theta': -1.80,
 
-        'FollowPath.vx_samples': 16,
+        'FollowPath.vx_samples': 18,
         'FollowPath.vy_samples': 1,
-        'FollowPath.vtheta_samples': 24,
+        'FollowPath.vtheta_samples': 28,
 
-        'FollowPath.sim_time': 1.5,
+        'FollowPath.sim_time': 1.4,
         'FollowPath.linear_granularity': 0.05,
         'FollowPath.angular_granularity': 0.025,
         'FollowPath.transform_tolerance': 0.5,
 
-        'FollowPath.xy_goal_tolerance': 0.30,
-        'FollowPath.yaw_goal_tolerance': 0.70,
-        'FollowPath.trans_stopped_velocity': 0.10,
-        'FollowPath.theta_stopped_velocity': 0.10,
-
-        'FollowPath.short_circuit_trajectory_evaluation': True,
-        'FollowPath.stateful': True,
-
-        'FollowPath.BaseObstacle.scale': 0.04,
-        'FollowPath.PathAlign.scale': 8.0,
-        'FollowPath.PathAlign.forward_point_distance': 0.25,
-        'FollowPath.PathDist.scale': 10.0,
-        'FollowPath.GoalAlign.scale': 10.0,
-        'FollowPath.GoalAlign.forward_point_distance': 0.25,
-        'FollowPath.GoalDist.scale': 18.0,
-        'FollowPath.RotateToGoal.scale': 20.0,
+        'FollowPath.BaseObstacle.scale': 0.60,
+        'FollowPath.PathAlign.scale': 3.0,
+        'FollowPath.PathAlign.forward_point_distance': 0.30,
+        'FollowPath.PathDist.scale': 4.0,
+        'FollowPath.GoalAlign.scale': 5.0,
+        'FollowPath.GoalAlign.forward_point_distance': 0.30,
+        'FollowPath.GoalDist.scale': 10.0,
+        'FollowPath.RotateToGoal.scale': 18.0,
         'FollowPath.RotateToGoal.slowing_factor': 5.0,
         'FollowPath.RotateToGoal.lookahead_time': -1.0,
     }
+
 
 
 
