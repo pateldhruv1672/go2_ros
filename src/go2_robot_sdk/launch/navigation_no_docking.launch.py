@@ -40,12 +40,14 @@ def generate_launch_description():
     use_respawn = LaunchConfiguration('use_respawn')
     log_level = LaunchConfiguration('log_level')
 
+
     lifecycle_nodes = [
         'controller_server',
         'planner_server',
         'behavior_server',
         'bt_navigator',
         'waypoint_follower',
+        'collision_monitor',
     ]
 
     # Map fully qualified names to relative ones so the node's namespace can be prepended.
@@ -68,6 +70,15 @@ def generate_launch_description():
         ),
         allow_substs=True,
     )
+
+    collision_monitor_node = Node(
+        package='nav2_collision_monitor',
+        executable='collision_monitor',
+        name='collision_monitor',
+        output='screen',
+        parameters=[configured_params],
+    )
+
 
     # Runtime override: DWB local planner with live obstacle avoidance.
     shim_mppi_overrides = {
@@ -191,7 +202,7 @@ def generate_launch_description():
                     },
                 ],
                 arguments=['--ros-args', '--log-level', log_level],
-                remappings=remappings + [('cmd_vel', 'cmd_vel_out')],
+                remappings=remappings + [('cmd_vel', 'cmd_vel_nav')],
             ),
             Node(
                 package='nav2_planner',
@@ -266,7 +277,7 @@ def generate_launch_description():
                                 'current_progress_checker': 'progress_checker',
                             },
                         ],
-                        remappings=remappings + [('cmd_vel', 'cmd_vel_out')],
+                        remappings=remappings + [('cmd_vel', 'cmd_vel_nav')],
                     ),
                     ComposableNode(
                         package='nav2_planner',
@@ -325,6 +336,7 @@ def generate_launch_description():
     ld.add_action(declare_use_respawn_cmd)
     ld.add_action(declare_log_level_cmd)
     # Add the actions to launch all of the navigation nodes
+    ld.add_action(collision_monitor_node)
     ld.add_action(load_nodes)
     ld.add_action(load_composable_nodes)
 
