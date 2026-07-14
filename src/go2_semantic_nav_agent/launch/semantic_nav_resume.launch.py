@@ -42,129 +42,6 @@ def _package_available(package_name: str) -> bool:
         return False
 
 
-def _mppi_follow_path_params() -> dict:
-    return {
-        'plugin': 'nav2_mppi_controller::MPPIController',
-        'time_steps': 30,
-        'model_dt': 0.10,
-        'batch_size': 1000,
-        'iteration_count': 1,
-        'vx_std': 0.18,
-        'vy_std': 0.0,
-        'wz_std': 0.18,
-        'vx_max': 0.32,
-        'vx_min': 0.0,
-        'vy_max': 0.0,
-        'wz_max': 0.40,
-        'ax_max': 0.35,
-        'ax_min': -0.30,
-        'ay_max': 0.0,
-        'ay_min': 0.0,
-        'az_max': 0.45,
-        'prune_distance': 1.2,
-        'transform_tolerance': 1.0,
-        'temperature': 0.3,
-        'gamma': 0.015,
-        'motion_model': 'DiffDrive',
-        'diff_drive': {
-            'plugin': 'mppi::DiffDriveMotionModel',
-        },
-        'visualize': False,
-        'critic_index_to_visualize': 0,
-        'publish_optimal_trajectory': False,
-        'publish_critics_stats': False,
-        'open_loop': False,
-        'regenerate_noises': False,
-        'sgf_order': 2,
-        'TrajectoryVisualizer': {
-            'trajectory_step': 5,
-            'time_step': 3,
-        },
-        'TrajectoryValidator': {
-            'plugin': 'mppi::DefaultOptimalTrajectoryValidator',
-            'collision_lookahead_time': 2.0,
-            'consider_footprint': True,
-        },
-        'critics': [
-            'ConstraintCritic',
-            'CostCritic',
-            'GoalCritic',
-            'GoalAngleCritic',
-            'PathAlignCritic',
-            'PathFollowCritic',
-            'PathAngleCritic',
-            'PreferForwardCritic',
-            'VelocityDeadbandCritic',
-        ],
-        'ConstraintCritic': {
-            'enabled': True,
-            'cost_power': 1,
-            'cost_weight': 4.0,
-        },
-        'GoalCritic': {
-            'enabled': True,
-            'cost_power': 1,
-            'cost_weight': 5.0,
-            'threshold_to_consider': 1.4,
-        },
-        'GoalAngleCritic': {
-            'enabled': True,
-            'cost_power': 1,
-            'cost_weight': 3.0,
-            'threshold_to_consider': 0.5,
-        },
-        'PreferForwardCritic': {
-            'enabled': True,
-            'cost_power': 1,
-            'cost_weight': 5.0,
-            'threshold_to_consider': 0.5,
-        },
-        'CostCritic': {
-            'enabled': True,
-            'cost_power': 1,
-            'cost_weight': 2.0,
-            'critical_cost': 300.0,
-            'near_collision_cost': 253,
-            'consider_footprint': True,
-            'collision_cost': 1000000.0,
-            'near_goal_distance': 1.0,
-            'trajectory_point_step': 2,
-        },
-        'PathAlignCritic': {
-            'enabled': True,
-            'cost_power': 1,
-            'cost_weight': 10.0,
-            'max_path_occupancy_ratio': 0.20,
-            'trajectory_point_step': 4,
-            'threshold_to_consider': 0.5,
-            'offset_from_furthest': 12,
-            'use_path_orientations': False,
-        },
-        'PathFollowCritic': {
-            'enabled': True,
-            'cost_power': 1,
-            'cost_weight': 6.0,
-            'offset_from_furthest': 5,
-            'threshold_to_consider': 1.4,
-        },
-        'PathAngleCritic': {
-            'enabled': True,
-            'cost_power': 1,
-            'cost_weight': 2.0,
-            'offset_from_furthest': 4,
-            'threshold_to_consider': 0.5,
-            'max_angle_to_furthest': 1.0,
-            'mode': 0,
-        },
-        'VelocityDeadbandCritic': {
-            'enabled': True,
-            'cost_power': 1,
-            'cost_weight': 60.0,
-            'deadband_velocities': [0.09, 0.0, 0.08],
-        },
-    }
-
-
 def _stvl_layer_params(pointcloud_topic: str) -> dict:
     return {
         'plugin': 'spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer',
@@ -222,6 +99,7 @@ def _resolve_stvl_enabled(requested: str) -> bool:
 
 
 def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_topic: str, stvl_enabled: str) -> str:
+    safety_scan_topic = os.environ.get('GO2_SAFETY_SCAN_TOPIC', '/scan').strip() or '/scan'
     with open(source_path, 'r', encoding='utf-8') as f:
         params = yaml.safe_load(f) or {}
 
@@ -284,7 +162,7 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     goal_checker['yaw_goal_tolerance'] = 0.45
     goal_checker['stateful'] = True
 
-    ctrl['FollowPath'] = _mppi_follow_path_params()
+    # Keep FollowPath from base nav2_params.yaml. Do not override DWB with MPPI here.
 
     local = params.setdefault('local_costmap', {}).setdefault('local_costmap', {}).setdefault('ros__parameters', {})
     local['update_frequency'] = 5.0
@@ -294,7 +172,7 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     local['height'] = 5
     local['resolution'] = 0.05
     use_stvl = _resolve_stvl_enabled(stvl_enabled)
-    local['plugins'] = ['stvl_layer', 'inflation_layer'] if use_stvl else ['obstacle_layer', 'inflation_layer']
+    local['plugins'] = ['obstacle_layer', 'inflation_layer']
 
     local_obstacle = local.setdefault('obstacle_layer', {})
     local_obstacle['plugin'] = 'nav2_costmap_2d::ObstacleLayer'
@@ -303,13 +181,13 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     local_obstacle['observation_sources'] = 'scan'
 
     local_scan = local_obstacle.setdefault('scan', {})
-    local_scan['topic'] = scan_topic
+    local_scan['topic'] = safety_scan_topic
     local_scan['data_type'] = 'LaserScan'
     local_scan['clearing'] = True
     local_scan['marking'] = True
-    local_scan['obstacle_min_range'] = 0.30
+    local_scan['obstacle_min_range'] = 0.05
     local_scan['obstacle_max_range'] = 2.5
-    local_scan['raytrace_min_range'] = 0.20
+    local_scan['raytrace_min_range'] = 0.05
     local_scan['raytrace_max_range'] = 3.5
     local_scan['max_obstacle_height'] = 2.0
     local_scan['inf_is_valid'] = True
@@ -343,17 +221,17 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     global_obstacle['observation_sources'] = 'scan'
 
     global_scan = global_obstacle.setdefault('scan', {})
-    global_scan['topic'] = scan_topic
+    global_scan['topic'] = safety_scan_topic
     global_scan['data_type'] = 'LaserScan'
     global_scan['clearing'] = True
     global_scan['marking'] = True
-    global_scan['obstacle_min_range'] = 0.45
+    global_scan['obstacle_min_range'] = 0.05
     global_scan['obstacle_max_range'] = 2.5
-    global_scan['raytrace_min_range'] = 0.30
+    global_scan['raytrace_min_range'] = 0.05
     global_scan['raytrace_max_range'] = 3.5
     global_scan['max_obstacle_height'] = 2.0
     global_scan['inf_is_valid'] = True
-    global_scan['observation_persistence'] = 0.0
+    global_scan['observation_persistence'] = 1.0
     global_scan['expected_update_rate'] = 0.0
 
     global_inflation = global_cm.setdefault('inflation_layer', {})
@@ -361,7 +239,7 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     global_inflation['inflation_radius'] = 0.70
     global_inflation['cost_scaling_factor'] = 3.0
 
-    cm = params.setdefault({}).setdefault('ros__parameters', {})
+    cm = params.setdefault('collision_monitor', {}).setdefault('ros__parameters', {})
     cm['enabled'] = True
     cm['enable_stamped_cmd_vel'] = False
     cm['base_frame_id'] = 'base_link'
@@ -369,32 +247,32 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     cm['cmd_vel_in_topic'] = 'cmd_vel_nav'
     cm['cmd_vel_out_topic'] = 'cmd_vel_out'
     cm['state_topic'] = 'collision_monitor_state'
-    cm['transform_tolerance'] = 2.0
-    cm['source_timeout'] = 2.5
-    cm['stop_pub_timeout'] = 2.0
+    cm['transform_tolerance'] = 0.5
+    cm['source_timeout'] = 0.5
+    cm['stop_pub_timeout'] = 1.0
     cm['polygons'] = ['StopPolygon', 'SlowdownPolygon']
     cm['observation_sources'] = ['scan']
 
     stop = cm.setdefault('StopPolygon', {})
     stop['type'] = 'polygon'
-    stop['points'] = '[[0.45, 0.26], [0.45, -0.26], [-0.25, -0.26], [-0.25, 0.26]]'
+    stop['points'] = '[[0.65, 0.28], [0.65, -0.28], [-0.20, -0.28], [-0.20, 0.28]]'
     stop['action_type'] = 'stop'
-    stop['min_points'] = 25
+    stop['min_points'] = 4
     stop['visualize'] = True
     stop['polygon_pub_topic'] = 'stop_polygon'
 
     slow = cm.setdefault('SlowdownPolygon', {})
     slow['type'] = 'polygon'
-    slow['points'] = '[[0.50, 0.30], [0.50, -0.30], [-0.30, -0.32], [-0.30, 0.32]]'
+    slow['points'] = '[[1.20, 0.45], [1.20, -0.45], [-0.25, -0.45], [-0.25, 0.45]]'
     slow['action_type'] = 'slowdown'
-    slow['slowdown_ratio'] = 0.20
-    slow['min_points'] = 30
+    slow['slowdown_ratio'] = 0.35
+    slow['min_points'] = 4
     slow['visualize'] = True
     slow['polygon_pub_topic'] = 'slowdown_polygon'
 
     cm_scan = cm.setdefault('scan', {})
     cm_scan['type'] = 'scan'
-    cm_scan['topic'] = scan_topic
+    cm_scan['topic'] = safety_scan_topic
     cm_scan['enabled'] = True
 
     behavior = params.setdefault('behavior_server', {}).setdefault('ros__parameters', {})
@@ -405,15 +283,15 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
         pass
 
     try:
-        params['local_costmap']['local_costmap']['ros__parameters']['obstacle_layer']['scan']['topic'] = scan_topic
+        params['local_costmap']['local_costmap']['ros__parameters']['obstacle_layer']['scan']['topic'] = safety_scan_topic
     except Exception:
         pass
     try:
-        params['global_costmap']['global_costmap']['ros__parameters']['obstacle_layer']['scan']['topic'] = scan_topic
+        params['global_costmap']['global_costmap']['ros__parameters']['obstacle_layer']['scan']['topic'] = safety_scan_topic
     except Exception:
         pass
     try:
-        params['collision_monitor']['ros__parameters']['scan']['topic'] = scan_topic
+        params['collision_monitor']['ros__parameters']['scan']['topic'] = safety_scan_topic
     except Exception:
         pass
 
