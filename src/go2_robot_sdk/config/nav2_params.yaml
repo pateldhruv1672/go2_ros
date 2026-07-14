@@ -107,20 +107,20 @@ controller_server:
       plugin: dwb_core::DWBLocalPlanner
       debug_trajectory_details: false
       min_vel_x: 0.0
-      max_vel_x: 0.4
+      max_vel_x: 0.45
       min_vel_y: 0.0
       max_vel_y: 0.0
       max_vel_theta: 0.85
       min_speed_xy: 0.0
-      max_speed_xy: 0.4
+      max_speed_xy: 0.45
       min_speed_theta: 0.0
-      acc_lim_x: 0.9
+      acc_lim_x: 0.7
       acc_lim_y: 0.0
-      acc_lim_theta: 1.8
+      acc_lim_theta: 1.6
       decel_lim_x: -0.9
       decel_lim_y: 0.0
       decel_lim_theta: -1.8
-      vx_samples: 18
+      vx_samples: 16
       vy_samples: 1
       vtheta_samples: 28
       sim_time: 1.4
@@ -244,7 +244,7 @@ global_costmap:
       use_sim_time: false
       transform_tolerance: 0.5
       resolution: 0.05
-      track_unknown_space: true
+      track_unknown_space: false
       static_map: true
       origin_x: -250.0
       origin_y: -250.0
@@ -259,8 +259,8 @@ global_costmap:
         map_subscribe_transient_local: true
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
-        cost_scaling_factor: 2.8
-        inflation_radius: 0.6
+        cost_scaling_factor: 2.2
+        inflation_radius: 0.85
         enabled: true
       always_send_full_costmap: false
       rolling_window: false
@@ -280,7 +280,7 @@ global_costmap:
           raytrace_max_range: 4.5
           inf_is_valid: true
           expected_update_rate: 0.0
-          observation_persistence: 1.0
+          observation_persistence: 2.0
 map_server:
   ros__parameters:
     use_sim_time: false
@@ -353,9 +353,9 @@ collision_monitor:
     enable_stamped_cmd_vel: false
     base_frame_id: base_link
     odom_frame_id: odom
-    transform_tolerance: 3.0
-    source_timeout: 5.0
-    stop_pub_timeout: 2.0
+    transform_tolerance: 0.5
+    source_timeout: 0.5
+    stop_pub_timeout: 1.0
     cmd_vel_in_topic: cmd_vel_nav
     cmd_vel_out_topic: cmd_vel_out
     state_topic: collision_monitor_state
@@ -363,7 +363,7 @@ collision_monitor:
     - scan
     scan:
       type: scan
-      topic: /scan_nav
+      topic: /scan
       min_height: 0.0
       max_height: 2.0
       enabled: true
@@ -372,16 +372,16 @@ collision_monitor:
     - SlowdownPolygon
     StopPolygon:
       type: polygon
-      points: '[[0.45, 0.26], [0.45, -0.26], [-0.25, -0.26], [-0.25, 0.26]]'
+      points: '[[0.45, 0.25], [0.45, -0.25], [-0.20, -0.25], [-0.20, 0.25]]'
       action_type: stop
-      min_points: 18
+      min_points: 8
       visualize: true
       polygon_pub_topic: stop_polygon
     SlowdownPolygon:
       type: polygon
-      points: '[[0.50, 0.30], [0.50, -0.30], [-0.30, -0.32], [-0.30, 0.32]]'
+      points: '[[0.95, 0.38], [0.95, -0.38], [-0.25, -0.38], [-0.25, 0.38]]'
       action_type: slowdown
-      slowdown_ratio: 0.7
-      min_points: 12
+      slowdown_ratio: 0.35
+      min_points: 6
       visualize: true
       polygon_pub_topic: slowdown_polygon
