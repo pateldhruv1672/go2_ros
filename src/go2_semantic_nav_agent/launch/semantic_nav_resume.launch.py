@@ -395,7 +395,7 @@ def launch_setup(context, *args, **kwargs):
             'auto_save_use_vlm': False,
             'restore_spawn_on_start': restore_spawn_on_start,
             'allow_manual_initialpose_override': True,
-            'fallback_cmd_topic': '/cmd_vel_nav',
+            'fallback_cmd_topic': '/cmd_vel_omi',
             'initialpose_stamp_backdate_sec': 0.10,
             'scan_topic': scan_nav_topic,
         }]),
@@ -409,7 +409,32 @@ def launch_setup(context, *args, **kwargs):
 
 
 def generate_launch_description():
+
+    motion_arbiter_node = Node(
+        package='go2_nav_tools',
+        executable='motion_arbiter',
+        name='go2_motion_arbiter',
+        output='screen',
+        parameters=[{
+            'nav2_topic': '/cmd_vel_nav2',
+            'omi_topic': '/cmd_vel_omi',
+            'escape_topic': '/cmd_vel_escape',
+            'output_topic': '/cmd_vel_nav',
+            'source_timeout_sec': 0.40,
+            'nav2_max_x': 0.75,
+            'nav2_max_y': 0.0,
+            'nav2_max_theta': 0.90,
+            'omi_max_x': 0.25,
+            'omi_max_y': 0.20,
+            'omi_max_theta': 0.60,
+            'escape_max_x': 0.30,
+            'escape_max_y': 0.25,
+            'escape_max_theta': 0.70,
+        }],
+    )
+
     return LaunchDescription([
+        motion_arbiter_node,
         DeclareLaunchArgument('session_root', default_value='~/.ros/go2_semantic_nav_sessions'),
         DeclareLaunchArgument('session_name', default_value=''),
         DeclareLaunchArgument('rviz', default_value='false'),

@@ -202,7 +202,7 @@ def generate_launch_description():
                     },
                 ],
                 arguments=['--ros-args', '--log-level', log_level],
-                remappings=remappings + [('cmd_vel', 'cmd_vel_nav')],
+                remappings=remappings + [('cmd_vel', 'cmd_vel_nav2')],
             ),
             Node(
                 package='nav2_planner',
@@ -277,7 +277,7 @@ def generate_launch_description():
                                 'current_progress_checker': 'progress_checker',
                             },
                         ],
-                        remappings=remappings + [('cmd_vel', 'cmd_vel_nav')],
+                        remappings=remappings + [('cmd_vel', 'cmd_vel_nav2')],
                     ),
                     ComposableNode(
                         package='nav2_planner',
