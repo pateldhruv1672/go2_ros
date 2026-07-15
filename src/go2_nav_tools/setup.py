@@ -16,6 +16,7 @@ setup(
     description='Safe dry-run-first navigation tools for Go2.',
     license='MIT',
     entry_points={'console_scripts': [
+            'motion_arbiter = go2_nav_tools.motion_arbiter:main',
         'nav2_tool_server = go2_nav_tools.nav2_tool_server:main',
         'frontier_explorer = go2_nav_tools.frontier_explorer:main',
         'coverage_explorer = go2_nav_tools.coverage_explorer:main',

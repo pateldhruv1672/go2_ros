@@ -1458,13 +1458,13 @@ class SemanticNavNode(Node):
         try:
             meta = future.result()
         except Exception as exc:
-            self.fatal_teach_vlm_failure(f'Ollama VLM background job failed: {exc}')
+            self.publish_status(f'vlm_labeling_failed_nonfatal: {exc}')
             return
         self.finish_teach_vlm_job(job or {}, meta)
 
     def finish_teach_vlm_job(self, job: dict, meta: Optional[dict]) -> None:
         if not meta:
-            self.fatal_teach_vlm_failure('Ollama VLM returned no parseable JSON label during teach auto-save')
+            self.publish_status('vlm_labeling_skipped_no_parseable_json')
             return
         if float(meta.get('confidence', 0.0)) < float(self.get_parameter('auto_save_min_confidence').value):
             self.publish_status(f'vlm_low_confidence skipped confidence={float(meta.get("confidence", 0.0)):.2f}')
@@ -1528,6 +1528,17 @@ class SemanticNavNode(Node):
         self.submit_teach_vlm_job(pose, reason='auto_save')
 
     def describe(self) -> None:
+        if self.mode == 'teach':
+            pose = self.lookup_current_pose()
+            if pose is None:
+                self.publish_status('describe_async_skipped_no_pose')
+                return
+            if self.submit_teach_vlm_job(pose, reason='describe'):
+                self.publish_status('describe_async_vlm_labeling_started')
+                return
+            self.publish_status('describe_async_vlm_busy_or_unavailable')
+            return
+
         meta = self.vlm_label_current_view()
         if not meta:
             return

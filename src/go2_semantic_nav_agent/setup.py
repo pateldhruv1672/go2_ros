@@ -23,6 +23,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'omi_demo_bridge = go2_semantic_nav_agent.omi_demo_bridge:main',
+            'semantic_place_markers = go2_semantic_nav_agent.semantic_place_markers:main',
             'semantic_nav_node = go2_semantic_nav_agent.semantic_nav_node:main',
             'semantic_nav_console = go2_semantic_nav_agent.semantic_nav_console:main',
             'scan_retimestamp_node = go2_semantic_nav_agent.scan_retimestamp_node:main',

@@ -1,106 +1,91 @@
 #!/usr/bin/env python3
-from __future__ import annotations
 
 import math
-from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Optional
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+from rclpy.time import Time
 from geometry_msgs.msg import Twist
 
 
-@dataclass
-class SourceState:
-    msg: Twist
-    stamp_sec: float
+def twist_mag(t: Twist) -> float:
+    return (
+        abs(t.linear.x)
+        + abs(t.linear.y)
+        + abs(t.angular.z)
+    )
 
 
-def _clip(v: float, lo: float, hi: float) -> float:
-    if math.isnan(v) or math.isinf(v):
-        return 0.0
+def clip(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
 
 
-def _zero() -> Twist:
-    return Twist()
-
-
 class MotionArbiter(Node):
-    """
-    One pre-safety velocity owner.
+    def __init__(self):
+        super().__init__('go2_motion_arbiter')
 
-    Inputs:
-      /cmd_vel_escape  highest priority local recovery
-      /cmd_vel_omi     direct voice/manual micro motion
-      /cmd_vel_nav2    Nav2 DWB output
+        self.declare_parameter('nav2_topic', '/cmd_vel_nav2')
+        self.declare_parameter('omi_topic', '/cmd_vel_omi')
+        self.declare_parameter('escape_topic', '/cmd_vel_escape')
+        self.declare_parameter('output_topic', '/cmd_vel_nav')
 
-    Output:
-      /cmd_vel_nav     goes into collision_monitor
+        self.declare_parameter('rate_hz', 20.0)
+        self.declare_parameter('source_timeout_sec', 0.40)
+        self.declare_parameter('nonzero_deadband', 0.01)
 
-    Final robot chain:
-      /cmd_vel_nav -> collision_monitor -> /cmd_vel_out -> go2_driver_node
-    """
+        self.declare_parameter('nav2_max_x', 0.75)
+        self.declare_parameter('nav2_max_y', 0.0)
+        self.declare_parameter('nav2_max_theta', 0.90)
 
-    def __init__(self) -> None:
-        super().__init__("go2_motion_arbiter")
+        self.declare_parameter('omi_max_x', 0.25)
+        self.declare_parameter('omi_max_y', 0.20)
+        self.declare_parameter('omi_max_theta', 0.60)
 
-        self.declare_parameter("nav2_topic", "/cmd_vel_nav2")
-        self.declare_parameter("omi_topic", "/cmd_vel_omi")
-        self.declare_parameter("escape_topic", "/cmd_vel_escape")
-        self.declare_parameter("output_topic", "/cmd_vel_nav")
+        self.declare_parameter('escape_max_x', 0.30)
+        self.declare_parameter('escape_max_y', 0.25)
+        self.declare_parameter('escape_max_theta', 0.70)
 
-        self.declare_parameter("publish_rate_hz", 20.0)
-        self.declare_parameter("source_timeout_sec", 0.40)
+        self.timeout = float(self.get_parameter('source_timeout_sec').value)
+        self.deadband = float(self.get_parameter('nonzero_deadband').value)
 
-        self.declare_parameter("nav2_max_x", 0.75)
-        self.declare_parameter("nav2_max_y", 0.0)
-        self.declare_parameter("nav2_max_theta", 0.90)
+        self.latest = {
+            'nav2': {'twist': None, 'stamp': None},
+            'omi': {'twist': None, 'stamp': None},
+            'escape': {'twist': None, 'stamp': None},
+        }
 
-        self.declare_parameter("omi_max_x", 0.25)
-        self.declare_parameter("omi_max_y", 0.20)
-        self.declare_parameter("omi_max_theta", 0.60)
+        self.last_source = None
 
-        self.declare_parameter("escape_max_x", 0.30)
-        self.declare_parameter("escape_max_y", 0.25)
-        self.declare_parameter("escape_max_theta", 0.70)
-
-        qos = QoSProfile(
-            reliability=ReliabilityPolicy.RELIABLE,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=1,
-        )
-
-        self._sources: Dict[str, SourceState] = {}
-
-        self._pub = self.create_publisher(
+        self.pub = self.create_publisher(
             Twist,
-            str(self.get_parameter("output_topic").value),
-            qos,
+            str(self.get_parameter('output_topic').value),
+            10,
         )
 
         self.create_subscription(
             Twist,
-            str(self.get_parameter("nav2_topic").value),
-            lambda msg: self._update("nav2", msg),
-            qos,
-        )
-        self.create_subscription(
-            Twist,
-            str(self.get_parameter("omi_topic").value),
-            lambda msg: self._update("omi", msg),
-            qos,
-        )
-        self.create_subscription(
-            Twist,
-            str(self.get_parameter("escape_topic").value),
-            lambda msg: self._update("escape", msg),
-            qos,
+            str(self.get_parameter('nav2_topic').value),
+            lambda msg: self._store('nav2', msg, accept_zero=True),
+            10,
         )
 
-        rate = float(self.get_parameter("publish_rate_hz").value)
-        self._timer = self.create_timer(1.0 / max(1.0, rate), self._tick)
+        self.create_subscription(
+            Twist,
+            str(self.get_parameter('omi_topic').value),
+            lambda msg: self._store('omi', msg, accept_zero=False),
+            10,
+        )
+
+        self.create_subscription(
+            Twist,
+            str(self.get_parameter('escape_topic').value),
+            lambda msg: self._store('escape', msg, accept_zero=False),
+            10,
+        )
+
+        rate_hz = float(self.get_parameter('rate_hz').value)
+        self.create_timer(1.0 / rate_hz, self._tick)
 
         self.get_logger().info(
             f"motion arbiter ready: "
@@ -110,67 +95,57 @@ class MotionArbiter(Node):
             f"-> output={self.get_parameter('output_topic').value}"
         )
 
-    def _now_sec(self) -> float:
-        return self.get_clock().now().nanoseconds * 1e-9
+    def _store(self, source: str, msg: Twist, accept_zero: bool):
+        if not accept_zero and twist_mag(msg) < self.deadband:
+            self.latest[source]['twist'] = None
+            self.latest[source]['stamp'] = None
+            return
 
-    def _update(self, name: str, msg: Twist) -> None:
-        self._sources[name] = SourceState(msg=msg, stamp_sec=self._now_sec())
+        self.latest[source]['twist'] = msg
+        self.latest[source]['stamp'] = self.get_clock().now()
 
-    def _fresh(self, name: str) -> Optional[Twist]:
-        state = self._sources.get(name)
-        if state is None:
-            return None
-        timeout = float(self.get_parameter("source_timeout_sec").value)
-        if self._now_sec() - state.stamp_sec > timeout:
-            return None
-        return state.msg
+    def _fresh(self, source: str) -> bool:
+        stamp: Optional[Time] = self.latest[source]['stamp']
+        if stamp is None:
+            return False
+        age = (self.get_clock().now() - stamp).nanoseconds / 1e9
+        return age <= self.timeout
 
-    def _select(self) -> tuple[str, Twist]:
-        # Priority order.
-        for name in ("escape", "omi", "nav2"):
-            msg = self._fresh(name)
-            if msg is not None:
-                return name, msg
-        return "none", _zero()
+    def _select(self):
+        for source in ('escape', 'omi', 'nav2'):
+            if self._fresh(source) and self.latest[source]['twist'] is not None:
+                return source, self.latest[source]['twist']
+        return 'none', Twist()
 
-    def _limits(self, source: str) -> tuple[float, float, float]:
-        if source == "escape":
-            return (
-                float(self.get_parameter("escape_max_x").value),
-                float(self.get_parameter("escape_max_y").value),
-                float(self.get_parameter("escape_max_theta").value),
-            )
-        if source == "omi":
-            return (
-                float(self.get_parameter("omi_max_x").value),
-                float(self.get_parameter("omi_max_y").value),
-                float(self.get_parameter("omi_max_theta").value),
-            )
-        return (
-            float(self.get_parameter("nav2_max_x").value),
-            float(self.get_parameter("nav2_max_y").value),
-            float(self.get_parameter("nav2_max_theta").value),
-        )
-
-    def _sanitize(self, source: str, msg: Twist) -> Twist:
-        max_x, max_y, max_th = self._limits(source)
-
+    def _clip_twist(self, source: str, msg: Twist) -> Twist:
         out = Twist()
-        out.linear.x = _clip(msg.linear.x, -max_x, max_x)
-        out.linear.y = _clip(msg.linear.y, -max_y, max_y)
-        out.linear.z = 0.0
-        out.angular.x = 0.0
-        out.angular.y = 0.0
-        out.angular.z = _clip(msg.angular.z, -max_th, max_th)
+
+        max_x = float(self.get_parameter(f'{source}_max_x').value) if source != 'none' else 0.0
+        max_y = float(self.get_parameter(f'{source}_max_y').value) if source != 'none' else 0.0
+        max_theta = float(self.get_parameter(f'{source}_max_theta').value) if source != 'none' else 0.0
+
+        out.linear.x = clip(msg.linear.x, -max_x, max_x)
+        out.linear.y = clip(msg.linear.y, -max_y, max_y)
+        out.angular.z = clip(msg.angular.z, -max_theta, max_theta)
+
         return out
 
-    def _tick(self) -> None:
+    def _tick(self):
         source, msg = self._select()
-        self._pub.publish(self._sanitize(source, msg))
+
+        if source != self.last_source:
+            self.get_logger().info(f"active_source={source}")
+            self.last_source = source
+
+        if source == 'none':
+            self.pub.publish(Twist())
+            return
+
+        self.pub.publish(self._clip_twist(source, msg))
 
 
-def main() -> None:
-    rclpy.init()
+def main(args=None):
+    rclpy.init(args=args)
     node = MotionArbiter()
     try:
         rclpy.spin(node)
@@ -179,5 +154,5 @@ def main() -> None:
         rclpy.shutdown()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
