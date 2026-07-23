@@ -3,7 +3,6 @@ import os
 
 from setuptools import find_packages, setup
 
-
 package_name = "go2_omi_voice_bridge"
 
 setup(
@@ -29,6 +28,7 @@ setup(
             "tts_node = go2_omi_voice_bridge.tts_node:main",
             "voice_intent_gate_node = go2_omi_voice_bridge.voice_intent_gate_node:main",
             "tour_voice_command_router = go2_omi_voice_bridge.tour_voice_command_router:main",
+            "omi_skill_intent_router = go2_omi_voice_bridge.omi_skill_intent_router:main",
         ],
     },
 )

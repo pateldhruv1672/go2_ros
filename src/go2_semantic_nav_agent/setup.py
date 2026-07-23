@@ -29,7 +29,7 @@ setup(
             'semantic_nav_console = go2_semantic_nav_agent.semantic_nav_console:main',
             'scan_retimestamp_node = go2_semantic_nav_agent.scan_retimestamp_node:main',
             'patch_go2_sdk_scan_topics = go2_semantic_nav_agent.patch_go2_sdk_scan_topics:main',
-            'semantic_nav_fresh_start = go2_semantic_nav_agent.semantic_nav_fresh_start:main',
+            'semantic_nav_fresh_start = go2_semantic_nav_agent.semantic_nav_fresh_start:main', 'semantic_omi_command_router = go2_semantic_nav_agent.semantic_omi_command_router:main', 'semantic_goal_bridge = go2_semantic_nav_agent.semantic_goal_bridge:main', 'semantic_demo_marker_publisher = go2_semantic_nav_agent.semantic_demo_marker_publisher:main',
         ],
     },
 )

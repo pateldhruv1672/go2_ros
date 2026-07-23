@@ -18,6 +18,7 @@ setup(
     description='Grounded Unitree SDK2 motion skills for Sparky.',
     license='MIT',
     entry_points={'console_scripts': [
+            'webrtc_motion_skill_agent_node = go2_agentic_motion_skills.webrtc_motion_skill_agent_node:main',
         'motion_skill_agent_node = go2_agentic_motion_skills.motion_skill_agent_node:main',
     ]},
 )
