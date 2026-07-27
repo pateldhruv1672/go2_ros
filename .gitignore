@@ -14958,3 +14958,5 @@ src/go2_robot_sdk/launch/robot.launch.py.bak_lifecycle_realfix_20260625_164751
 src/go2_robot_sdk/launch/robot.launch.py.bak_nav2_fix_20260625_155645
 src/go2_robot_sdk/launch/robot.launch.py.bak_robust_20260625_161346
 src/go2_robot_sdk/launch/robot.launch.py.bak_robust_20260625_161952
+src/go2_semantic_nav_agent/launch/semantic_nav_resume.launch.py.bak_force_mppi_20260625_175416
+src/go2_semantic_nav_agent/launch/semantic_nav_resume.launch.py.bak_mppi_docs

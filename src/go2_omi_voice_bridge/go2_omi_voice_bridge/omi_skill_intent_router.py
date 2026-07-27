@@ -145,6 +145,7 @@ class OmiSkillIntentRouter(Node):
         self.declare_parameter("tts_topic", "/go2_tts/say")
         self.declare_parameter("status_topic", "/go2_voice/skill_router_status")
         self.declare_parameter("processed_stt_topic", "/go2_voice/processed_stt")
+        self.declare_parameter("object_goal_topic", "/object_explorer/goal")
 
         self.declare_parameter("wake_words", ["sparky", "sparkie", "go2", "robot"])
         self.declare_parameter("require_wake_word", True)
@@ -177,6 +178,11 @@ class OmiSkillIntentRouter(Node):
         self.processed_stt_pub = self.create_publisher(
             String,
             str(self.get_parameter("processed_stt_topic").value),
+            10,
+        )
+        self.object_goal_pub = self.create_publisher(
+            String,
+            str(self.get_parameter("object_goal_topic").value),
             10,
         )
 
@@ -393,6 +399,9 @@ class OmiSkillIntentRouter(Node):
             )
             return
 
+        if self.maybe_route_object_goal(raw_text, text):
+            return
+
         self.say("I heard you, but I do not recognize that robot command yet.", "warning")
         self.emit_processed_stt(
             {
@@ -438,6 +447,58 @@ class OmiSkillIntentRouter(Node):
                     "skill": expired.skill,
                 }
             )
+
+
+    def maybe_route_object_goal(self, raw_text: str, normalized: str) -> bool:
+        text = normalized.strip().lower()
+
+        if any(x in text for x in ("where are you", "where are we", "where am i")):
+            return False
+
+        patterns = [
+            r"^explore\s+and\s+find\s+(?:a|an|the)?\s*(.+)$",
+            r"^start\s+exploring\s+for\s+(?:a|an|the)?\s*(.+)$",
+            r"^find\s+(?:a|an|the)?\s*(.+)$",
+            r"^locate\s+(?:a|an|the)?\s*(.+)$",
+            r"^search\s+for\s+(?:a|an|the)?\s*(.+)$",
+            r"^where\s+is\s+(?:a|an|the)?\s*(.+)$",
+            r"^go\s+find\s+(?:a|an|the)?\s*(.+)$",
+        ]
+
+        import re
+        for pattern in patterns:
+            m = re.match(pattern, text)
+            if not m:
+                continue
+
+            target = m.group(1).strip()
+            target = re.sub(r"^(the|a|an)\s+", "", target)
+            target = target.replace(" ", "_")
+
+            if not target:
+                return False
+
+            payload = {
+                "source": "omi_skill_router",
+                "text": raw_text,
+                "target": target,
+                "route": "frontier_object_explorer",
+            }
+
+            self.object_goal_pub.publish(String(data=json.dumps(payload, sort_keys=True)))
+            self.say(f"I will explore and search for {target.replace('_', ' ')}.", "object_explorer")
+            self.emit_processed_stt(
+                {
+                    "stage": "routed_frontier_object_goal",
+                    "raw_text": raw_text,
+                    "target": target,
+                    "topic": str(self.get_parameter("object_goal_topic").value),
+                }
+            )
+            return True
+
+        return False
+
 
     def parse_command(self, text: str) -> tuple[str, str]:
         norm = clean_text(text)
