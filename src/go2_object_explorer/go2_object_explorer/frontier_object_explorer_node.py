@@ -81,11 +81,22 @@ class ObjectObservation:
 @dataclass
 class Frontier:
     frontier_id: int
+
+    # Safe known-free navigation goal.
     map_x: float
     map_y: float
+
     cell_count: int
     distance_m: float
     score: float
+
+    # Actual representative point on the free/unknown boundary.
+    raw_x: float = 0.0
+    raw_y: float = 0.0
+
+    # Clearance of the safe goal and boundary point.
+    clearance_m: float = 0.0
+    boundary_clearance_m: float = 0.0
 
 
 class OptionalSam2Refiner:
@@ -197,6 +208,30 @@ class FrontierObjectExplorerNode(Node):
         self.declare_parameter("frontier_distance_weight", 1.0)
         self.declare_parameter("frontier_size_weight", 0.08)
         self.declare_parameter("frontier_heading_weight", 0.35)
+        self.declare_parameter(
+            "frontier_occupied_threshold",
+            65,
+        )
+        self.declare_parameter(
+            "frontier_min_goal_clearance_m",
+            0.50,
+        )
+        self.declare_parameter(
+            "frontier_standoff_min_m",
+            0.55,
+        )
+        self.declare_parameter(
+            "frontier_standoff_max_m",
+            1.20,
+        )
+        self.declare_parameter(
+            "frontier_target_standoff_m",
+            0.75,
+        )
+        self.declare_parameter(
+            "frontier_clearance_weight",
+            3.0,
+        )
 
         # Camera + map frontier fusion.
         # fallback_and: prefer map_frontier AND camera_condition, but fallback to map-only if none exist.
@@ -1107,20 +1142,356 @@ class FrontierObjectExplorerNode(Node):
         return passed, score, reason
 
 
-    def compute_frontiers(self, pose: tuple[float, float, float]) -> list[Frontier]:
+    def nearest_reachable_start(
+        self,
+        clear_mask: np.ndarray,
+        start_x: int,
+        start_y: int,
+    ) -> Optional[tuple[int, int]]:
+        height, width = clear_mask.shape
+
+        if (
+            0 <= start_x < width
+            and 0 <= start_y < height
+            and clear_mask[start_y, start_x]
+        ):
+            return start_x, start_y
+
+        # SLAM may temporarily mark the robot cell close to unknown.
+        # Find the nearest valid known-free cell.
+        for radius in range(1, 25):
+            x0 = max(0, start_x - radius)
+            x1 = min(width - 1, start_x + radius)
+            y0 = max(0, start_y - radius)
+            y1 = min(height - 1, start_y + radius)
+
+            for y in range(y0, y1 + 1):
+                for x in range(x0, x1 + 1):
+                    if clear_mask[y, x]:
+                        return x, y
+
+        return None
+
+    def reachable_clear_mask(
+        self,
+        clear_mask: np.ndarray,
+        robot_cell: tuple[int, int],
+    ) -> np.ndarray:
+        height, width = clear_mask.shape
+        reachable = np.zeros_like(clear_mask, dtype=bool)
+
+        start = self.nearest_reachable_start(
+            clear_mask,
+            robot_cell[0],
+            robot_cell[1],
+        )
+
+        if start is None:
+            return reachable
+
+        queue = deque([start])
+        reachable[start[1], start[0]] = True
+
+        neighbors = (
+            (-1, -1), (0, -1), (1, -1),
+            (-1,  0),          (1,  0),
+            (-1,  1), (0,  1), (1,  1),
+        )
+
+        while queue:
+            x, y = queue.popleft()
+
+            for dx, dy in neighbors:
+                nx = x + dx
+                ny = y + dy
+
+                if nx < 0 or ny < 0 or nx >= width or ny >= height:
+                    continue
+
+                if reachable[ny, nx] or not clear_mask[ny, nx]:
+                    continue
+
+                reachable[ny, nx] = True
+                queue.append((nx, ny))
+
+        return reachable
+
+    def choose_clearance_frontier_goal(
+        self,
+        grid: OccupancyGrid,
+        data: np.ndarray,
+        free: np.ndarray,
+        unknown: np.ndarray,
+        cluster: list[tuple[int, int]],
+        occupied_clearance: np.ndarray,
+        known_free_clearance: np.ndarray,
+        reachable: np.ndarray,
+        pose: tuple[float, float, float],
+    ) -> Optional[dict[str, float]]:
+        resolution = float(grid.info.resolution)
+        height, width = free.shape
+
+        cluster_mean_x = sum(cell[0] for cell in cluster) / len(cluster)
+        cluster_mean_y = sum(cell[1] for cell in cluster) / len(cluster)
+
+        # Select a real cell from the cluster, not the arithmetic mean.
+        # Primary objective: maximum distance from occupied cells.
+        # Tie-break: remain representative of the cluster.
+        raw_x_cell, raw_y_cell = max(
+            cluster,
+            key=lambda cell: (
+                float(occupied_clearance[cell[1], cell[0]]),
+                -math.hypot(
+                    cell[0] - cluster_mean_x,
+                    cell[1] - cluster_mean_y,
+                ),
+            ),
+        )
+
+        raw_world_x, raw_world_y = self.map_cell_to_world(
+            grid,
+            raw_x_cell,
+            raw_y_cell,
+        )
+
+        # Estimate the unknown-space direction around this frontier.
+        neighborhood_cells = max(3, int(round(0.60 / resolution)))
+
+        x0 = max(0, raw_x_cell - neighborhood_cells)
+        x1 = min(width, raw_x_cell + neighborhood_cells + 1)
+        y0 = max(0, raw_y_cell - neighborhood_cells)
+        y1 = min(height, raw_y_cell + neighborhood_cells + 1)
+
+        unknown_local_y, unknown_local_x = np.where(
+            unknown[y0:y1, x0:x1]
+        )
+
+        if len(unknown_local_x) > 0:
+            unknown_mean_x = x0 + float(unknown_local_x.mean())
+            unknown_mean_y = y0 + float(unknown_local_y.mean())
+
+            # Inward points away from unknown space.
+            inward_x = raw_x_cell - unknown_mean_x
+            inward_y = raw_y_cell - unknown_mean_y
+        else:
+            robot_cell = self.world_to_map_cell(
+                grid,
+                pose[0],
+                pose[1],
+            )
+
+            if robot_cell is None:
+                return None
+
+            inward_x = robot_cell[0] - raw_x_cell
+            inward_y = robot_cell[1] - raw_y_cell
+
+        inward_norm = math.hypot(inward_x, inward_y)
+
+        if inward_norm < 1e-6:
+            return None
+
+        inward_x /= inward_norm
+        inward_y /= inward_norm
+
+        min_standoff = float(
+            self.get_parameter(
+                "frontier_standoff_min_m"
+            ).value
+        )
+        max_standoff = float(
+            self.get_parameter(
+                "frontier_standoff_max_m"
+            ).value
+        )
+        target_standoff = float(
+            self.get_parameter(
+                "frontier_target_standoff_m"
+            ).value
+        )
+        min_clearance = float(
+            self.get_parameter(
+                "frontier_min_goal_clearance_m"
+            ).value
+        )
+
+        search_radius_cells = max(
+            1,
+            int(math.ceil(max_standoff / resolution)),
+        )
+
+        best = None
+        best_key = None
+
+        robot_x, robot_y, _ = pose
+
+        for goal_y in range(
+            max(0, raw_y_cell - search_radius_cells),
+            min(height, raw_y_cell + search_radius_cells + 1),
+        ):
+            for goal_x in range(
+                max(0, raw_x_cell - search_radius_cells),
+                min(width, raw_x_cell + search_radius_cells + 1),
+            ):
+                if not free[goal_y, goal_x]:
+                    continue
+
+                if not reachable[goal_y, goal_x]:
+                    continue
+
+                offset_x = goal_x - raw_x_cell
+                offset_y = goal_y - raw_y_cell
+                standoff_m = math.hypot(
+                    offset_x,
+                    offset_y,
+                ) * resolution
+
+                if standoff_m < min_standoff:
+                    continue
+
+                if standoff_m > max_standoff:
+                    continue
+
+                # Goal must be on the known/free side of the boundary.
+                offset_norm = max(
+                    1e-6,
+                    math.hypot(offset_x, offset_y),
+                )
+                direction_dot = (
+                    (offset_x / offset_norm) * inward_x
+                    + (offset_y / offset_norm) * inward_y
+                )
+
+                if direction_dot <= 0.10:
+                    continue
+
+                goal_known_clearance = float(
+                    known_free_clearance[goal_y, goal_x]
+                )
+                goal_occupied_clearance = float(
+                    occupied_clearance[goal_y, goal_x]
+                )
+
+                # This requires an entire known-free neighborhood around
+                # the robot goal, not merely one free grid cell.
+                if goal_known_clearance < min_clearance:
+                    continue
+
+                # Ensure the path from safe goal to frontier representative
+                # remains inside known free cells.
+                line = self.line_cells(
+                    goal_x,
+                    goal_y,
+                    raw_x_cell,
+                    raw_y_cell,
+                )
+
+                if any(
+                    data[line_y, line_x] != 0
+                    for line_x, line_y in line
+                ):
+                    continue
+
+                goal_world_x, goal_world_y = self.map_cell_to_world(
+                    grid,
+                    goal_x,
+                    goal_y,
+                )
+
+                robot_distance = math.hypot(
+                    goal_world_x - robot_x,
+                    goal_world_y - robot_y,
+                )
+
+                # Lexicographic ranking:
+                # 1. farthest from occupied cells
+                # 2. farthest from unknown/non-free cells
+                # 3. closest to desired standoff
+                # 4. shorter travel distance
+                candidate_key = (
+                    goal_occupied_clearance,
+                    goal_known_clearance,
+                    -abs(standoff_m - target_standoff),
+                    -robot_distance,
+                )
+
+                if best_key is None or candidate_key > best_key:
+                    best_key = candidate_key
+                    best = {
+                        "goal_x": goal_world_x,
+                        "goal_y": goal_world_y,
+                        "raw_x": raw_world_x,
+                        "raw_y": raw_world_y,
+                        "clearance_m": goal_occupied_clearance,
+                        "known_clearance_m": goal_known_clearance,
+                        "boundary_clearance_m": float(
+                            occupied_clearance[
+                                raw_y_cell,
+                                raw_x_cell,
+                            ]
+                        ),
+                        "standoff_m": standoff_m,
+                    }
+
+        return best
+
+    def compute_frontiers(
+        self,
+        pose: tuple[float, float, float],
+    ) -> list[Frontier]:
         grid = self.latest_map
+
         if grid is None:
             return []
 
         width = int(grid.info.width)
         height = int(grid.info.height)
+
         if width <= 0 or height <= 0:
             return []
 
-        data = np.asarray(grid.data, dtype=np.int16).reshape((height, width))
+        resolution = float(grid.info.resolution)
+        data = np.asarray(
+            grid.data,
+            dtype=np.int16,
+        ).reshape((height, width))
 
         free = data == 0
         unknown = data < 0
+
+        occupied_threshold = int(
+            self.get_parameter(
+                "frontier_occupied_threshold"
+            ).value
+        )
+        occupied = data >= occupied_threshold
+
+        # Distance to the closest occupied grid cell.
+        occupied_input = (~occupied).astype(np.uint8)
+        occupied_input[0, :] = 0
+        occupied_input[-1, :] = 0
+        occupied_input[:, 0] = 0
+        occupied_input[:, -1] = 0
+
+        occupied_clearance = (
+            cv2.distanceTransform(
+                occupied_input,
+                cv2.DIST_L2,
+                5,
+            )
+            * resolution
+        )
+
+        # Distance to occupied OR unknown.
+        # Used to ensure the complete robot goal neighborhood is known free.
+        known_free_clearance = (
+            cv2.distanceTransform(
+                free.astype(np.uint8),
+                cv2.DIST_L2,
+                5,
+            )
+            * resolution
+        )
 
         frontier_mask = np.zeros_like(free, dtype=bool)
 
@@ -1129,8 +1500,12 @@ class FrontierObjectExplorerNode(Node):
                 if not free[y, x]:
                     continue
 
-                nb_unknown = unknown[y - 1:y + 2, x - 1:x + 2]
-                if np.any(nb_unknown):
+                if np.any(
+                    unknown[
+                        y - 1:y + 2,
+                        x - 1:x + 2,
+                    ]
+                ):
                     frontier_mask[y, x] = True
 
         visited = np.zeros_like(frontier_mask, dtype=bool)
@@ -1138,95 +1513,252 @@ class FrontierObjectExplorerNode(Node):
 
         for y in range(1, height - 1):
             for x in range(1, width - 1):
-                if not frontier_mask[y, x] or visited[y, x]:
+                if (
+                    not frontier_mask[y, x]
+                    or visited[y, x]
+                ):
                     continue
 
-                q = deque([(x, y)])
+                queue = deque([(x, y)])
                 visited[y, x] = True
                 cluster = []
 
-                while q:
-                    cx, cy = q.popleft()
-                    cluster.append((cx, cy))
+                while queue:
+                    current_x, current_y = queue.popleft()
+                    cluster.append((current_x, current_y))
 
-                    for nx in (cx - 1, cx, cx + 1):
-                        for ny in (cy - 1, cy, cy + 1):
-                            if nx < 1 or nx >= width - 1 or ny < 1 or ny >= height - 1:
+                    for neighbor_x in (
+                        current_x - 1,
+                        current_x,
+                        current_x + 1,
+                    ):
+                        for neighbor_y in (
+                            current_y - 1,
+                            current_y,
+                            current_y + 1,
+                        ):
+                            if (
+                                neighbor_x < 1
+                                or neighbor_x >= width - 1
+                                or neighbor_y < 1
+                                or neighbor_y >= height - 1
+                            ):
                                 continue
-                            if visited[ny, nx] or not frontier_mask[ny, nx]:
+
+                            if (
+                                visited[neighbor_y, neighbor_x]
+                                or not frontier_mask[
+                                    neighbor_y,
+                                    neighbor_x,
+                                ]
+                            ):
                                 continue
-                            visited[ny, nx] = True
-                            q.append((nx, ny))
+
+                            visited[
+                                neighbor_y,
+                                neighbor_x,
+                            ] = True
+                            queue.append(
+                                (neighbor_x, neighbor_y)
+                            )
 
                 clusters.append(cluster)
 
-        min_cells = int(self.get_parameter("frontier_min_cluster_cells").value)
-        bx, by, byaw = pose
+        robot_cell = self.world_to_map_cell(
+            grid,
+            pose[0],
+            pose[1],
+        )
 
-        mode = str(self.get_parameter("frontier_camera_map_mode").value).strip().lower()
-        visual_bonus = float(self.get_parameter("visual_frontier_bonus").value)
+        if robot_cell is None:
+            return []
+
+        min_goal_clearance = float(
+            self.get_parameter(
+                "frontier_min_goal_clearance_m"
+            ).value
+        )
+
+        navigable_clear_mask = (
+            free
+            & (known_free_clearance >= min_goal_clearance)
+        )
+
+        reachable = self.reachable_clear_mask(
+            navigable_clear_mask,
+            robot_cell,
+        )
+
+        min_cells = int(
+            self.get_parameter(
+                "frontier_min_cluster_cells"
+            ).value
+        )
+
+        robot_x, robot_y, robot_yaw = pose
+
+        mode = str(
+            self.get_parameter(
+                "frontier_camera_map_mode"
+            ).value
+        ).strip().lower()
+
+        visual_bonus = float(
+            self.get_parameter(
+                "visual_frontier_bonus"
+            ).value
+        )
+        clearance_weight = float(
+            self.get_parameter(
+                "frontier_clearance_weight"
+            ).value
+        )
 
         all_map_frontiers: list[Frontier] = []
         camera_map_frontiers: list[Frontier] = []
 
-        fid = 0
+        frontier_id = 0
 
         for cluster in clusters:
             if len(cluster) < min_cells:
                 continue
 
-            xs = np.asarray([c[0] for c in cluster], dtype=np.float32)
-            ys = np.asarray([c[1] for c in cluster], dtype=np.float32)
+            selected = self.choose_clearance_frontier_goal(
+                grid=grid,
+                data=data,
+                free=free,
+                unknown=unknown,
+                cluster=cluster,
+                occupied_clearance=occupied_clearance,
+                known_free_clearance=known_free_clearance,
+                reachable=reachable,
+                pose=pose,
+            )
 
-            mx_cell = float(xs.mean())
-            my_cell = float(ys.mean())
-            wx, wy = self.map_cell_to_world(grid, mx_cell, my_cell)
-
-            dist = math.hypot(wx - bx, wy - by)
-
-            if dist < float(self.get_parameter("frontier_min_distance_m").value):
+            if selected is None:
                 continue
-            if dist > float(self.get_parameter("frontier_max_distance_m").value):
+
+            goal_x = selected["goal_x"]
+            goal_y = selected["goal_y"]
+            raw_x = selected["raw_x"]
+            raw_y = selected["raw_y"]
+
+            distance = math.hypot(
+                goal_x - robot_x,
+                goal_y - robot_y,
+            )
+
+            if distance < float(
+                self.get_parameter(
+                    "frontier_min_distance_m"
+                ).value
+            ):
                 continue
-            if self.is_frontier_blacklisted(wx, wy):
+
+            if distance > float(
+                self.get_parameter(
+                    "frontier_max_distance_m"
+                ).value
+            ):
                 continue
 
-            heading = math.atan2(wy - by, wx - bx)
-            heading_err = self.angle_error(heading, byaw)
+            if self.is_frontier_blacklisted(
+                goal_x,
+                goal_y,
+            ):
+                continue
 
-            size_w = float(self.get_parameter("frontier_size_weight").value)
-            dist_w = float(self.get_parameter("frontier_distance_weight").value)
-            heading_w = float(self.get_parameter("frontier_heading_weight").value)
+            heading = math.atan2(
+                goal_y - robot_y,
+                goal_x - robot_x,
+            )
+            heading_error = self.angle_error(
+                heading,
+                robot_yaw,
+            )
 
-            camera_ok, camera_score, camera_reason = self.camera_map_frontier_condition(grid, data, wx, wy)
+            size_weight = float(
+                self.get_parameter(
+                    "frontier_size_weight"
+                ).value
+            )
+            distance_weight = float(
+                self.get_parameter(
+                    "frontier_distance_weight"
+                ).value
+            )
+            heading_weight = float(
+                self.get_parameter(
+                    "frontier_heading_weight"
+                ).value
+            )
 
-            base_score = size_w * len(cluster) - dist_w * dist - heading_w * heading_err
-            fused_score = base_score + visual_bonus * camera_score
+            # Camera relevance is evaluated at the actual frontier boundary,
+            # not at the inward safe navigation point.
+            camera_ok, camera_score, camera_reason = (
+                self.camera_map_frontier_condition(
+                    grid,
+                    data,
+                    raw_x,
+                    raw_y,
+                )
+            )
+
+            base_score = (
+                size_weight * len(cluster)
+                - distance_weight * distance
+                - heading_weight * heading_error
+                + clearance_weight * selected["clearance_m"]
+            )
+
+            fused_score = (
+                base_score
+                + visual_bonus * camera_score
+            )
 
             frontier = Frontier(
-                frontier_id=fid,
-                map_x=wx,
-                map_y=wy,
+                frontier_id=frontier_id,
+                map_x=goal_x,
+                map_y=goal_y,
                 cell_count=len(cluster),
-                distance_m=dist,
+                distance_m=distance,
                 score=fused_score,
+                raw_x=raw_x,
+                raw_y=raw_y,
+                clearance_m=selected["clearance_m"],
+                boundary_clearance_m=selected[
+                    "boundary_clearance_m"
+                ],
             )
-            fid += 1
+            frontier_id += 1
 
             all_map_frontiers.append(frontier)
 
             if camera_ok:
                 camera_map_frontiers.append(frontier)
 
-            self.get_logger().debug(
-                f"frontier_candidate x={wx:.2f} y={wy:.2f} "
-                f"cells={len(cluster)} dist={dist:.2f} "
-                f"camera_ok={camera_ok} camera_reason={camera_reason} "
+            self.get_logger().info(
+                "frontier_candidate "
+                f"raw=({raw_x:.2f},{raw_y:.2f}) "
+                f"goal=({goal_x:.2f},{goal_y:.2f}) "
+                f"clearance={selected['clearance_m']:.2f}m "
+                f"boundary_clearance="
+                f"{selected['boundary_clearance_m']:.2f}m "
+                f"standoff={selected['standoff_m']:.2f}m "
+                f"cells={len(cluster)} "
+                f"camera_ok={camera_ok} "
+                f"camera_reason={camera_reason} "
                 f"score={fused_score:.2f}"
             )
 
-        all_map_frontiers.sort(key=lambda f: f.score, reverse=True)
-        camera_map_frontiers.sort(key=lambda f: f.score, reverse=True)
+        all_map_frontiers.sort(
+            key=lambda frontier: frontier.score,
+            reverse=True,
+        )
+        camera_map_frontiers.sort(
+            key=lambda frontier: frontier.score,
+            reverse=True,
+        )
 
         if mode == "strict_and":
             return camera_map_frontiers
@@ -1234,8 +1766,6 @@ class FrontierObjectExplorerNode(Node):
         if mode == "soft_score":
             return all_map_frontiers
 
-        # Default: use AND when possible, but avoid deadlock if the camera sector memory
-        # is empty or no frontier passed the visual condition.
         if camera_map_frontiers:
             return camera_map_frontiers
 

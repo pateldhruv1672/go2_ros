@@ -95,73 +95,75 @@ controller_server:
     use_realtime_priority: false
     enable_stamped_cmd_vel: false
     progress_checker:
-      plugin: nav2_controller::SimpleProgressChecker
-      required_movement_radius: 0.15
-      movement_time_allowance: 15.0
+      plugin: nav2_controller::PoseProgressChecker
+      required_movement_radius: 0.08
+      required_movement_angle: 0.12
+      movement_time_allowance: 20.0
     general_goal_checker:
       plugin: nav2_controller::SimpleGoalChecker
       stateful: true
-      xy_goal_tolerance: 0.2
-      yaw_goal_tolerance: 0.25
+      xy_goal_tolerance: 0.18
+      yaw_goal_tolerance: 0.12
     FollowPath:
       plugin: dwb_core::DWBLocalPlanner
       debug_trajectory_details: false
       min_vel_x: 0.0
-      max_vel_x: 0.12
+      max_vel_x: 0.28
       min_vel_y: 0.0
       max_vel_y: 0.0
-      max_vel_theta: 0.35
+      max_vel_theta: 0.6
       min_speed_xy: 0.0
-      max_speed_xy: 0.45
-      min_speed_theta: 0.0
-      acc_lim_x: 0.25
+      max_speed_xy: 0.28
+      min_speed_theta: 0.05
+      acc_lim_x: 0.5
       acc_lim_y: 0.0
-      acc_lim_theta: 0.5
-      decel_lim_x: -0.25
+      acc_lim_theta: 1.2
+      decel_lim_x: -0.6
       decel_lim_y: 0.0
-      decel_lim_theta: -0.5
+      decel_lim_theta: -1.2
       vx_samples: 16
       vy_samples: 1
-      vtheta_samples: 28
+      vtheta_samples: 40
       sim_time: 1.4
       linear_granularity: 0.05
       angular_granularity: 0.025
-      transform_tolerance: 0.5
-      xy_goal_tolerance: 0.3
-      yaw_goal_tolerance: 0.7
-      trans_stopped_velocity: 0.1
-      theta_stopped_velocity: 0.1
+      transform_tolerance: 1.2
+      xy_goal_tolerance: 0.18
+      yaw_goal_tolerance: 0.12
+      trans_stopped_velocity: 0.05
+      theta_stopped_velocity: 0.05
       short_circuit_trajectory_evaluation: true
       stateful: true
       critics:
       - RotateToGoal
       - Oscillation
-      - BaseObstacle
+      - ObstacleFootprint
       - GoalAlign
       - PathAlign
       - PathDist
       - GoalDist
-      BaseObstacle.scale: 0.6
       PathAlign.scale: 3.0
       PathAlign.forward_point_distance: 0.3
       PathDist.scale: 4.0
       GoalAlign.scale: 5.0
       GoalAlign.forward_point_distance: 0.3
       GoalDist.scale: 10.0
-      RotateToGoal.scale: 18.0
-      RotateToGoal.slowing_factor: 5.0
-      RotateToGoal.lookahead_time: -1.0
+      RotateToGoal.scale: 40.0
+      RotateToGoal.slowing_factor: 3.0
+      RotateToGoal.lookahead_time: 0.8
       Oscillation.scale: 1.0
-    transform_tolerance: 0.5
+      ObstacleFootprint.scale: 0.05
+      ObstacleFootprint.sum_scores: false
+    transform_tolerance: 1.2
 local_costmap:
   local_costmap:
     ros__parameters:
-      update_frequency: 5.0
-      publish_frequency: 2.0
-      global_frame: map
+      update_frequency: 10.0
+      publish_frequency: 5.0
+      global_frame: odom
       robot_base_frame: base_link
       use_sim_time: false
-      transform_tolerance: 1.0
+      transform_tolerance: 1.2
       rolling_window: true
       width: 5
       height: 5
@@ -184,10 +186,10 @@ local_costmap:
           clearing: true
           marking: true
           data_type: LaserScan
-          raytrace_max_range: 3.5
-          raytrace_min_range: 0.05
-          obstacle_max_range: 2.5
-          obstacle_min_range: 0.05
+          raytrace_max_range: 4.0
+          raytrace_min_range: 0.25
+          obstacle_max_range: 3.5
+          obstacle_min_range: 0.25
           inf_is_valid: true
           observation_persistence: 0.0
           expected_update_rate: 0.0
@@ -231,10 +233,11 @@ local_costmap:
           model_type: 0
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.65
+        cost_scaling_factor: 5.0
+        inflation_radius: 0.45
         enabled: true
       always_send_full_costmap: false
+      footprint_padding: 0.02
 global_costmap:
   global_costmap:
     ros__parameters:
@@ -243,7 +246,7 @@ global_costmap:
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: false
-      transform_tolerance: 0.5
+      transform_tolerance: 1.2
       resolution: 0.05
       track_unknown_space: false
       static_map: true
@@ -260,8 +263,8 @@ global_costmap:
         map_topic: /map_padded
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.7
+        cost_scaling_factor: 5.0
+        inflation_radius: 0.5
         enabled: true
       always_send_full_costmap: false
       rolling_window: false
@@ -271,7 +274,7 @@ global_costmap:
         observation_sources: scan
         combination_method: 1
         scan:
-          topic: /scan
+          topic: /scan_nav
           data_type: LaserScan
           marking: true
           clearing: true
@@ -282,6 +285,7 @@ global_costmap:
           inf_is_valid: true
           expected_update_rate: 0.0
           observation_persistence: 2.0
+      footprint_padding: 0.02
 map_server:
   ros__parameters:
     use_sim_time: false
@@ -329,12 +333,13 @@ behavior_server:
       plugin: nav2_behaviors::AssistedTeleop
     global_frame: odom
     robot_base_frame: base_link
-    transform_tolerance: 2.0
+    transform_tolerance: 1.2
     use_sim_time: false
-    simulate_ahead_time: 2.0
-    max_rotational_vel: 1.0
-    min_rotational_vel: 0.4
-    rotational_acc_lim: 3.2
+    simulate_ahead_time: 1.0
+    max_rotational_vel: 0.6
+    min_rotational_vel: 0.1
+    rotational_acc_lim: 1.2
+    local_frame: odom
 robot_state_publisher:
   ros__parameters:
     use_sim_time: false
@@ -368,22 +373,26 @@ collision_monitor:
       min_height: 0.0
       max_height: 2.0
       enabled: true
+      source_timeout: 2.0
     polygons:
     - StopPolygon
     - SlowdownPolygon
     StopPolygon:
-      type: polygon
-      points: '[[0.65, 0.28], [0.65, -0.28], [-0.20, -0.28], [-0.20, 0.28]]'
+      type: circle
+      radius: 0.56
       action_type: stop
       min_points: 4
       visualize: true
       polygon_pub_topic: stop_polygon
+      enabled: true
     SlowdownPolygon:
-      type: polygon
-      points: '[[1.20, 0.45], [1.20, -0.45], [-0.25, -0.45], [-0.25, 0.45]]'
+      type: circle
+      radius: 0.78
       action_type: slowdown
-      slowdown_ratio: 0.35
+      slowdown_ratio: 0.65
       min_points: 4
       visualize: true
       polygon_pub_topic: slowdown_polygon
+      enabled: true
     enabled: true
+    base_shift_correction: true

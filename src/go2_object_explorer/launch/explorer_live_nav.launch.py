@@ -2,7 +2,12 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    LogInfo,
+    TimerAction,
+)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -37,6 +42,23 @@ def generate_launch_description():
         "nav2_params_live_explorer.yaml",
     )
 
+    scan_relay = Node(
+        package="go2_object_explorer",
+        executable="scan_retimestamp_node",
+        name="object_explorer_scan_retimestamp_node",
+        output="screen",
+        respawn=True,
+        respawn_delay=2.0,
+        parameters=[
+            {
+                "input_topic": "/scan",
+                "output_topic": "/scan_nav",
+                "frame_id": "",
+                "stamp_offset_sec": 0.0,
+            }
+        ],
+    )
+
     motion_arbiter = Node(
         package="go2_nav_tools",
         executable="motion_arbiter",
@@ -49,15 +71,15 @@ def generate_launch_description():
                 "escape_topic": "/cmd_vel_escape",
                 "output_topic": "/cmd_vel_nav",
                 "source_timeout_sec": 0.40,
-                "nav2_max_x": 0.75,
+                "nav2_max_x": 0.30,
                 "nav2_max_y": 0.0,
-                "nav2_max_theta": 0.90,
-                "omi_max_x": 0.25,
-                "omi_max_y": 0.20,
+                "nav2_max_theta": 0.70,
+                "omi_max_x": 0.20,
+                "omi_max_y": 0.15,
                 "omi_max_theta": 0.60,
-                "escape_max_x": 0.30,
-                "escape_max_y": 0.25,
-                "escape_max_theta": 0.70,
+                "escape_max_x": 0.15,
+                "escape_max_y": 0.10,
+                "escape_max_theta": 0.35,
             }
         ],
     )
@@ -101,45 +123,20 @@ def generate_launch_description():
         ],
     )
 
-    scan_retimestamp = Node(
-
-        package="go2_object_explorer",
-
-        executable="scan_retimestamp_node",
-
-        name="object_explorer_scan_retimestamp_node",
-
-        output="screen",
-
-        respawn=True,
-
-        respawn_delay=2.0,
-
-        parameters=[
-
-            {
-
-                "input_topic": "/scan",
-
-                "output_topic": "/scan_nav",
-
-                "frame_id": "",
-
-                "stamp_offset_sec": -0.08,
-
-            }
-
-        ],
-
-    )
-
-
     return LaunchDescription(
         [
-            
-        scan_retimestamp,
-DeclareLaunchArgument("padding_m", default_value="3.0"),
-            DeclareLaunchArgument("nav2_start_delay_sec", default_value="30.0"),
+            DeclareLaunchArgument("padding_m", default_value="3.0"),
+            DeclareLaunchArgument(
+                "nav2_start_delay_sec",
+                default_value="30.0",
+            ),
+            LogInfo(
+                msg=[
+                    "[explorer_live_nav] Nav2 parameters: ",
+                    nav2_params,
+                ]
+            ),
+            scan_relay,
             motion_arbiter,
             slam,
             padded_map,

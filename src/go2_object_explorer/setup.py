@@ -27,6 +27,9 @@ setup(
     license="MIT",
     entry_points={
         "console_scripts": [
+            "nav2_diagnostic_logger_node = go2_object_explorer.nav2_diagnostic_logger_node:main",
+            "nav2_readiness_activator_node = go2_object_explorer.nav2_readiness_activator_node:main",
+            "annotated_image_qos_relay_node = go2_object_explorer.annotated_image_qos_relay_node:main",
             "scan_retimestamp_node = go2_object_explorer.scan_retimestamp_node:main",
             "safe_frontier_filter_node = go2_object_explorer.safe_frontier_filter_node:main",
             "topic_web_dashboard_node = go2_object_explorer.topic_web_dashboard_node:main",
