@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List
+import math
+from typing import Any, Dict, List, Optional
 
 import rclpy
-from geometry_msgs.msg import PoseStamped, Twist
-from nav2_msgs.action import NavigateThroughPoses, NavigateToPose
+from geometry_msgs.msg import PoseStamped
+from nav2_msgs.action import ComputePathToPose, NavigateThroughPoses, NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 
 
-def _as_bool(value) -> bool:
+def as_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -19,157 +20,208 @@ def _as_bool(value) -> bool:
     return bool(value)
 
 
-def _pose_from_dict(node: Node, pose_data: Dict[str, Any]) -> PoseStamped:
+def finite(value: Any) -> bool:
+    try:
+        return math.isfinite(float(value))
+    except Exception:
+        return False
+
+
+def pose_from_dict(node: Node, data: Dict[str, Any]) -> PoseStamped:
     pose = PoseStamped()
-    pose.header.frame_id = str(pose_data.get("frame_id", "map"))
+    pose.header.frame_id = str(data.get("frame_id", "map"))
     pose.header.stamp = node.get_clock().now().to_msg()
-    pose.pose.position.x = float(pose_data.get("x", 0.0))
-    pose.pose.position.y = float(pose_data.get("y", 0.0))
-    pose.pose.position.z = float(pose_data.get("z", 0.0))
-    pose.pose.orientation.x = float(pose_data.get("qx", 0.0))
-    pose.pose.orientation.y = float(pose_data.get("qy", 0.0))
-    pose.pose.orientation.z = float(pose_data.get("qz", 0.0))
-    pose.pose.orientation.w = float(pose_data.get("qw", 1.0))
+    pose.pose.position.x = float(data["x"])
+    pose.pose.position.y = float(data["y"])
+    pose.pose.position.z = float(data.get("z", 0.0))
+    if finite(data.get("yaw")):
+        yaw = float(data["yaw"])
+        pose.pose.orientation.z = math.sin(yaw * 0.5)
+        pose.pose.orientation.w = math.cos(yaw * 0.5)
+    else:
+        pose.pose.orientation.x = float(data.get("qx", 0.0))
+        pose.pose.orientation.y = float(data.get("qy", 0.0))
+        pose.pose.orientation.z = float(data.get("qz", 0.0))
+        pose.pose.orientation.w = float(data.get("qw", 1.0))
     return pose
 
 
-def _extract_pose_list(command: Dict[str, Any]) -> List[Dict[str, Any]]:
+def pose_list(command: Dict[str, Any]) -> List[Dict[str, Any]]:
     if isinstance(command.get("poses"), list):
         return [p for p in command["poses"] if isinstance(p, dict)]
-    if isinstance(command.get("pose"), dict) and command["pose"]:
+    if isinstance(command.get("pose"), dict):
         return [command["pose"]]
-    route = command.get("route") or []
-    poses: List[Dict[str, Any]] = []
-    for item in route:
-        if not isinstance(item, dict):
-            continue
-        pose = item.get("pose") if isinstance(item.get("pose"), dict) else item
-        if isinstance(pose, dict) and "x" in pose and "y" in pose:
-            poses.append(pose)
-    selected = command.get("selected_goal") or {}
-    if isinstance(selected, dict) and isinstance(selected.get("pose"), dict):
-        poses.insert(0, selected["pose"])
-    return poses
+    return []
 
 
 class Nav2ToolServer(Node):
     def __init__(self) -> None:
         super().__init__("go2_nav2_tool_server")
         self.declare_parameter("enable_motion", False)
-        self.declare_parameter("cmd_vel_topic", "/cmd_vel_out")
-        self.status_pub = self.create_publisher(String, "/go2_nav/status", 10)
+        self.declare_parameter("preflight_path", True)
+        self.declare_parameter("allowed_goal_frame", "map")
+        self.declare_parameter("stop_topic", "/go2_motion/stop")
+        self.status_pub = self.create_publisher(String, "/go2_nav/status", 20)
         self.recovery_pub = self.create_publisher(String, "/go2_nav/recovery_request", 10)
-        self.cmd_pub = self.create_publisher(Twist, str(self.get_parameter("cmd_vel_topic").value), 10)
-        self.create_subscription(String, "/go2_nav/command", self._on_command, 10)
+        self.stop_pub = self.create_publisher(Bool, str(self.get_parameter("stop_topic").value), 10)
+        self.create_subscription(String, "/go2_nav/command", self.on_command, 20)
         self.nav_client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         self.through_client = ActionClient(self, NavigateThroughPoses, "navigate_through_poses")
-        self.get_logger().info("Nav2 tool server ready; motion disabled unless enable_motion:=true")
+        self.path_client = ActionClient(self, ComputePathToPose, "compute_path_to_pose")
+        self.active_handle = None
+        self.command_seq = 0
+        self.get_logger().info("safe Nav2 tool server ready")
 
     @property
     def motion_enabled(self) -> bool:
-        return _as_bool(self.get_parameter("enable_motion").value)
+        return as_bool(self.get_parameter("enable_motion").value)
 
-    def _publish_status(self, payload: dict) -> None:
+    def publish(self, payload: Dict[str, Any]) -> None:
+        payload.setdefault("motion_enabled", self.motion_enabled)
         self.status_pub.publish(String(data=json.dumps(payload, sort_keys=True)))
 
-    def _on_command(self, msg: String) -> None:
+    def valid_pose(self, data: Dict[str, Any]) -> Optional[str]:
+        if not finite(data.get("x")) or not finite(data.get("y")):
+            return "pose requires finite x and y"
+        frame = str(data.get("frame_id", "map"))
+        allowed = str(self.get_parameter("allowed_goal_frame").value)
+        if frame != allowed:
+            return f"goal frame {frame!r} is not allowed; expected {allowed!r}"
+        return None
+
+    def stop(self, reason: str) -> None:
+        if self.active_handle is not None:
+            try:
+                self.active_handle.cancel_goal_async()
+            except Exception:
+                pass
+            self.active_handle = None
+        self.stop_pub.publish(Bool(data=True))
+        self.publish({"success": True, "action": "stop_robot", "reason": reason})
+
+    def on_command(self, msg: String) -> None:
         try:
             command = json.loads(msg.data)
-            action = command.get("action")
-            if action == "stop_robot":
-                self._stop_robot(command)
-            elif action in {"navigate_to_pose", "frontier_explore", "coverage_explore"}:
-                self._navigate_to_pose(command)
-            elif action in {"navigate_through_poses", "navigate_tour_route"}:
-                self._navigate_through_poses(command)
-            elif action == "return_to_spawn":
-                self._navigate_to_pose({"action": "navigate_to_pose", "pose": self._spawn_pose_from_command(command), "source_action": action})
-            elif action == "navigate_to_place":
-                self._navigate_to_place(command)
-            elif action in {"recover_localization", "recover_nav_failure"}:
-                self._request_recovery(command)
-            elif action == "manual_assisted_explore":
-                self._publish_status({"success": True, "action": action, "message": "manual mode; memory stack should keep recording"})
-            else:
-                self._publish_status({"success": False, "message": f"unknown nav action {action}", "command": command})
+            if not isinstance(command, dict):
+                raise ValueError("command must be a JSON object")
         except Exception as exc:
-            self._publish_status({"success": False, "message": str(exc)})
-
-    def _stop_robot(self, command: Dict[str, Any] | None = None) -> None:
-        self.cmd_pub.publish(Twist())
-        self._publish_status({"success": True, "action": "stop_robot", "motion_enabled": self.motion_enabled, "reason": (command or {}).get("reason")})
-
-    def _spawn_pose_from_command(self, command: Dict[str, Any]) -> Dict[str, Any]:
-        if isinstance(command.get("spawn_pose"), dict):
-            return command["spawn_pose"]
-        poses = _extract_pose_list(command)
-        return poses[0] if poses else {}
-
-    def _navigate_to_place(self, command: Dict[str, Any]) -> None:
-        poses = _extract_pose_list(command)
-        if poses:
-            self._navigate_to_pose({"action": "navigate_to_pose", "pose": poses[0], "source_action": "navigate_to_place", "destination": command.get("destination")})
+            self.publish({"success": False, "action": "parse_error", "message": str(exc)})
+            return
+        action = str(command.get("action", ""))
+        if action in {"stop", "stop_robot", "pause"}:
+            self.stop(str(command.get("reason", action)))
+        elif action in {"navigate_to_pose", "frontier_explore", "navigate_to_object"}:
+            poses = pose_list(command)
+            if not poses:
+                self.publish({"success": False, "action": action, "message": "missing pose"})
+                return
+            self.navigate_one(command, poses[0])
+        elif action in {"navigate_through_poses", "navigate_tour_route"}:
+            self.navigate_many(command, pose_list(command))
+        elif action in {"recover_nav_failure", "recover_localization"}:
+            self.stop(action)
+            self.recovery_pub.publish(String(data=json.dumps(command, sort_keys=True)))
         else:
-            self._publish_status({"success": False, "action": "navigate_to_place", "message": "destination resolved but no pose available", "destination": command.get("destination")})
+            self.publish({"success": False, "action": action, "message": "unsupported action"})
 
-    def _navigate_to_pose(self, command: dict) -> None:
-        poses = _extract_pose_list(command)
-        pose_data = poses[0] if poses else command.get("pose", {})
-        if not pose_data:
-            self._publish_status({"success": False, "action": command.get("action"), "message": "no pose available"})
+    def navigate_one(self, command: Dict[str, Any], data: Dict[str, Any]) -> None:
+        error = self.valid_pose(data)
+        if error:
+            self.publish({"success": False, "action": command.get("action"), "message": error})
             return
         if not self.motion_enabled:
-            self._publish_status({"success": True, "dry_run": True, "action": command.get("action", "navigate_to_pose"), "pose": pose_data, "selected_goal": command.get("selected_goal")})
+            self.publish({"success": True, "dry_run": True, "action": command.get("action"), "pose": data})
             return
-        goal = NavigateToPose.Goal()
-        goal.pose = _pose_from_dict(self, pose_data)
-        if not self.nav_client.wait_for_server(timeout_sec=1.0):
-            self._publish_status({"success": False, "message": "navigate_to_pose action server unavailable"})
-            return
-        fut = self.nav_client.send_goal_async(goal)
-        fut.add_done_callback(lambda f: self._on_goal_response(f, command.get("action", "navigate_to_pose")))
-        self._publish_status({"success": True, "action": "navigate_to_pose_sent", "source_action": command.get("action"), "pose": pose_data})
+        self.command_seq += 1
+        seq = self.command_seq
+        pose = pose_from_dict(self, data)
+        if as_bool(self.get_parameter("preflight_path").value):
+            if not self.path_client.wait_for_server(timeout_sec=2.0):
+                self.publish({"success": False, "action": "preflight", "message": "compute_path_to_pose unavailable", "seq": seq})
+                return
+            goal = ComputePathToPose.Goal()
+            goal.goal = pose
+            future = self.path_client.send_goal_async(goal)
+            future.add_done_callback(lambda f: self.on_preflight_response(f, pose, command, seq))
+            self.publish({"success": True, "action": "preflight_sent", "seq": seq, "pose": data})
+        else:
+            self.send_nav(pose, command, seq)
 
-    def _navigate_through_poses(self, command: dict) -> None:
-        poses = _extract_pose_list(command)
-        if not poses:
-            self._publish_status({"success": False, "action": command.get("action"), "message": "no route poses available"})
-            return
-        if not self.motion_enabled:
-            self._publish_status({"success": True, "dry_run": True, "action": command.get("action", "navigate_through_poses"), "pose_count": len(poses), "poses": poses[:8]})
-            return
-        goal = NavigateThroughPoses.Goal()
-        goal.poses = [_pose_from_dict(self, p) for p in poses]
-        if not self.through_client.wait_for_server(timeout_sec=1.0):
-            self._publish_status({"success": False, "message": "navigate_through_poses action server unavailable"})
-            return
-        fut = self.through_client.send_goal_async(goal)
-        fut.add_done_callback(lambda f: self._on_goal_response(f, command.get("action", "navigate_through_poses")))
-        self._publish_status({"success": True, "action": "navigate_through_poses_sent", "pose_count": len(poses)})
-
-    def _request_recovery(self, command: Dict[str, Any]) -> None:
-        self._stop_robot(command)
-        self.recovery_pub.publish(String(data=json.dumps(command, sort_keys=True)))
-        self._publish_status({"success": True, "action": "recovery_requested", "issue": command.get("issue") or command.get("reason")})
-
-    def _on_goal_response(self, future, source_action: str) -> None:
+    def on_preflight_response(self, future, pose: PoseStamped, command: Dict[str, Any], seq: int) -> None:
         try:
             handle = future.result()
-            accepted = bool(handle.accepted)
-            self._publish_status({"success": accepted, "action": "goal_response", "source_action": source_action, "accepted": accepted})
-            if accepted:
-                result_future = handle.get_result_async()
-                result_future.add_done_callback(lambda f: self._on_goal_result(f, source_action))
+            if not handle.accepted:
+                self.publish({"success": False, "action": "preflight_rejected", "seq": seq})
+                return
+            handle.get_result_async().add_done_callback(lambda f: self.on_preflight_result(f, pose, command, seq))
         except Exception as exc:
-            self._publish_status({"success": False, "action": "goal_response_error", "source_action": source_action, "message": str(exc)})
+            self.publish({"success": False, "action": "preflight_error", "seq": seq, "message": str(exc)})
 
-    def _on_goal_result(self, future, source_action: str) -> None:
+    def on_preflight_result(self, future, pose: PoseStamped, command: Dict[str, Any], seq: int) -> None:
         try:
-            result = future.result()
-            status = getattr(result, "status", None)
-            self._publish_status({"success": status == 4, "action": "goal_result", "source_action": source_action, "status": status})
+            wrapped = future.result()
+            path = wrapped.result.path
+            if int(wrapped.status) != 4 or not path.poses:
+                self.publish({"success": False, "action": "preflight_no_path", "seq": seq, "status": int(wrapped.status)})
+                return
         except Exception as exc:
-            self._publish_status({"success": False, "action": "goal_result_error", "source_action": source_action, "message": str(exc)})
+            self.publish({"success": False, "action": "preflight_error", "seq": seq, "message": str(exc)})
+            return
+        self.send_nav(pose, command, seq)
+
+    def send_nav(self, pose: PoseStamped, command: Dict[str, Any], seq: int) -> None:
+        if not self.nav_client.wait_for_server(timeout_sec=2.0):
+            self.publish({"success": False, "action": "navigate_to_pose", "message": "action server unavailable", "seq": seq})
+            return
+        goal = NavigateToPose.Goal()
+        goal.pose = pose
+        future = self.nav_client.send_goal_async(goal)
+        future.add_done_callback(lambda f: self.on_goal_response(f, command, seq))
+        self.publish({"success": True, "action": "navigate_to_pose_sent", "seq": seq})
+
+    def navigate_many(self, command: Dict[str, Any], poses_data: List[Dict[str, Any]]) -> None:
+        if not poses_data:
+            self.publish({"success": False, "action": command.get("action"), "message": "missing poses"})
+            return
+        for item in poses_data:
+            error = self.valid_pose(item)
+            if error:
+                self.publish({"success": False, "action": command.get("action"), "message": error})
+                return
+        if not self.motion_enabled:
+            self.publish({"success": True, "dry_run": True, "action": command.get("action"), "pose_count": len(poses_data)})
+            return
+        if not self.through_client.wait_for_server(timeout_sec=2.0):
+            self.publish({"success": False, "action": command.get("action"), "message": "action server unavailable"})
+            return
+        goal = NavigateThroughPoses.Goal()
+        goal.poses = [pose_from_dict(self, p) for p in poses_data]
+        future = self.through_client.send_goal_async(goal)
+        self.command_seq += 1
+        seq = self.command_seq
+        future.add_done_callback(lambda f: self.on_goal_response(f, command, seq))
+        self.publish({"success": True, "action": "navigate_through_poses_sent", "seq": seq, "pose_count": len(poses_data)})
+
+    def on_goal_response(self, future, command: Dict[str, Any], seq: int) -> None:
+        try:
+            handle = future.result()
+            if not handle.accepted:
+                self.publish({"success": False, "action": "goal_rejected", "seq": seq})
+                return
+            self.active_handle = handle
+            handle.get_result_async().add_done_callback(lambda f: self.on_goal_result(f, command, seq))
+            self.publish({"success": True, "action": "goal_accepted", "seq": seq, "source_action": command.get("action")})
+        except Exception as exc:
+            self.publish({"success": False, "action": "goal_response_error", "seq": seq, "message": str(exc)})
+
+    def on_goal_result(self, future, command: Dict[str, Any], seq: int) -> None:
+        self.active_handle = None
+        try:
+            wrapped = future.result()
+            status = int(wrapped.status)
+            self.publish({"success": status == 4, "action": "goal_result", "seq": seq, "status": status, "source_action": command.get("action")})
+        except Exception as exc:
+            self.publish({"success": False, "action": "goal_result_error", "seq": seq, "message": str(exc)})
 
 
 def main(args=None) -> None:
@@ -177,6 +229,13 @@ def main(args=None) -> None:
     node = Nav2ToolServer()
     try:
         rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

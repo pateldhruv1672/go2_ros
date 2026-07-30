@@ -21,6 +21,5 @@ setup(
         'frontier_explorer = go2_nav_tools.frontier_explorer:main',
         'coverage_explorer = go2_nav_tools.coverage_explorer:main',
         'recovery_manager = go2_nav_tools.recovery_manager:main',
-        'agentic_explorer_supervisor = go2_nav_tools.agentic_explorer_supervisor:main',
     ]},
 )
