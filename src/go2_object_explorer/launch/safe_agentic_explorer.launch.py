@@ -31,6 +31,7 @@ def generate_launch_description():
         DeclareLaunchArgument("enable_sam2", default_value="false"),
         DeclareLaunchArgument("yolo_conf", default_value="0.60"),
         DeclareLaunchArgument("auto_start", default_value="false"),
+        DeclareLaunchArgument("enable_motion", default_value="false"),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(base_launch),
             launch_arguments=include_args.items(),
@@ -57,7 +58,7 @@ def generate_launch_description():
             executable="nav2_tool_server",
             name="go2_nav2_tool_server",
             output="screen",
-            parameters=[{"enable_motion": True, "preflight_path": True}],
+            parameters=[{"enable_motion": LaunchConfiguration("enable_motion"), "preflight_path": True}],
         ),
         Node(
             package="go2_nav_tools",

@@ -99,7 +99,7 @@ def generate_launch_description():
             "port": "8766",
             "auto_discover": "true",
             "topic_allow_regex": (
-                "(/rosout|/go2_agent/.*|/mrkl_explorer/.*|"
+                "(/rosout|/go2_vln/.*|/go2_agent/.*|/mrkl_explorer/.*|"
                 "/object_explorer/.*|/cmd_vel.*|/scan.*|/map.*|"
                 "/plan|/goal_pose|/tf|/tf_static|"
                 "/collision_monitor.*|/global_costmap/.*|"
