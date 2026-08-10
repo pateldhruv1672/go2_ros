@@ -20,5 +20,6 @@ setup(
         'voice_input_node = go2_langgraph_agent.voice_input_node:main',
         'tts_output_node = go2_langgraph_agent.tts_output_node:main',
         'time_travel_rviz_node = go2_langgraph_agent.time_travel_rviz_node:main',
+        'agentic_voice_action_node = go2_langgraph_agent.agentic_voice_action_node:main',
     ]},
 )

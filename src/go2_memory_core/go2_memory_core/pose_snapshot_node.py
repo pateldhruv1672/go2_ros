@@ -5,9 +5,12 @@ import json
 import rclpy
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from rclpy.time import Time
+from tf2_ros import Buffer, TransformListener, TransformException
 from std_msgs.msg import String
 
 from .memory_api import UnifiedMemoryAPI
+from .session_resolution import resolve_semantic_session_name
 
 
 def _as_bool(value) -> bool:
@@ -32,12 +35,20 @@ class PoseSnapshotNode(Node):
         self.declare_parameter('session_name', 'default')
         self.declare_parameter('auto_write_checkpoints', False)
         self.declare_parameter('write_period_sec', 5.0)
-        self.api = UnifiedMemoryAPI(session_root=self.get_parameter('session_root').value)
+        self.declare_parameter('map_frame', 'map')
+        self.declare_parameter('base_frame', 'base_link')
+        # SPARKY_TEACH_BACKGROUND_CHECKPOINTS_V2
+        session_root = str(self.get_parameter('session_root').value)
+        requested_session = str(self.get_parameter('session_name').value)
+        self.session_name = resolve_semantic_session_name(session_root, requested_session)
+        self.api = UnifiedMemoryAPI(session_root=session_root)
+        self.tf_buffer = Buffer(node=self)
+        self.tf_listener = TransformListener(self.tf_buffer, self, spin_thread=True)
         self.latest_odom = None
         self.create_subscription(Odometry, '/odom', self._on_odom, 20)
         self.create_subscription(String, '/go2_memory/write_snapshot_now', self._on_write_now, 10)
         self.create_timer(float(self.get_parameter('write_period_sec').value), self._timer)
-        self.get_logger().info('Pose snapshot node ready')
+        self.get_logger().info(f'Pose snapshot node ready | session={self.session_name}')
 
     def _on_odom(self, msg: Odometry) -> None:
         self.latest_odom = msg
@@ -58,8 +69,8 @@ class PoseSnapshotNode(Node):
         q = odom.pose.pose.orientation
         t = odom.twist.twist
         record = {
-            'label': f'odom_snapshot_{source}',
-            'source': ['odom', source],
+            'label': f'pose_snapshot_{source}',
+            'source': ['odom', 'tf', source],
             'layer': 'temporary',
             'odom_pose': {
                 'frame_id': odom.header.frame_id or 'odom',
@@ -72,8 +83,17 @@ class PoseSnapshotNode(Node):
             },
             'confidence': {'odom_confidence': 1.0, 'localization_confidence': 0.0},
         }
-        session = str(self.get_parameter('session_name').value)
-        result = self.api.write_checkpoint(session, record)
+        try:
+            map_frame = str(self.get_parameter('map_frame').value or 'map')
+            base_frame = str(self.get_parameter('base_frame').value or 'base_link')
+            tf = self.tf_buffer.lookup_transform(map_frame, base_frame, Time())
+            tr = tf.transform.translation
+            rot = tf.transform.rotation
+            record['map_pose'] = {'frame_id': map_frame, 'x': tr.x, 'y': tr.y, 'z': tr.z, 'qx': rot.x, 'qy': rot.y, 'qz': rot.z, 'qw': rot.w}
+            record['confidence']['localization_confidence'] = 1.0
+        except TransformException:
+            pass
+        result = self.api.write_checkpoint(self.session_name, record)
         self.get_logger().info(json.dumps({'wrote_checkpoint': result.get('id')}, sort_keys=True))
 
 

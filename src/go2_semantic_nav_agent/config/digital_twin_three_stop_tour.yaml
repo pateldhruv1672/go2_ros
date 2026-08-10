@@ -1,0 +1,15 @@
+schema_version: 1
+tour_name: digital_twin_lab_three_stop
+stops:
+  welcome_checkpoint:
+    room: digital_twin_lab
+    narration: >-
+      Welcome to the Digital Twin Lab. I am Sparky, your robotic guide. I will show you our humanoid and robotic-arm research, and you can ask me questions along the way.
+  g1_checkpoint:
+    room: digital_twin_lab
+    narration: >-
+      This is the Unitree G1 humanoid robot. We use it to explore embodied AI, perception, control, and human-robot interaction.
+  xarm7_checkpoint:
+    room: digital_twin_lab
+    narration: >-
+      These are xArm 7 robotic arms. We use them for manipulation, teleoperation, perception, and digital-twin experiments.

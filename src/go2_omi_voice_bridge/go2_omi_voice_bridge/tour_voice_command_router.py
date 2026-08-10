@@ -62,6 +62,7 @@ class TourVoiceCommandRouter(Node):
         self.create_subscription(String, "/go2_tour/skip", self._on_skip, 10)
         self.create_subscription(String, "/go2_tour/cancel", self._on_cancel, 10)
         self.create_subscription(String, "/go2_agent/user_command", self._on_agent_command, 10)
+        self.create_subscription(String, "/semantic_nav/event", self._on_semantic_event, 10)
         self.tour: dict[str, Any] | None = None
         self.index = 0
         self.state = "IDLE"
@@ -145,6 +146,34 @@ class TourVoiceCommandRouter(Node):
         if intent == INTENT_FUN_FACT:
             self._say("Here is a fun fact: " + SAFE_FUN_FACTS[self.index % len(SAFE_FUN_FACTS)], "fun_fact")
 
+    def _on_semantic_event(self, msg: String) -> None:
+        payload = decode_json_or_text(msg.data)
+        status = str(payload.get("status") or "")
+        stop_name = str(payload.get("stop_name") or payload.get("label") or "")
+        details = payload.get("details") if isinstance(payload.get("details"), dict) else {}
+        checkpoints = (self.tour or {}).get("checkpoints") or []
+        if "current_stop_index" in details:
+            try:
+                self.index = max(0, min(int(details.get("current_stop_index", 0)), max(0, len(checkpoints) - 1)))
+            except Exception:
+                pass
+        elif stop_name and checkpoints:
+            for idx, cp in enumerate(checkpoints):
+                if stop_name in {str(cp.get("checkpoint_id") or ""), str(cp.get("name") or "")} :
+                    self.index = idx
+                    break
+        if status == "route_complete":
+            self.state = "COMPLETED"
+            self.index = len(checkpoints)
+        elif status == "tour_paused":
+            self.state = "PAUSED"
+        elif status == "tour_stop":
+            self.state = "AT_STOP"
+        elif status in {"tour_started", "tour_resumed", "sending_goal"}:
+            self.state = "NAVIGATING"
+        if status:
+            self._publish_status({"semantic_nav_event": status, "semantic_stop": stop_name or None})
+
     def _on_start(self, msg: String) -> None:
         payload = decode_json_or_text(msg.data)
         tour_id = str(payload.get("tour_id") or self.get_parameter("default_tour_id").value)
@@ -177,27 +206,18 @@ class TourVoiceCommandRouter(Node):
                 self._publish_status({"semantic_command": "resume_tour"})
                 self._say("I am asking resume navigation to continue the saved route.", "status")
                 return
-        checkpoints = self.tour.get("checkpoints", [])
-        if self.index >= len(checkpoints):
-            self.state = "COMPLETED"
+        if self.state == "COMPLETED":
             self._publish_status()
             self._say("The tour is complete.", "narration")
             return
-        cp = checkpoints[self.index]
         self.state = "NAVIGATING"
-        self._publish_status({"next_checkpoint": cp})
+        self._publish_status({"semantic_command": "resume_tour"})
         self._semantic_command("resume_tour", speech="tour: Resuming the saved route.")
-        narration = cp.get("narration") or f"Next checkpoint: {cp.get('name', cp.get('checkpoint_id', 'checkpoint'))}."
-        fun_fact = cp.get("fun_fact")
-        if fun_fact:
-            narration = f"{narration} Here is a fun fact: {fun_fact}"
-        self._say(narration, "narration")
-        self.index += 1
+        self._say("Continuing from the current saved route position.", "status")
 
     def _on_skip(self, _msg: String) -> None:
-        self.index += 1
         self.state = "NAVIGATING"
-        self._publish_status({"skipped": True})
+        self._publish_status({"skipped": True, "semantic_command": "advance_tour"})
         self._semantic_command("advance_tour")
         self._say("Skipping this checkpoint.", "status")
 

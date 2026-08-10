@@ -99,7 +99,9 @@ def _resolve_stvl_enabled(requested: str) -> bool:
 
 
 def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_topic: str, stvl_enabled: str) -> str:
-    safety_scan_topic = os.environ.get('GO2_SAFETY_SCAN_TOPIC', '/scan').strip() or '/scan'
+    # Default safety consumers to the retimestamped navigation scan passed into this builder.
+    # GO2_SAFETY_SCAN_TOPIC may still override this explicitly.
+    safety_scan_topic = os.environ.get('GO2_SAFETY_SCAN_TOPIC', scan_topic).strip() or scan_topic
     with open(source_path, 'r', encoding='utf-8') as f:
         params = yaml.safe_load(f) or {}
 
@@ -248,11 +250,21 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     cm['cmd_vel_out_topic'] = 'cmd_vel_out'
     cm['state_topic'] = 'collision_monitor_state'
     cm['transform_tolerance'] = 0.5
-    cm['source_timeout'] = 0.5
+    # Keep the fail-safe watchdog, but use the validated Go2/WebRTC jitter budget.
+    # This remains configurable without editing source.
+    try:
+        collision_source_timeout = float(os.environ.get('GO2_COLLISION_SOURCE_TIMEOUT_SEC', '1.6'))
+    except ValueError:
+        collision_source_timeout = 1.6
+    collision_source_timeout = max(0.5, min(collision_source_timeout, 5.0))
+    cm['source_timeout'] = float(os.environ.get('GO2_COLLISION_SOURCE_TIMEOUT_SEC', '2.0'))
     cm['stop_pub_timeout'] = 1.0
     cm['polygons'] = ['StopPolygon', 'SlowdownPolygon']
-    cm['observation_sources'] = ['scan']
-
+    collision_source = os.environ.get('GO2_COLLISION_SOURCE', 'pointcloud').strip().lower()
+    if collision_source == 'scan':
+        cm['observation_sources'] = ['scan']
+    else:
+        cm['observation_sources'] = ['pointcloud']
     stop = cm.setdefault('StopPolygon', {})
     stop['type'] = 'polygon'
     stop['points'] = '[[0.65, 0.28], [0.65, -0.28], [-0.20, -0.28], [-0.20, 0.28]]'
@@ -273,7 +285,18 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     cm_scan = cm.setdefault('scan', {})
     cm_scan['type'] = 'scan'
     cm_scan['topic'] = safety_scan_topic
-    cm_scan['enabled'] = True
+    cm_scan['enabled'] = collision_source == 'scan'
+    cm_scan['source_timeout'] = cm['source_timeout']
+
+    cm_pointcloud = cm.setdefault('pointcloud', {})
+    cm_pointcloud['type'] = 'pointcloud'
+    cm_pointcloud['topic'] = pointcloud_topic
+    cm_pointcloud['transport_type'] = 'raw'
+    cm_pointcloud['min_height'] = 0.05
+    cm_pointcloud['max_height'] = 0.65
+    cm_pointcloud['min_range'] = 0.18
+    cm_pointcloud['enabled'] = collision_source != 'scan'
+    cm_pointcloud['source_timeout'] = cm['source_timeout']
 
     behavior = params.setdefault('behavior_server', {}).setdefault('ros__parameters', {})
     behavior['enable_stamped_cmd_vel'] = False
@@ -295,6 +318,7 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     except Exception:
         pass
 
+    print(f'[semantic_nav_resume] safety_scan_topic={safety_scan_topic} collision_source_timeout={cm["source_timeout"]:.2f}s')
     tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', prefix='semantic_nav2_params_', delete=False)
     with tmp:
         yaml.safe_dump(params, tmp, sort_keys=False)
@@ -358,6 +382,7 @@ def launch_setup(context, *args, **kwargs):
             f'Checked configured path "{configured}" and session-local map files in "{session_dir}".'
         )
     print(f'[semantic_nav_resume] using session={session_name} map={map_yaml}')
+    print(f"[semantic_nav_resume] collision_source={os.environ.get('GO2_COLLISION_SOURCE','pointcloud')} safety_scan={os.environ.get('GO2_SAFETY_SCAN_TOPIC', scan_nav_topic)} timeout={os.environ.get('GO2_COLLISION_SOURCE_TIMEOUT_SEC','2.0')}s")
     nodes = [
         Node(package='go2_semantic_nav_agent', executable='scan_retimestamp_node', name='scan_retimestamp_node', output='screen', parameters=[{
             'input_topic': scan_input_topic,
@@ -374,20 +399,7 @@ def launch_setup(context, *args, **kwargs):
             'autostart': True,
             'node_names': ['resume_map_server', 'amcl'],
         }]),
-    ]
-    delayed_resume_actions = [
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(nav2_launch),
-            launch_arguments={
-                'use_sim_time': 'false',
-                'autostart': 'true',
-                'params_file': nav2_params,
-                'use_composition': 'False',
-                'use_respawn': 'False',
-                'log_level': 'info',
-            }.items(),
-        ),
-        Node(package='go2_semantic_nav_agent', executable='semantic_nav_node', name='semantic_nav_node', output='screen', parameters=[{
+        Node(package='go2_semantic_nav_agent', executable='semantic_nav_node', name='semantic_nav_node', output='screen', respawn=True, respawn_delay=2.0, parameters=[{
             'mode': 'resume',
             'session_root': session_root,
             'session_name': session_name,
@@ -400,6 +412,38 @@ def launch_setup(context, *args, **kwargs):
             'scan_topic': scan_nav_topic,
         }]),
     ]
+    print('[semantic_nav_resume] semantic_nav_node immediate+respawn')
+    delayed_resume_actions = [
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(nav2_launch),
+            launch_arguments={
+                'use_sim_time': 'false',
+                'autostart': 'true',
+                'params_file': nav2_params,
+                'use_composition': 'False',
+                'use_respawn': 'False',
+                'log_level': 'info',
+            }.items(),
+        ),
+    ]
+    delayed_resume_actions.insert(0, Node(
+        package='go2_sysnav_vln',
+        executable='registered_cloud_object_projector',
+        name='go2_registered_lidar_object_projector',
+        output='screen',
+        parameters=[{
+            'detections_2d_topic': '/object_explorer/sam2_detections',
+            'pointcloud_topic': pointcloud_topic,
+            'camera_info_topic': '/camera/camera_info',
+            'detections_3d_topic': '/go2_vln/target_detections_3d',
+            'map_frame': 'map',
+            'camera_frame': 'front_camera',
+            'max_cloud_age_sec': 0.75,
+            'min_points': 5,
+            'max_linear_speed_mps': 0.22,
+            'max_angular_speed_rps': 0.45,
+        }],
+    ))
     if rviz or rviz2:
         delayed_resume_actions.append(
             Node(package='rviz2', executable='rviz2', name='semantic_nav_rviz2', output='screen', arguments=['-d', rviz_cfg], additional_env={'LIBGL_ALWAYS_SOFTWARE': '1'})

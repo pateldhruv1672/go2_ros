@@ -22,7 +22,7 @@ setup(
         (os.path.join('share', package_name, 'dae'), glob(os.path.join('dae', '*'))),
         (os.path.join('share', package_name, 'meshes'), glob(os.path.join('meshes', '*'))),
         (os.path.join('share', package_name, 'config'), [path for path in glob(os.path.join('config', '*')) if os.path.isfile(path)]),
-        (os.path.join('share', package_name, 'config', 'behavior_trees'), glob(os.path.join('config', 'behavior_trees', '*.xml'))),
+        (os.path.join('share', package_name, 'config', 'behavior_trees'), [path for path in glob(os.path.join('config', 'behavior_trees', '*.xml')) if os.path.isfile(path)]),
         (os.path.join('share', package_name, 'calibration'), glob(os.path.join('calibration', '*'))),
         (os.path.join('share', package_name, 'external_lib'), ['external_lib/libvoxel.wasm']),
         (os.path.join('share', package_name, 'external_lib/aioice'), glob(os.path.join('external_lib/aioice/src/aioice', '*'))),

@@ -19,6 +19,7 @@ setup(
     license='MIT',
     entry_points={'console_scripts': [
             'webrtc_motion_skill_agent_node = go2_agentic_motion_skills.webrtc_motion_skill_agent_node:main',
+            'safe_webrtc_motion_skill_agent_node = go2_agentic_motion_skills.safe_webrtc_motion_skill_agent_node:main',
         'motion_skill_agent_node = go2_agentic_motion_skills.motion_skill_agent_node:main',
     ]},
 )

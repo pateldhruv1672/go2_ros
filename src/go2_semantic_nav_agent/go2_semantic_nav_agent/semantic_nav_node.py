@@ -47,6 +47,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 from go2_agentic_system.patrol_events import PatrolEvent
 from go2_agentic_system.storage import MemoryStore as SharedMemoryStore
+from go2_memory_core import UnifiedMemoryAPI
 
 from .place_store import Place, PlaceStore
 from .route_store import RoutePlan, RouteStop, RouteStore, slugify as route_slugify
@@ -110,6 +111,10 @@ class SemanticNavNode(Node):
         self.base_frame = str(self.get_parameter('base_frame').value)
         self.session_store = SessionStore(str(self.get_parameter('session_root').value))
         self.session = self._choose_session()
+        self.unified_memory = UnifiedMemoryAPI(
+            session_root=str(self.get_parameter('session_root').value),
+            enable_graph_memory=True, enable_vector_memory=True, enable_voxel_memory=True,
+        )
         self.place_store = PlaceStore(self.session.places_path)
         for _p in self.place_store.places.values():
             _p.frame_id = (getattr(_p, 'frame_id', '') or self.map_frame or 'map').strip() or 'map'
@@ -1060,6 +1065,27 @@ class SemanticNavNode(Node):
                 tags=list(getattr(place, 'tags', []) or []),
             )
             self.route_store.upsert_stop(self.route, stop)
+        # SPARKY_TOUR_ADMIN_SEMANTIC_COMMANDS_V2
+        try:
+            memory_place = {
+                'id': f'place_{route_slugify(place.name)}', 'name': place.name,
+                'aliases': list(place.aliases or []), 'description': place.description or place.summary or place.tour_fact or '',
+                'room': place.room or '', 'category': place.category or '', 'tags': list(place.tags or []),
+                'verified': True, 'layer': 'permanent',
+                'map_pose': {'frame_id': place.frame_id or self.map_frame, 'x': place.x, 'y': place.y, 'z': 0.0, 'qx': 0.0, 'qy': 0.0, 'qz': math.sin(place.yaw * 0.5), 'qw': math.cos(place.yaw * 0.5)},
+                'source': ['semantic_nav', source_text],
+            }
+            self.unified_memory.write_place(self.session.session_name, memory_place)
+            if bool(self.get_parameter('tour_mode').value) and hasattr(self.unified_memory, 'write_tour_stop'):
+                self.unified_memory.write_tour_stop(self.session.session_name, {
+                    'id': f'tour_{route_slugify(place.name)}', 'name': place.name, 'place_name': place.name,
+                    'script': place.tour_fact or place.summary or place.description or '',
+                    'fact': place.summary or place.description or place.tour_fact or '',
+                    'pause_seconds': float(self.get_parameter('tour_default_pause_sec').value),
+                    'map_pose': memory_place['map_pose'], 'source': ['semantic_nav', source_text],
+                })
+        except Exception as exc:
+            self.get_logger().warn(f'Unified memory place sync skipped: {exc}')
         self.publish_status(f'saved_place name={place.name} source={source_text} x={place.x:.2f} y={place.y:.2f} yaw={place.yaw:.2f}')
         self.publish_markers()
 
@@ -2213,6 +2239,53 @@ class SemanticNavNode(Node):
         parts = line.split()
         cmd = str((event or {}).get('type') or parts[0]).lower()
         event_place = str((event or {}).get('place') or (event or {}).get('target') or '').strip()
+        # SPARKY_OBJECT_GO_POSE_V1
+        if cmd in {'go_pose', 'navigate_to_pose'} and isinstance(event, dict):
+            pose_data = event.get('pose') if isinstance(event.get('pose'), dict) else event
+            try:
+                x = float(pose_data.get('x'))
+                y = float(pose_data.get('y'))
+            except Exception:
+                self.publish_status('refusing_go_pose missing_or_invalid_xy')
+                return
+            frame_id = str(pose_data.get('frame_id') or self.map_frame).strip() or self.map_frame
+            if frame_id != self.map_frame:
+                self.publish_status(f'refusing_go_pose frame={frame_id} expected={self.map_frame}')
+                return
+            yaw_value = pose_data.get('yaw')
+            if yaw_value is None:
+                try:
+                    qz = float(pose_data.get('qz', 0.0) or 0.0)
+                    qw = float(pose_data.get('qw', 1.0) or 1.0)
+                    yaw_value = 2.0 * math.atan2(qz, qw)
+                except Exception:
+                    yaw_value = 0.0
+            yaw_value = float(yaw_value or 0.0)
+            pose = PoseStamped()
+            pose.header.frame_id = self.map_frame
+            pose.header.stamp = self.get_clock().now().to_msg()
+            pose.pose.position.x = x
+            pose.pose.position.y = y
+            pose.pose.position.z = 0.0
+            pose.pose.orientation.z = math.sin(0.5 * yaw_value)
+            pose.pose.orientation.w = math.cos(0.5 * yaw_value)
+            name = route_slugify(str(event.get('name') or event.get('object_label') or 'memory_object_approach'))
+            place = self.make_place(
+                name,
+                pose,
+                {
+                    'category': 'object_approach',
+                    'tags': ['object_memory', 'temporary_goal'],
+                    'description': str(event.get('reason') or 'memory-first object approach pose'),
+                },
+                source='object_memory',
+                confidence=float(event.get('confidence', 1.0) or 1.0),
+            )
+            self.publish_status(
+                f'object_memory_goal name={place.name} x={place.x:.2f} y={place.y:.2f} yaw={place.yaw:.2f}'
+            )
+            self.send_goal(place, route_goal_active=False)
+            return
         if cmd == 'status':
             self.publish_status('status_ok')
             return
@@ -2254,6 +2327,77 @@ class SemanticNavNode(Node):
                 details=self.route_summary(),
             ))
             return
+        if cmd == 'save_tour_stop':
+            if not isinstance(event, dict):
+                self.publish_status('save_tour_stop_requires_json'); return
+            name = str(event.get('name') or event.get('place') or '').strip()
+            if not name:
+                self.publish_status('save_tour_stop_missing_name'); return
+            pose = None
+            raw_pose = event.get('map_pose') if isinstance(event.get('map_pose'), dict) else None
+            if raw_pose and 'x' in raw_pose and 'y' in raw_pose:
+                pose = PoseStamped(); pose.header.frame_id = str(raw_pose.get('frame_id') or self.map_frame); pose.header.stamp = self.get_clock().now().to_msg()
+                pose.pose.position.x=float(raw_pose.get('x',0.0)); pose.pose.position.y=float(raw_pose.get('y',0.0)); pose.pose.position.z=float(raw_pose.get('z',0.0))
+                if 'qw' in raw_pose:
+                    pose.pose.orientation.x=float(raw_pose.get('qx',0.0)); pose.pose.orientation.y=float(raw_pose.get('qy',0.0)); pose.pose.orientation.z=float(raw_pose.get('qz',0.0)); pose.pose.orientation.w=float(raw_pose.get('qw',1.0))
+                else:
+                    qx,qy,qz,qw=quaternion_from_yaw(float(raw_pose.get('yaw',0.0))); pose.pose.orientation.x=qx; pose.pose.orientation.y=qy; pose.pose.orientation.z=qz; pose.pose.orientation.w=qw
+            else:
+                pose = self.lookup_current_pose()
+            if pose is None:
+                self.publish_status('save_tour_stop_failed_no_map_pose'); return
+            def _list_value(key):
+                value=event.get(key) or []
+                if isinstance(value,str): return [x.strip() for x in value.split(',') if x.strip()]
+                return [str(x).strip() for x in value if str(x).strip()] if isinstance(value,list) else []
+            script=str(event.get('script') or event.get('speech') or event.get('description') or '').strip()
+            fact=str(event.get('fact') or event.get('summary') or script).strip()
+            extra={'room':str(event.get('room') or ''),'category':str(event.get('category') or 'tour_stop'),'aliases':_list_value('aliases'),'tags':_list_value('tags') or ['tour_stop'],'description':script,'summary':fact,'tour_fact':script or fact,'navigation_hint':str(event.get('navigation_hint') or ''),'safety_notes':str(event.get('safety_notes') or ''),'capture_kind':'tour_stop'}
+            place=self.make_place(name,pose,extra,source='tour_admin'); self.save_place(place,source_text='tour_admin')
+            wanted=route_slugify(name)
+            for stop in self.route.stops:
+                if stop.name==wanted or stop.place_name==name:
+                    stop.script=script or stop.script; stop.fact=fact or stop.fact; stop.pause_seconds=float(event.get('pause_seconds',stop.pause_seconds) or stop.pause_seconds); stop.tags=extra['tags']; stop.aliases=extra['aliases']; break
+            self.route_store.save(self.route); self.publish_status(f'tour_admin_saved_stop name={name} stops={len(self.route.stops)}'); return
+        if cmd == 'update_tour_stop':
+            if not isinstance(event, dict): self.publish_status('update_tour_stop_requires_json'); return
+            target=str(event.get('name') or event.get('stop_name') or event.get('place') or '').strip(); target_slug=route_slugify(target); updated=None
+            for stop in self.route.stops:
+                if stop.name==target_slug or stop.place_name==target:
+                    if 'script' in event or 'speech' in event: stop.script=str(event.get('script') or event.get('speech') or '')
+                    if 'fact' in event: stop.fact=str(event.get('fact') or '')
+                    if 'pause_seconds' in event: stop.pause_seconds=float(event.get('pause_seconds') or 0.0)
+                    updated=stop; break
+            if updated is None: self.publish_status(f'tour_admin_update_not_found name={target}'); return
+            place=self.place_store.get(updated.place_name)
+            if place is not None:
+                place.description=updated.script or place.description; place.tour_fact=updated.script or place.tour_fact; place.summary=updated.fact or place.summary; self.place_store.save()
+            self.route_store.save(self.route)
+            try:
+                if hasattr(self.unified_memory,'write_tour_stop'):
+                    self.unified_memory.write_tour_stop(self.session.session_name,{'id':f'tour_{updated.name}','name':updated.name,'place_name':updated.place_name,'script':updated.script,'fact':updated.fact,'pause_seconds':updated.pause_seconds,'source':['tour_admin']})
+            except Exception as exc: self.get_logger().warn(f'Unified tour-stop update skipped: {exc}')
+            self.publish_status(f'tour_admin_updated_stop name={updated.name}'); return
+        if cmd == 'delete_tour_stop':
+            if not isinstance(event, dict): self.publish_status('delete_tour_stop_requires_json'); return
+            target=str(event.get('name') or event.get('stop_name') or event.get('place') or '').strip(); target_slug=route_slugify(target); before=len(self.route.stops)
+            removed_places=[x.place_name for x in self.route.stops if x.name==target_slug or x.place_name==target]
+            self.route.stops=[x for x in self.route.stops if not (x.name==target_slug or x.place_name==target)]
+            if len(self.route.stops)==before: self.publish_status(f'tour_admin_delete_not_found name={target}'); return
+            self.route.current_stop_index=min(self.route.current_stop_index,max(0,len(self.route.stops)-1)); self.route_store.save(self.route)
+            if bool(event.get('delete_place',False)):
+                for place_name in removed_places: self.place_store.places.pop(place_name,None)
+                self.place_store.save()
+            self.publish_markers(); self.publish_status(f'tour_admin_deleted_stop name={target} stops={len(self.route.stops)}'); return
+        if cmd == 'reorder_tour_stops':
+            if not isinstance(event, dict) or not isinstance(event.get('order'), list): self.publish_status('reorder_tour_stops_requires_json_order_list'); return
+            order=[route_slugify(str(x)) for x in event.get('order') if str(x).strip()]; by_name={x.name:x for x in self.route.stops}; by_place={route_slugify(x.place_name):x for x in self.route.stops}; new_stops=[]; used=set()
+            for key in order:
+                stop=by_name.get(key) or by_place.get(key)
+                if stop is not None and id(stop) not in used: new_stops.append(stop); used.add(id(stop))
+            for stop in self.route.stops:
+                if id(stop) not in used: new_stops.append(stop)
+            self.route.stops=new_stops; self.route.current_stop_index=0; self.route_store.save(self.route); self.publish_status(f'tour_admin_reordered_stops count={len(self.route.stops)}'); return
         if cmd == 'save' and len(parts) >= 2:
             pose = self.lookup_current_pose()
             if pose is None:
@@ -2295,6 +2439,34 @@ class SemanticNavNode(Node):
                 self.publish_status('places: none')
             for line in lines:
                 self.publish_status(line)
+            return
+        if cmd in {'navigate_to_pose', 'go_pose', 'object_goal'} and isinstance(event, dict):
+            # object_memory_direct_pose: the agent supplies a SAFE STANDOFF goal,
+            # never the object's occupied centroid as the robot base goal.
+            raw_pose = event.get('pose') or event.get('goal') or {}
+            if not isinstance(raw_pose, dict) or raw_pose.get('x') is None or raw_pose.get('y') is None:
+                self.publish_status('object_goal_rejected missing_pose')
+                return
+            try:
+                gx, gy = float(raw_pose.get('x')), float(raw_pose.get('y'))
+                if raw_pose.get('yaw') is not None:
+                    gyaw = float(raw_pose.get('yaw'))
+                else:
+                    qz, qw = float(raw_pose.get('qz', 0.0)), float(raw_pose.get('qw', 1.0))
+                    gyaw = 2.0 * math.atan2(qz, qw)
+            except Exception as exc:
+                self.publish_status(f'object_goal_rejected invalid_pose error={exc}')
+                return
+            name = str(event.get('name') or event.get('object_label') or event.get('object_id') or 'remembered_object').strip()
+            place = Place(
+                name=f'object_goal_{route_slugify(name)}', x=gx, y=gy, yaw=gyaw,
+                room=str(event.get('room') or ''), category='object_memory_goal',
+                aliases=[], tags=['object_memory', 'temporary_goal'],
+                description=str(event.get('description') or ''),
+                source='object_memory', frame_id=str(raw_pose.get('frame_id') or self.map_frame),
+            )
+            self.publish_status(f'object_memory_goal object={name} x={gx:.2f} y={gy:.2f} yaw={gyaw:.2f}')
+            self.send_goal(place, route_goal_active=False)
             return
         if cmd in {'go', 'navigate'}:
             query = event_place or ' '.join(parts[1:]).replace('to ', '').strip()

@@ -9,6 +9,10 @@ import re
 INTENT_STOP = "stop"
 INTENT_OBSERVE = "observe"
 INTENT_WHERE_AM_I = "where_am_i"
+INTENT_COUNT_OBJECTS = "count_objects"
+INTENT_FIND_OBJECT = "find_object"
+INTENT_WHERE_OBJECT = "where_object"
+INTENT_WEB_SEARCH = "web_search"
 INTENT_NAVIGATE_TO_PLACE = "navigate_to_place"
 INTENT_START_TOUR = "start_tour"
 INTENT_CONTINUE_TOUR = "continue_tour"
@@ -138,6 +142,17 @@ def parse_intent(text: str, confidence: float = 1.0, wake_words: list[str] | tup
         return ParsedIntent(text=text, normalized_text=norm, intent=INTENT_CANCEL, confidence=confidence)
     if any(phrase in norm for phrase in ("where are we", "where am i", "where are you", "current location")):
         return ParsedIntent(text=text, normalized_text=norm, intent=INTENT_WHERE_AM_I, confidence=confidence)
+    if any(phrase in norm for phrase in ("search the web", "search web", "look up online", "lookup online", "google this")):
+        return ParsedIntent(text=text, normalized_text=norm, intent=INTENT_WEB_SEARCH, confidence=confidence, semantic_target=norm)
+    if norm.startswith("how many ") or norm.startswith("count "):
+        target = re.sub(r"^(how many|count)\s+", "", norm).strip()
+        return ParsedIntent(text=text, normalized_text=norm, intent=INTENT_COUNT_OBJECTS, confidence=confidence, semantic_target=target)
+    if any(norm.startswith(prefix) for prefix in ("find ", "locate ", "search for ")):
+        target = _target_after(norm, ("find ", "locate ", "search for "))
+        return ParsedIntent(text=text, normalized_text=norm, intent=INTENT_FIND_OBJECT, confidence=confidence, semantic_target=target, requires_motion=True, requires_resume_mode=True, requires_confirmation=True)
+    if any(norm.startswith(prefix) for prefix in ("where is the ", "where are the ", "where is my ", "where are my ")):
+        target = re.sub(r"^where (is|are) (the|my)?\s*", "", norm).strip()
+        return ParsedIntent(text=text, normalized_text=norm, intent=INTENT_WHERE_OBJECT, confidence=confidence, semantic_target=target)
     if any(phrase in norm for phrase in ("what do you see", "summarize this place", "what is around", "observe")):
         return ParsedIntent(text=text, normalized_text=norm, intent=INTENT_OBSERVE, confidence=confidence)
     if any(phrase in norm for phrase in ("fun fact", "something fun", "tell me about this place")):

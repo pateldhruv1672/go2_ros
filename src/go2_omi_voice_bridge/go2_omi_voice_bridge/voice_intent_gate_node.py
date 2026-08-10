@@ -22,6 +22,10 @@ from go2_omi_voice_bridge.intent import (
     INTENT_STOP,
     INTENT_UNKNOWN,
     INTENT_WHERE_AM_I,
+    INTENT_COUNT_OBJECTS,
+    INTENT_FIND_OBJECT,
+    INTENT_WHERE_OBJECT,
+    INTENT_WEB_SEARCH,
     ParsedIntent,
     decode_json_or_text,
     is_confirmation,
@@ -55,11 +59,13 @@ class VoiceIntentGateNode(Node):
         self.declare_parameter("tts_feedback_cooldown_sec", 5.0)
         self.declare_parameter("tts_feedback_preroll_sec", 1.0)
         self.declare_parameter("publish_to_agent_topic", "/go2_agent/user_command")
+        self.declare_parameter("query_topic", "/go2_agent/query")
         self.declare_parameter("tts_topic", "/go2_tts/say")
         self.declare_parameter("cmd_vel_topic", "/cmd_vel_out")
         self.declare_parameter("nav_command_topic", "/semantic_nav/command")
 
         self.agent_pub = self.create_publisher(String, str(self.get_parameter("publish_to_agent_topic").value), 10)
+        self.query_pub = self.create_publisher(String, str(self.get_parameter("query_topic").value), 10)
         self.verify_pub = self.create_publisher(String, "/go2_voice/verification_request", 10)
         self.state_pub = self.create_publisher(String, "/go2_voice/verification_state", 10)
         self.tts_pub = self.create_publisher(String, str(self.get_parameter("tts_topic").value), 10)
@@ -199,8 +205,18 @@ class VoiceIntentGateNode(Node):
             self._handle_immediate_stop(intent)
             return
         if intent.intent == INTENT_UNKNOWN:
-            self._say("I do not know how to do that yet. You can ask where we are, request a fun fact, or ask for a saved tour.", "warning")
-            self._publish_state({"state": "unknown_intent", "text": text})
+            # Unknown speech is allowed only as a read-only agent query. The supervisor
+            # independently re-classifies it and refuses any motion-capable interpretation.
+            payload = {
+                "source": "omi_voice_query",
+                "text": text,
+                "user_text": text,
+                "confidence": confidence,
+                "verified": True,
+                "read_only": True,
+            }
+            self.query_pub.publish(String(data=json.dumps(payload, sort_keys=True)))
+            self._publish_state({"state": "forwarded_read_only_query", "text": text})
             return
         if self._requires_confirmation(intent):
             self.pending = PendingCommand(intent=intent, created_at=time.time())
@@ -219,6 +235,7 @@ class VoiceIntentGateNode(Node):
             INTENT_START_TOUR,
             INTENT_CONTINUE_TOUR,
             INTENT_SKIP_CHECKPOINT,
+            INTENT_FIND_OBJECT,
         }
 
     def _confirmation_prompt(self, intent: ParsedIntent) -> str:

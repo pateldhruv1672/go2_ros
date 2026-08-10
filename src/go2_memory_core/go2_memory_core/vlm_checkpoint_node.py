@@ -78,9 +78,11 @@ class VLMCheckpointNode(Node):
         )
         self.latest_image: Optional[Image] = None
         self.latest_odom: Optional[Odometry] = None
+        self.latest_object_inventory: Dict[str, Any] = {}
         self.status_pub = self.create_publisher(String, "/go2_vlm_checkpoint/status", 10)
         self.create_subscription(Image, str(self.get_parameter("camera_topic").value), self._on_image, qos_profile_sensor_data)
         self.create_subscription(Odometry, str(self.get_parameter("odom_topic").value), self._on_odom, 20)
+        self.create_subscription(String, "/go2_memory/object_inventory", self._on_object_inventory, 10)
         self.create_subscription(String, "/go2_vlm_checkpoint/write_now", self._on_write_now, 10)
         self.create_timer(float(self.get_parameter("write_period_sec").value), self._timer)
         self.get_logger().info(f"VLM checkpoint writer ready; session={self.session_name}")
@@ -90,6 +92,13 @@ class VLMCheckpointNode(Node):
 
     def _on_odom(self, msg: Odometry) -> None:
         self.latest_odom = msg
+
+    def _on_object_inventory(self, msg: String) -> None:
+        try:
+            value = json.loads(msg.data)
+            self.latest_object_inventory = value if isinstance(value, dict) else {}
+        except Exception:
+            self.latest_object_inventory = {}
 
     def _timer(self) -> None:
         if _as_bool(self.get_parameter("auto_write_checkpoints").value):
@@ -114,6 +123,7 @@ class VLMCheckpointNode(Node):
             "vlm_model": vlm_result.model,
             "vlm_success": vlm_result.success,
             "vlm_error": vlm_result.error,
+            "object_inventory": self.latest_object_inventory,
             "confidence": {
                 "perception_confidence": 0.75 if vlm_result.success and vlm_result.provider != "offline" else 0.2,
                 "odom_confidence": 1.0 if self.latest_odom is not None else 0.0,

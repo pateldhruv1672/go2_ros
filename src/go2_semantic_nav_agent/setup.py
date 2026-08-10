@@ -2,6 +2,10 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
+
+def safe_glob(pattern):
+    return [path for path in glob(pattern) if os.path.isfile(path)]
+
 package_name = 'go2_semantic_nav_agent'
 
 setup(
@@ -11,8 +15,8 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
-        (os.path.join('share', package_name, 'config'), glob('config/*')),
+        (os.path.join('share', package_name, 'launch'), safe_glob('launch/*.launch.py')),
+        (os.path.join('share', package_name, 'config'), safe_glob('config/*')),
     ],
     install_requires=['setuptools', 'requests', 'PyYAML', 'Pillow', 'numpy'],
     zip_safe=True,
@@ -26,6 +30,7 @@ setup(
             'omi_demo_bridge = go2_semantic_nav_agent.omi_demo_bridge:main',
             'semantic_place_markers = go2_semantic_nav_agent.semantic_place_markers:main',
             'semantic_nav_node = go2_semantic_nav_agent.semantic_nav_node:main',
+            'tour_host_node = go2_semantic_nav_agent.tour_host_node:main',
             'semantic_nav_console = go2_semantic_nav_agent.semantic_nav_console:main',
             'scan_retimestamp_node = go2_semantic_nav_agent.scan_retimestamp_node:main',
             'patch_go2_sdk_scan_topics = go2_semantic_nav_agent.patch_go2_sdk_scan_topics:main',

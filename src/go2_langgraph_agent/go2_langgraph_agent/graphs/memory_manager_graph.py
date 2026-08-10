@@ -94,10 +94,34 @@ class MemoryManagerGraph:
             result = self.memory.write_place(payload)
             speech = f"Saved this location as {op.get('name')} in {op.get('layer', 'temporary')} memory."
         elif op.get("type") == "query":
+            # SPARKY_OBJECT_AWARE_MEMORY_SPEECH_V2
             result = self.memory.query(op.get("text", ""))
-            place_count = len(result.get("places", [])) if isinstance(result, dict) else 0
-            checkpoint_count = len(result.get("checkpoints", [])) if isinstance(result, dict) else 0
-            speech = f"I found {place_count} saved places and {checkpoint_count} recent checkpoints for that query."
+            if isinstance(result, dict):
+                places = result.get("places") or []
+                checkpoints = result.get("checkpoints") or []
+                vlm = result.get("vlm_checkpoints") or []
+                world = result.get("world_memory") or result
+                objects = world.get("objects") or []
+                tour_stops = world.get("tour_stops") or []
+                object_counts = {}
+                for record in objects:
+                    data = (record or {}).get("data") or {}
+                    if not bool(data.get("confirmed")) or not bool(data.get("countable", True)):
+                        continue
+                    if str(data.get("status") or "present") not in {"present", "unknown", "seen"}:
+                        continue
+                    label = str(data.get("label") or "object")
+                    object_counts[label] = object_counts.get(label, 0) + 1
+                object_total = sum(object_counts.values())
+                top = ", ".join(f"{n} {name}" for name, n in sorted(object_counts.items(), key=lambda kv: (-kv[1], kv[0]))[:8])
+                place_count = len({str(r.get("id") or i) for i, r in enumerate(places)})
+                checkpoint_count = len({str(r.get("id") or i) for i, r in enumerate(checkpoints)})
+                vlm_count = len({str(r.get("id") or i) for i, r in enumerate(vlm)})
+                tour_count = len({str(r.get("id") or i) for i, r in enumerate(tour_stops)})
+                speech = f"I remember {object_total} confirmed mapped objects" + (f" ({top})" if top else "")
+                speech += f", {place_count} saved semantic places, {checkpoint_count} background checkpoints, {vlm_count} VLM checkpoints, and {tour_count} unified-memory tour stops."
+            else:
+                speech = "I could not read the saved session memory."
         elif op.get("type") == "checkpoint_hint":
             append_event(state, GRAPH_NAME, "checkpoint_requested", {"reason": "explore_or_tour_progress"})
         if result:

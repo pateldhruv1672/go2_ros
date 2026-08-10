@@ -1,0 +1,237 @@
+go2_target_conditioned_detector:
+  ros__parameters:
+    image_topic: /camera/image_raw
+    goal_topic: /go2_vln/goal
+    target_spec_topic: /go2_vln/target_spec
+    detections_topic: /go2_vln/target_detections_2d
+    model_name: IDEA-Research/grounding-dino-tiny
+    threshold: 0.30
+    period_sec: 0.70
+    device: cuda:0
+    max_detections: 12
+
+go2_registered_cloud_object_projector:
+  ros__parameters:
+    detections_2d_topic: /go2_vln/target_detections_2d
+    organized_cloud_topic: /camera/depth/color/points
+    detections_3d_topic: /go2_vln/target_detections_3d
+    map_frame: map
+    max_cloud_age_sec: 0.25
+    pixel_stride: 4
+    max_sample_points: 2500
+    min_points: 18
+    min_range_m: 0.20
+    max_range_m: 10.0
+    depth_bin_m: 0.20
+    depth_band_m: 0.35
+    extent_percentile_low: 5.0
+    extent_percentile_high: 95.0
+
+go2_pose_aware_object_mapper:
+  ros__parameters:
+    detection_topics:
+      - /go2_vln/target_detections_3d
+      - /go2_vln/target_detections_2d
+      - /object_explorer/sam2_detections
+      - /object_explorer/detections
+    scan_topic: /scan_nav
+    camera_info_topic: /camera/camera_info
+    map_frame: map
+    base_frame: base_link
+    fallback_hfov_deg: 70.0
+    camera_to_base_yaw_rad: 0.0
+    scan_bearing_offset_rad: 0.0
+    scan_window_deg: 4.0
+    max_scan_age_sec: 0.50
+    min_range_m: 0.25
+    max_range_m: 8.0
+    min_detection_confidence: 0.35
+    # Ported from SysNav's object-relative observation novelty test.
+    view_angle_threshold_deg: 5.0
+    view_range_threshold_m: 0.30
+    # Additional physical gate prevents duplicate detector streams at one pose.
+    min_robot_translation_m: 0.20
+    min_robot_rotation_rad: 0.15
+    merge_radius_m: 0.55
+    minimum_direct_merge_m: 0.25
+    merge_iou_threshold: 0.20
+    merge_overlap_threshold: 0.40
+    same_frame_dedup_radius_m: 0.22
+    same_frame_bbox_iou: 0.45
+    drop_2d_when_recent_3d_sec: 0.60
+    min_confirmations: 2
+    database_path: ~/.ros/go2_sysnav_vln/object_map.sqlite3
+    publish_topic: /go2_vln/object_map
+    marker_topic: /go2_vln/object_markers
+    publish_tentative: false
+
+go2_hierarchical_frontier_planner:
+  ros__parameters:
+    map_topic: /map
+    object_map_topic: /go2_vln/object_map
+    map_frame: map
+    base_frame: base_link
+    candidate_topic: /go2_vln/frontier_candidates
+    room_graph_topic: /go2_vln/room_graph
+    room_label_update_topic: /go2_vln/room_label_update
+    marker_topic: /go2_vln/frontier_markers
+    room_marker_topic: /go2_vln/room_markers
+    blacklist_topic: /go2_vln/frontier_blacklist
+    occupied_threshold: 50
+    robot_radius_m: 0.42
+    clearance_margin_m: 0.10
+    min_cluster_cells: 10
+    max_candidates: 16
+    standoff_min_m: 0.45
+    standoff_max_m: 1.25
+    min_goal_distance_m: 0.70
+    max_goal_distance_m: 10.0
+    info_gain_radius_m: 1.8
+    recompute_translation_m: 0.20
+    recompute_rotation_rad: 0.20
+    room_core_clearance_m: 0.72
+    room_min_core_area_m2: 0.75
+    room_id_quantization_m: 1.0
+    frontier_track_radius_m: 0.75
+    frontier_view_angle_threshold_deg: 8.0
+    frontier_view_range_threshold_m: 0.40
+    frontier_view_translation_m: 0.20
+    frontier_view_rotation_rad: 0.20
+    frontier_stable_confirmations: 2
+    frontier_track_ttl_sec: 90.0
+    publish_period_sec: 0.8
+
+go2_vln_supervisor:
+  ros__parameters:
+    goal_topic: /go2_vln/goal
+    command_topic: /go2_vln/command
+    state_topic: /go2_vln/state
+    decision_topic: /go2_vln/decision
+    target_spec_topic: /go2_vln/target_spec
+    frontier_topic: /go2_vln/frontier_candidates
+    room_graph_topic: /go2_vln/room_graph
+    room_label_update_topic: /go2_vln/room_label_update
+    object_map_topic: /go2_vln/object_map
+    blacklist_topic: /go2_vln/frontier_blacklist
+    nav_command_topic: /go2_nav/command
+    nav_status_topic: /go2_nav/status
+    image_topic: /camera/image_raw
+    map_topic: /map
+    map_frame: map
+    base_frame: base_link
+    ollama_url: http://127.0.0.1:11434
+    ollama_model: gemma4:e4b
+    ollama_timeout_sec: 90.0
+    ollama_think: "false"
+    ollama_keep_alive: 10m
+    ollama_debug_topic: /go2_vln/ollama_debug
+    ollama_debug_jsonl: ~/.ros/go2_sysnav_vln/ollama_calls.jsonl
+    send_image_to_vlm: true
+    image_jpeg_quality: 65
+    image_max_age_sec: 2.0
+    room_types:
+      - classroom
+      - laboratory
+      - office room
+      - meeting room
+      - computer lab
+      - restroom
+      - storage room
+      - copy room
+      - student lounge
+      - reception
+      - corridor
+      - kitchen
+      - living room
+      - unknown
+    enable_motion: false
+    auto_start: false
+    decision_period_sec: 0.75
+    object_approach_distance_m: 0.90
+    object_approach_search_width_m: 0.70
+    object_approach_samples: 48
+    object_goal_clearance_m: 0.52
+    occupied_threshold: 50
+    target_recent_age_sec: 12.0
+    max_room_visits: 2
+    frontier_blacklist_ttl_sec: 120.0
+    max_mission_duration_sec: 420.0
+    max_goals: 30
+    max_failures: 6
+
+go2_autonomous_explore_supervisor:
+  ros__parameters:
+    command_topic: /go2_vln/command
+    state_topic: /go2_vln/explore_state
+    decision_topic: /go2_vln/decision
+    frontier_topic: /go2_vln/frontier_candidates
+    room_graph_topic: /go2_vln/room_graph
+    room_label_update_topic: /go2_vln/room_label_update
+    object_map_topic: /go2_vln/object_map
+    blacklist_topic: /go2_vln/frontier_blacklist
+    nav_command_topic: /go2_nav/command
+    nav_status_topic: /go2_nav/status
+    map_topic: /map
+    scan_topic: /scan_nav
+    image_topic: /camera/image_raw
+    map_frame: map
+    base_frame: base_link
+    enable_motion: false
+    auto_start: false
+    decision_period_sec: 0.50
+    startup_grace_sec: 8.0
+    max_mission_duration_sec: 600.0
+    max_goals: 12
+    max_failures: 4
+    max_travel_distance_m: 20.0
+    post_goal_settle_sec: 3.0
+    no_frontier_complete_sec: 20.0
+    reached_frontier_blacklist_ttl_sec: 180.0
+    failed_frontier_blacklist_ttl_sec: 180.0
+    require_stable_frontier: true
+    min_frontier_confirmations: 2
+    health_loss_stop_sec: 2.0
+    required_lifecycle_nodes:
+      - controller_server
+      - planner_server
+      - behavior_server
+      - bt_navigator
+      - collision_monitor
+    lifecycle_state_max_age_sec: 4.0
+    scan_receive_max_age_sec: 1.0
+    scan_stamp_max_age_sec: 1.5
+    scan_future_tolerance_sec: 0.20
+    min_valid_scan_points: 25
+    tf_lookup_timeout_sec: 0.15
+    frontier_feed_max_age_sec: 3.0
+    ollama_url: http://127.0.0.1:11434
+    ollama_model: gemma4:e4b
+    ollama_timeout_sec: 90.0
+    ollama_think: "false"
+    ollama_keep_alive: 10m
+    ollama_debug_topic: /go2_vln/ollama_debug
+    ollama_debug_jsonl: ~/.ros/go2_sysnav_vln/ollama_calls.jsonl
+    enable_room_labeling: true
+    image_max_age_sec: 2.0
+    image_jpeg_quality: 65
+    enable_frontier_vision_guard: false
+    frontier_camera_half_fov_deg: 40.0
+    frontier_vision_min_confidence: 0.65
+    frontier_vision_cache_sec: 3.0
+    frontier_vision_reject_ttl_sec: 20.0
+    frontier_vision_unknown_ttl_sec: 5.0
+    room_types:
+      - classroom
+      - laboratory
+      - office room
+      - meeting room
+      - computer lab
+      - restroom
+      - storage room
+      - copy room
+      - student lounge
+      - reception
+      - corridor
+      - kitchen
+      - living room
+      - unknown

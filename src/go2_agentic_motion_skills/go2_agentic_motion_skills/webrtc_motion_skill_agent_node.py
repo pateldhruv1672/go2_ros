@@ -174,6 +174,8 @@ ALIASES = {
     "scrape": "scrape",
 
     "front flip": "front_flip",
+    "frontflip": "front_flip",
+    "do a front flip": "front_flip",
     "front jump": "front_jump",
     "jump": "front_jump",
     "front pounce": "front_pounce",
@@ -208,6 +210,7 @@ ALIASES = {
 
 SCRIPTS = {
     "tour_greet": ["stand_up", "hello", "stretch", "balance_stand"],
+    "tour_handshake": ["stand_up", "hello", "balance_stand"],
     "tour_attention": ["hello", "content", "balance_stand"],
     "tour_pause": ["balance_stand"],
     "tour_resume": ["stand_up", "balance_stand", "hello"],
@@ -294,6 +297,7 @@ class WebRtcMotionSkillAgentNode(Node):
                 if isinstance(payload, dict):
                     cmd = str(
                         payload.get("command")
+                        or payload.get("skill")
                         or payload.get("type")
                         or payload.get("name")
                         or payload.get("script")

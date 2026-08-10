@@ -11,6 +11,7 @@ from .backends.voxel_store_adapter import VoxelStoreAdapter
 from .legacy_import_export import export_legacy_files, import_legacy_summary
 from .memory_conflict_detector import detect_name_conflicts
 from .memory_promotion import promote_record
+from .world_memory import WorldMemoryStore
 from .memory_schema import GraphEdge, GraphNode, MemoryRecord, new_id, normalize_json_payload, pose_from_dict, utc_now
 
 
@@ -31,6 +32,7 @@ class UnifiedMemoryAPI:
         self._graph_cache: Dict[str, GraphStoreKuzu] = {}
         self._vector_cache: Dict[str, VectorStoreLocal] = {}
         self._voxel_cache: Dict[str, VoxelStoreAdapter] = {}
+        self.world = WorldMemoryStore(self.store, self._graph, enable_graph_memory=self.enable_graph_memory)
 
     def write_spawn(self, session_name: str, payload: str | Dict[str, Any]) -> Dict[str, Any]:
         data = normalize_json_payload(payload)
@@ -218,6 +220,33 @@ class UnifiedMemoryAPI:
                 'edge_count': len(graph.get('edges', [])),
             },
         }
+
+    def write_room(self, session_name: str, payload: str | Dict[str, Any]) -> Dict[str, Any]:
+        return self.world.write_room(session_name, payload)
+
+    def write_object_observation(self, session_name: str, payload: str | Dict[str, Any]) -> Dict[str, Any]:
+        return self.world.write_object_observation(session_name, payload)
+
+    def upsert_object_instance(self, session_name: str, payload: str | Dict[str, Any]) -> Dict[str, Any]:
+        return self.world.upsert_object(session_name, payload)
+
+    def query_objects(self, session_name: str, label: str = "", room: str = "", confirmed_only: bool = True, limit: int = 100) -> Dict[str, Any]:
+        return self.world.query_objects(session_name, label=label, room=room, confirmed_only=confirmed_only, limit=limit)
+
+    def count_objects(self, session_name: str, label: str = "", room: str = "", confirmed_only: bool = True) -> Dict[str, Any]:
+        return self.world.count_objects(session_name, label=label, room=room, confirmed_only=confirmed_only)
+
+    def write_fact(self, session_name: str, payload: str | Dict[str, Any]) -> Dict[str, Any]:
+        return self.world.write_fact(session_name, payload)
+
+    def write_tour_stop(self, session_name: str, payload: str | Dict[str, Any]) -> Dict[str, Any]:
+        return self.world.write_tour_stop(session_name, payload)
+
+    def world_snapshot(self, session_name: str, limit: int = 100) -> Dict[str, Any]:
+        return self.world.snapshot(session_name, limit=limit)
+
+    def cache_web_result(self, session_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        return self.world.cache_web_result(session_name, payload)
 
     def _previous_checkpoint(self, session_name: str, current_id: str) -> Dict[str, Any] | None:
         checkpoints = [c for c in self.store.read_jsonl(session_name, 'memory/checkpoints.jsonl') if c.get('id') != current_id]

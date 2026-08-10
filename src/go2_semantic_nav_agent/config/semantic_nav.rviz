@@ -5,10 +5,9 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /PointCloud21
-        - /Image1
-        - /Image1/Topic1
+        - /YOLO + SAM2 Object Memory1
       Splitter Ratio: 0.5
-    Tree Height: 322
+    Tree Height: 346
   - Class: rviz_common/Views
     Expanded:
       - /Current View1
@@ -313,8 +312,7 @@ Visualization Manager:
       Enabled: true
       Name: Places
       Namespaces:
-        place_labels: true
-        places: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -326,14 +324,27 @@ Visualization Manager:
       Enabled: true
       Name: RoutePreview
       Namespaces:
-        route_stop_labels: true
-        route_stops: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /semantic_nav/route_preview
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: YOLO + SAM2 Object Memory
+      Namespaces:
+        sysnav_object_extents: true
+        sysnav_object_labels: true
+        sysnav_object_points: true
+      Topic:
+        Depth: 5
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /go2_vln/object_markers
       Value: true
     - Alpha: 1
       Buffer Length: 1
@@ -368,14 +379,14 @@ Visualization Manager:
       Max Value: 1
       Median window: 5
       Min Value: 0
-      Name: Image
+      Name: YOLO + SAM2 Overlay
       Normalize Range: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Best Effort
-        Value: /camera/image_raw
+        Value: /object_explorer/annotated_image
       Value: true
   Enabled: true
   Global Options:
@@ -412,7 +423,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 11.109662055969238
+      Distance: 17.688695907592773
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -427,10 +438,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.64479660987854
+      Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 4.322384834289551
+      Yaw: 4.282384872436523
     Saved: ~
 Window Geometry:
   Displays:
@@ -438,11 +449,11 @@ Window Geometry:
   Height: 1371
   Hide Left Dock: false
   Hide Right Dock: false
-  Image:
-    collapsed: false
-  QMainWindow State: 000000ff00000000fd000000010000000000000468000004fdfc0200000004fb0000000c00430061006d006500720061010000003f000000d10000000000000000fb000000100044006900730070006c006100790073010000003f000001c8000000cc00fffffffb0000000a00560069006500770073010000020d000000a9000000a900fffffffb0000000a0049006d00610067006501000002bc000002800000001700ffffff000008c0000004fd00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd000000010000000000000468000004fdfc0200000005fb0000000c00430061006d006500720061010000003f000000d10000000000000000fb000000100044006900730070006c006100790073010000003f000001e0000000cc00fffffffb0000000a005600690065007700730100000225000000a9000000a900fffffffb0000000a0049006d00610067006501000002bc000002800000000000000000fb000000260059004f004c004f0020002b002000530041004d00320020004f007600650072006c0061007901000002d4000002680000001700ffffff000008c0000004fd00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Views:
     collapsed: false
   Width: 3374
   X: 66
   Y: 32
+  YOLO + SAM2 Overlay:
+    collapsed: false

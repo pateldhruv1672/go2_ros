@@ -97,20 +97,17 @@ class Go2TtsNode(Node):
         self.declare_parameter("interrupt_previous_by_default", False)
         self.declare_parameter("speak_vlm_status", True)
         self.declare_parameter("max_spoken_sentences", 2)
+        self.declare_parameter("input_topics", ["/go2_tts/say"])
 
         self.status_pub = self.create_publisher(String, "/go2_tts/status", 10)
         self._lock = threading.Lock()
         self._proc: subprocess.Popen[str] | None = None
 
-        topics = (
-            "/tts",  # legacy Go2 robot TTS topic; mirroring this is the important add-on
-            "/go2_tts/say",
-            "/go2_agent/response",
-            "/go2_agent/speech",
-            "/agent/reply",
-            "/go2_tour/narration",
-            "/go2_vlm_checkpoint/status",
-        )
+        configured_topics = self.get_parameter("input_topics").value
+        if isinstance(configured_topics, str):
+            topics = (configured_topics,)
+        else:
+            topics = tuple(str(x) for x in (configured_topics or ["/go2_tts/say"]))
         for topic in topics:
             self.create_subscription(
                 String,

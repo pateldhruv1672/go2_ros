@@ -313,6 +313,14 @@ def classify_intent(text: str) -> Dict[str, Any]:
         intent = "start_tour"
     elif "tour" in norm:
         intent = "tour_question"
+    elif any(p in norm for p in ("search the web", "search web", "look up online", "lookup online", "google this")):
+        intent = "web_search"
+    elif norm.startswith("how many ") or norm.startswith("count "):
+        intent = "count_objects"
+    elif any(norm.startswith(p) for p in ("find ", "locate ", "search for ")):
+        intent = "find_object"
+    elif any(norm.startswith(p) for p in ("where is the ", "where are the ", "where is my ", "where are my ")):
+        intent = "where_object"
     elif "explore" in norm or "frontier" in norm:
         intent = "explore"
     elif "coverage" in norm or "scan the area" in norm or "cover" in norm:
@@ -343,7 +351,7 @@ def classify_intent(text: str) -> Dict[str, Any]:
             "raw_text": text,
             "normalized_text": norm,
         },
-        "requires_motion": intent in {"navigate", "return_to_spawn", "start_tour", "explore", "coverage_explore", "continue_task"},
+        "requires_motion": intent in {"navigate", "return_to_spawn", "start_tour", "explore", "coverage_explore", "continue_task", "find_object"},
     }
 
 

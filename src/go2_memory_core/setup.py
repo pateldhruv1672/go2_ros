@@ -24,6 +24,7 @@ setup(
             'memory_server_node = go2_memory_core.memory_server_node:main',
             'pose_snapshot_node = go2_memory_core.pose_snapshot_node:main',
             'vlm_checkpoint_node = go2_memory_core.vlm_checkpoint_node:main',
+            'world_object_memory_node = go2_memory_core.world_object_memory_node:main',
         ],
     },
 )

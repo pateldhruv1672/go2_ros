@@ -121,6 +121,24 @@ class MemoryServerNode(Node):
                 result = self.api.write_spawn(session_name, command.get('data', {}))
             elif action == 'resume_context':
                 result = self.api.get_resume_context(session_name, command.get('data', {}))
+            elif action == 'write_room':
+                result = self.api.write_room(session_name, command.get('data', {}))
+            elif action == 'upsert_object':
+                result = self.api.upsert_object_instance(session_name, command.get('data', {}))
+            elif action == 'write_object_observation':
+                result = self.api.write_object_observation(session_name, command.get('data', {}))
+            elif action == 'query_objects':
+                data = command.get('data', {}) or {}
+                result = self.api.query_objects(session_name, label=str(data.get('label', '')), room=str(data.get('room', '')), confirmed_only=bool(data.get('confirmed_only', True)), limit=int(data.get('limit', 100)))
+            elif action == 'count_objects':
+                data = command.get('data', {}) or {}
+                result = self.api.count_objects(session_name, label=str(data.get('label', '')), room=str(data.get('room', '')), confirmed_only=bool(data.get('confirmed_only', True)))
+            elif action == 'write_fact':
+                result = self.api.write_fact(session_name, command.get('data', {}))
+            elif action == 'write_tour_stop':
+                result = self.api.write_tour_stop(session_name, command.get('data', {}))
+            elif action == 'world_snapshot':
+                result = self.api.world_snapshot(session_name, limit=int((command.get('data', {}) or {}).get('limit', 100)))
             else:
                 result = {'success': False, 'message': f'unknown action: {action}'}
         except Exception as exc:

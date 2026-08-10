@@ -1,0 +1,76 @@
+schema_version: 1
+profile:
+  robot_name: Sparky
+  lab_name: Digital Twin Lab
+  presenter_name: Dhruv
+  note: >-
+    This is a starter guest-tour script. Edit the session copy after the first Tour launch
+    to make the wording match the exact lab, research group, demos, and facts you want guests to hear.
+
+scripts:
+  welcome:
+    - type: speech
+      text: >-
+        Welcome to the Digital Twin Lab. I am Sparky, and I will be your robotic guide today.
+    - type: speech
+      text: >-
+        Thank you for visiting. During this tour, you can ask me questions or give me commands from the phone interface.
+
+  lab_intro:
+    - type: speech
+      text: >-
+        This demo brings together ROS 2 navigation, semantic mapping, object perception, persistent spatial memory, and language-model reasoning.
+    - type: speech
+      text: >-
+        During teach mode, I learned this environment by building a map, saving meaningful places, and recording object observations and map positions with YOLO and SAM 2.
+    - type: speech
+      text: >-
+        In resume and tour mode, I reuse that same saved world memory instead of learning the lab again.
+
+  research_intro:
+    - type: speech
+      text: >-
+        This system is being developed by Dhruv as part of his work on agentic robotic navigation and semantic memory.
+    - type: speech
+      text: >-
+        The goal is to make a mobile robot that can navigate known spaces, remember and find objects, answer grounded questions, recover from problems, and interact naturally with guests.
+
+  sparky_intro:
+    - type: speech
+      text: >-
+        I am Sparky, a Unitree Go2 quadruped robot integrated with ROS 2.
+    - type: speech
+      text: >-
+        I can localize on a saved map, navigate with Nav2, recognize and segment objects, remember where objects were observed, and answer questions using the shared session memory.
+    - type: speech
+      text: >-
+        I can also perform selected Unitree Sport motion skills when it is safe and when a guest confirms the action.
+
+  capabilities:
+    - type: speech
+      text: >-
+        You can ask me where I am, what I remember about this area, how many objects I learned in a room, or where a remembered object was last observed.
+    - type: speech
+      text: >-
+        You can also ask me to find an object, navigate to a saved place, continue the tour, or answer a question about what I learned during teaching.
+    - type: speech
+      text: >-
+        Would you like to see some of my safe moves? You can say, Sparky, show some moves, or choose a motion from the phone.
+
+  full_intro:
+    - include: welcome
+    - include: lab_intro
+    - include: research_intro
+    - include: sparky_intro
+    - include: capabilities
+
+  safe_moves:
+    - type: speech
+      text: >-
+        Sure. I will show a short low-risk motion demonstration while staying in place.
+    - type: motion
+      command: tour_greet
+      wait_sec: 4.5
+    - type: speech
+      text: >-
+        That was a small sample. You can ask me to wave, stretch, sit, stand, or perform another allowed motion from the phone.

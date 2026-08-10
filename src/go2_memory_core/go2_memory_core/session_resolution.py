@@ -40,6 +40,14 @@ def resolve_semantic_session_name(session_root: str | Path, requested: Any = "")
 
     root = Path(str(session_root)).expanduser()
     name = str(requested or "").strip()
+    if name == "__latest_created__":
+        # Teach has a valid session directory before it has map.yaml/route.yaml. This
+        # special internal selector is for Teach-time writers only; Resume/Tour should
+        # use an explicit session name (or the normal resume-ready auto resolver).
+        candidates = [p for p in root.iterdir() if p.is_dir()] if root.is_dir() else []
+        if not candidates:
+            return "__latest_created__"
+        return max(candidates, key=lambda p: p.stat().st_mtime_ns).name
     if name and name.lower() not in AUTO_SESSION_NAMES | {"default"}:
         return name
 
