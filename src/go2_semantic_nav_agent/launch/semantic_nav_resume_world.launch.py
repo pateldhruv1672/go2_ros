@@ -32,6 +32,7 @@ def generate_launch_description():
     session_name = LaunchConfiguration("session_name")
     camera_topic = LaunchConfiguration("camera_topic")
     camera_info_topic = LaunchConfiguration("camera_info_topic")
+    pointcloud_topic = LaunchConfiguration("pointcloud_topic")
 
     resume = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(PathJoinSubstitution([
@@ -45,10 +46,13 @@ def generate_launch_description():
             "nav2_start_delay_sec": LaunchConfiguration("nav2_start_delay_sec"),
             "scan_input_topic": LaunchConfiguration("scan_input_topic"),
             "scan_nav_topic": LaunchConfiguration("scan_nav_topic"),
+            "pointcloud_topic": pointcloud_topic,
             "scan_frame_id": LaunchConfiguration("scan_frame_id"),
             "scan_stamp_offset_sec": LaunchConfiguration("scan_stamp_offset_sec"),
         }.items(),
     )
+
+    perception = LaunchConfiguration("enable_object_perception")
 
     return LaunchDescription([
         DeclareLaunchArgument("session_root", default_value="~/.ros/go2_semantic_nav_sessions"),
@@ -58,6 +62,7 @@ def generate_launch_description():
         DeclareLaunchArgument("nav2_start_delay_sec", default_value="8.0"),
         DeclareLaunchArgument("scan_input_topic", default_value="/scan"),
         DeclareLaunchArgument("scan_nav_topic", default_value="/scan_nav"),
+        DeclareLaunchArgument("pointcloud_topic", default_value="/point_cloud2"),
         DeclareLaunchArgument("scan_frame_id", default_value="base_link"),
         DeclareLaunchArgument("scan_stamp_offset_sec", default_value="0.25"),
         DeclareLaunchArgument("camera_topic", default_value="/camera/image_raw"),
@@ -67,6 +72,7 @@ def generate_launch_description():
         DeclareLaunchArgument("device", default_value="cuda:0"),
         DeclareLaunchArgument("yolo_model", default_value=os.path.expanduser("~/.cache/sparky_models/yolov8n.pt")),
         DeclareLaunchArgument("sam2_model", default_value=os.path.expanduser("~/.cache/sparky_models/sam2_t.pt")),
+        DeclareLaunchArgument("enable_object_perception", default_value="true"),
         DeclareLaunchArgument("enable_sam2", default_value="true"),
         DeclareLaunchArgument("yolo_conf", default_value="0.25"),
         DeclareLaunchArgument("inference_period_sec", default_value="0.20"),
@@ -75,15 +81,18 @@ def generate_launch_description():
         DeclareLaunchArgument("reset_runtime_object_map_db", default_value="true"),
         DeclareLaunchArgument("enable_vlm_backup", default_value="false"),
         DeclareLaunchArgument("vlm_provider", default_value="ollama"),
-        DeclareLaunchArgument("vlm_model", default_value="gemma4:e4b"),
+        DeclareLaunchArgument("vlm_model", default_value="llama3.2:3b"),
 
         OpaqueFunction(function=_reset_runtime_db),
         resume,
+
+        # Live 2D detector/tracker. This drives the RViz overlay and raw visible-now inventory.
         Node(
             package="go2_object_explorer",
             executable="fast_sam2_tracker_overlay_node",
             name="go2_resume_yolo_sam2",
             output="screen",
+            condition=IfCondition(perception),
             parameters=[{
                 "image_topic": camera_topic,
                 "device": LaunchConfiguration("device"),
@@ -96,19 +105,52 @@ def generate_launch_description():
                 "annotated_image_topic": "/object_explorer/annotated_image",
             }],
         ),
+
+        # Registered camera/LiDAR geometry. Velocity is intentionally NOT a mapping gate.
+        Node(
+            package="go2_sysnav_vln",
+            executable="registered_cloud_object_projector",
+            name="go2_registered_cloud_object_projector",
+            output="screen",
+            condition=IfCondition(perception),
+            respawn=True,
+            respawn_delay=2.0,
+            parameters=[{
+                "detections_2d_topic": "/object_explorer/sam2_detections",
+                "pointcloud_topic": pointcloud_topic,
+                "camera_info_topic": camera_info_topic,
+                "detections_3d_topic": "/go2_vln/target_detections_3d",
+                "status_topic": "/go2_vln/projection_status",
+                "map_frame": LaunchConfiguration("map_frame"),
+                "camera_frame": "",
+                "odom_topic": "/odom",
+                "max_cloud_age_sec": 1.25,
+                "ignore_velocity_gate": True,
+            }],
+        ),
+
         TimerAction(period=2.0, actions=[
+            # Persistent map fusion accepts registered 3D only. The robot observation
+            # viewpoint is not used as the physical object location.
             Node(
                 package="go2_sysnav_vln",
                 executable="pose_aware_object_mapper",
                 name="go2_resume_pose_aware_object_mapper",
                 output="screen",
+                condition=IfCondition(perception),
+                respawn=True,
+                respawn_delay=2.0,
                 parameters=[{
-                    "detection_topics": ["/object_explorer/sam2_detections"],
+                    "detection_topics": ["/go2_vln/target_detections_3d"],
                     "scan_topic": LaunchConfiguration("scan_nav_topic"),
                     "camera_info_topic": camera_info_topic,
                     "map_frame": LaunchConfiguration("map_frame"),
                     "base_frame": LaunchConfiguration("base_frame"),
+                    "min_detection_confidence": 0.60,
                     "min_confirmations": LaunchConfiguration("min_confirmations"),
+                    "require_registered_3d": True,
+                    "allow_scan_ray_fallback": False,
+                    "publish_tentative": True,
                     "database_path": LaunchConfiguration("object_map_db"),
                     "publish_topic": "/go2_vln/object_map",
                     "marker_topic": "/go2_vln/object_markers",
@@ -119,12 +161,16 @@ def generate_launch_description():
                 executable="world_object_memory_node",
                 name="go2_resume_world_object_memory",
                 output="screen",
+                condition=IfCondition(perception),
+                respawn=True,
+                respawn_delay=2.0,
                 parameters=[{
                     "session_root": session_root,
                     "session_name": session_name,
                     "camera_topic": camera_topic,
                     "detector_topic": "/object_explorer/sam2_detections",
                     "object_map_topic": "/go2_vln/object_map",
+                    "min_persistent_object_confidence": 0.60,
                     "ingest_historical_mapper_objects": False,
                     "enable_graph_memory": True,
                     "enable_vector_memory": True,
@@ -132,6 +178,7 @@ def generate_launch_description():
                 }],
             ),
         ]),
+
         Node(
             package="go2_memory_core",
             executable="vlm_checkpoint_node",

@@ -250,6 +250,7 @@ class SemanticNavNode(Node):
         self.declare_parameter('vlm_shutdown_wait_sec', 300.0)
         self.declare_parameter('tour_mode', True)
         self.declare_parameter('tour_default_pause_sec', 4.0)
+        self.declare_parameter('tour_auto_advance', False)
         self.declare_parameter('route_name', '')
         self.declare_parameter('auto_save_places', True)
         self.declare_parameter('auto_save_interval_sec', 5.0)
@@ -1764,16 +1765,19 @@ class SemanticNavNode(Node):
             self.publish_status(f'resume_current_stop stop={stop.name}')
             self.send_stop(stop, reason='resume')
             return
+        # Explicit "continue tour" means the next ordered route stop.  Only use
+        # nearest-stop recovery when there is no completed current stop to advance.
+        if stop and stop.status == 'complete' and self.route.current_stop_index < len(self.route.stops) - 1:
+            self.advance_tour()
+            return
+        if stop and stop.status == 'complete':
+            self.on_route_complete()
+            return
         selected = self.nearest_route_stop(include_complete=False)
         if selected is not None:
             _, selected_stop = selected
             self.publish_status(f'resume_pose_selected_stop stop={selected_stop.name}')
             self.send_stop(selected_stop, reason='resume_pose_select')
-            return
-        if stop and stop.status == 'complete' and self.route.current_stop_index < len(self.route.stops) - 1:
-            self.advance_tour()
-        elif stop and stop.status == 'complete':
-            self.on_route_complete()
 
     def advance_tour(self) -> None:
         next_stop = self.route_store.advance(self.route)
@@ -1815,9 +1819,13 @@ class SemanticNavNode(Node):
             stop.status = 'complete'
             self.route_store.save(self.route)
             self._publish_tour_explanation(stop, prefix='tour')
-            pause_until = self.get_clock().now().nanoseconds + int(max(0.1, float(stop.pause_seconds or self.get_parameter('tour_default_pause_sec').value)) * 1e9)
-            self._tour_pause_until_ns = pause_until
-            self.publish_status(f'tour_stop_complete stop={stop.name} pause_sec={stop.pause_seconds:.1f}')
+            if bool(self.get_parameter('tour_auto_advance').value):
+                pause_until = self.get_clock().now().nanoseconds + int(max(0.1, float(stop.pause_seconds or self.get_parameter('tour_default_pause_sec').value)) * 1e9)
+                self._tour_pause_until_ns = pause_until
+                self.publish_status(f'tour_stop_complete stop={stop.name} pause_sec={stop.pause_seconds:.1f} auto_advance=true')
+            else:
+                self._tour_pause_until_ns = 0
+                self.publish_status(f'tour_stop_complete stop={stop.name} waiting_for_continue=true')
             pose = self.pose_summary()
             self.agent_memory.add_observation({
                 'id': f'tour_stop_{route_slugify(stop.name)}_{self.get_clock().now().nanoseconds}',

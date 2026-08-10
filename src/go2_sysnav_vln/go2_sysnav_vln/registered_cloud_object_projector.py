@@ -52,9 +52,9 @@ class RegisteredCloudObjectProjector(Node):
         self.declare_parameter('detections_3d_topic', '/go2_vln/target_detections_3d')
         self.declare_parameter('status_topic', '/go2_vln/projection_status')
         self.declare_parameter('map_frame', 'map')
-        self.declare_parameter('camera_frame', 'front_camera')
+        self.declare_parameter('camera_frame', '')
         self.declare_parameter('odom_topic', '/odom')
-        self.declare_parameter('max_cloud_age_sec', 0.75)
+        self.declare_parameter('max_cloud_age_sec', 1.25)
         self.declare_parameter('min_points', 5)
         self.declare_parameter('max_points_input', 18000)
         self.declare_parameter('max_points_output', 120)
@@ -211,7 +211,7 @@ class RegisteredCloudObjectProjector(Node):
             self.publish(payload, [], f'pointcloud_stale:{age:.3f}')
             self.status('pointcloud_stale', age_sec=round(age, 3))
             return
-        if (not bool(self.get_parameter('ignore_velocity_gate').value)) and (f.linear_speed > float(self.get_parameter('max_linear_speed_mps').value) or self.angular_speed > float(self.get_parameter('max_angular_speed_rps').value)):
+        if (not bool(self.get_parameter('ignore_velocity_gate').value)) and (self.linear_speed > float(self.get_parameter('max_linear_speed_mps').value) or self.angular_speed > float(self.get_parameter('max_angular_speed_rps').value)):
             self.publish(payload, [], 'robot_moving_too_fast_for_persistent_mapping')
             self.status('motion_gated', linear=round(self.linear_speed, 3), angular=round(self.angular_speed, 3))
             return

@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import threading
+import time
 from typing import Any
 
 import rclpy
@@ -98,10 +99,12 @@ class Go2TtsNode(Node):
         self.declare_parameter("speak_vlm_status", True)
         self.declare_parameter("max_spoken_sentences", 2)
         self.declare_parameter("input_topics", ["/go2_tts/say"])
+        self.declare_parameter("duplicate_window_sec", 1.5)
 
         self.status_pub = self.create_publisher(String, "/go2_tts/status", 10)
         self._lock = threading.Lock()
         self._proc: subprocess.Popen[str] | None = None
+        self._recent_speech: dict[str, float] = {}
 
         configured_topics = self.get_parameter("input_topics").value
         if isinstance(configured_topics, str):
@@ -159,6 +162,24 @@ class Go2TtsNode(Node):
         text = _plain_spoken_text(text, self._param_int("max_spoken_sentences", 2))
         if not text:
             return
+
+        # Final duplicate guard: the speech arbiter should be the normal producer,
+        # but identical publications inside this window must not overlap audio.
+        dedup_key = re.sub(r"\s+", " ", text).strip().lower()
+        now_mono = time.monotonic()
+        window = max(0.0, self._param_float("duplicate_window_sec", 1.5))
+        last = self._recent_speech.get(dedup_key, -1e9)
+        if window > 0.0 and now_mono - last < window:
+            self.status_pub.publish(String(data=json.dumps({
+                "ok": True, "event": "duplicate_dropped", "source_topic": topic_name,
+                "text_len": len(text),
+            }, sort_keys=True)))
+            return
+        self._recent_speech[dedup_key] = now_mono
+        self._recent_speech = {
+            k: v for k, v in self._recent_speech.items()
+            if now_mono - v < max(10.0, 4.0 * window)
+        }
 
         interrupt = (
             bool(payload.get("interrupt", False))

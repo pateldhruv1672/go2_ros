@@ -257,7 +257,7 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     except ValueError:
         collision_source_timeout = 1.6
     collision_source_timeout = max(0.5, min(collision_source_timeout, 5.0))
-    cm['source_timeout'] = float(os.environ.get('GO2_COLLISION_SOURCE_TIMEOUT_SEC', '2.0'))
+    cm['source_timeout'] = float(os.environ.get('GO2_COLLISION_SOURCE_TIMEOUT_SEC', '1.6'))
     cm['stop_pub_timeout'] = 1.0
     cm['polygons'] = ['StopPolygon', 'SlowdownPolygon']
     collision_source = os.environ.get('GO2_COLLISION_SOURCE', 'pointcloud').strip().lower()

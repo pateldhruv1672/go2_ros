@@ -175,6 +175,7 @@ class AgenticVoiceActionNode(Node):
 
     TOOL_SCHEMA = [
         {'name': 'speak', 'args': {}, 'purpose': 'Natural conversation or grounded answer.'},
+        {'name': 'live_vision_summary', 'args': {}, 'purpose': 'Deterministic summary of fresh live YOLO/SAM tracks only; never persistent memory.'},
         {'name': 'navigate_to_place', 'args': {'place': 'saved place/checkpoint name'}, 'purpose': 'Navigate with semantic_nav/Nav2.'},
         {'name': 'start_tour', 'args': {}, 'purpose': 'Start the saved route from the beginning.'},
         {'name': 'continue_tour', 'args': {}, 'purpose': 'Continue/resume the saved tour after a stop.'},
@@ -292,6 +293,12 @@ class AgenticVoiceActionNode(Node):
             return None
         t=_clean_wake(text).lower().strip(' .!?')
         # High-confidence commands only. Ambiguous/conversational language still goes to Ollama.
+        # Current-vision questions must never be answered from remembered objects.
+        if t in {
+            'what do you see', 'what can you see', 'what do you see right now',
+            'what can you see right now', 'describe what you see', 'tell me what you see',
+        }:
+            return {'tool':'live_vision_summary','args':{},'speech':''}
         if t in {'start tour','start the tour','begin tour','begin the tour'}:
             return {'tool':'start_tour','args':{},'speech':'Starting the saved tour.'}
         if t in {'continue tour','continue the tour','resume tour','resume the tour','next stop'}:
@@ -464,7 +471,7 @@ class AgenticVoiceActionNode(Node):
             'For find/locate/take-me-to an object, choose find_object. The tool owns object retrieval and Nav2 goal generation. '
             'Object map_pose/object_pose means the physical object location, never the robot observation pose. '
             'For show me some moves choose motion_skill tour_greet; for handshake choose tour_handshake; wave maps to hello. '
-            'For what-do-you-see questions, ground the answer in live.object_inventory/live_object_map. '
+            'For current-vision questions use live_vision_summary; never infer current visibility from persistent object memory. '
             'Do not claim an action succeeded before ROS executes it; phrase action speech as intent such as "I will go there now." '
             'Return JSON ONLY with keys tool, args, speech, confidence. '
             f'ALLOWED_TOOLS={json.dumps(self.TOOL_SCHEMA, default=str)}'
@@ -524,6 +531,41 @@ class AgenticVoiceActionNode(Node):
         args = plan.get('args') if isinstance(plan.get('args'), dict) else {}
         if tool == 'speak':
             return {'ok': True, 'tool': tool}
+        if tool == 'live_vision_summary':
+            inv = self.latest.get('object_inventory')
+            if not isinstance(inv, dict):
+                return {'ok': False, 'tool': tool, 'speech': 'I do not have a fresh live YOLO and SAM view right now, so I will not guess.'}
+            try:
+                age = max(0.0, time.time() - float(inv.get('stamp_sec') or 0.0))
+            except Exception:
+                age = 999.0
+            if age > 3.5:
+                return {'ok': False, 'tool': tool, 'speech': 'My live vision feed is stale right now, so I will not guess what is in front of me.'}
+            unique = {}
+            for det in (inv.get('visible_objects') or []):
+                if not isinstance(det, dict):
+                    continue
+                try:
+                    conf = float(det.get('confidence') or det.get('score') or 0.0)
+                except Exception:
+                    conf = 0.0
+                if conf <= 0.60:
+                    continue
+                label = str(det.get('label') or det.get('class') or 'object').strip().lower() or 'object'
+                track = det.get('track_id')
+                if track is not None:
+                    key = (label, str(track))
+                else:
+                    bbox = det.get('bbox') or det.get('box_xyxy') or []
+                    key = (label, tuple(round(float(x), -1) for x in bbox[:4]) if isinstance(bbox, (list, tuple)) else str(bbox))
+                old = unique.get(key)
+                if old is None or conf > old[0]:
+                    unique[key] = (conf, label)
+            counts = Counter(label for _conf, label in unique.values())
+            if not counts:
+                return {'ok': True, 'tool': tool, 'visible_count': 0, 'speech': 'I do not currently have any objects above sixty percent confidence in my live view.'}
+            parts = [f'{count} {label}' + ('' if count == 1 else 's') for label, count in sorted(counts.items())]
+            return {'ok': True, 'tool': tool, 'visible_count': sum(counts.values()), 'visible_counts': dict(counts), 'speech': 'I can currently see ' + ', '.join(parts) + '.'}
         if tool == 'stop':
             return self._execute_stop('agent_request')
         if tool == 'navigate_to_place':
@@ -713,6 +755,8 @@ class AgenticVoiceActionNode(Node):
             route = self.session_dir / 'route.yaml'
             if route.is_file():
                 data = yaml.safe_load(route.read_text(encoding='utf-8')) or {}
+                if isinstance(data, dict) and isinstance(data.get('route'), dict):
+                    data = data['route']
                 stops = data.get('stops') if isinstance(data, dict) else []
                 if isinstance(stops, list):
                     out['route_stops'] = [

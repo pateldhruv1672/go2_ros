@@ -82,7 +82,7 @@ class PoseAwareObjectMapper(Node):
         self.declare_parameter("max_scan_age_sec", 0.50)
         self.declare_parameter("min_range_m", 0.25)
         self.declare_parameter("max_range_m", 8.0)
-        self.declare_parameter("min_detection_confidence", 0.35)
+        self.declare_parameter("min_detection_confidence", 0.60)
         # Upstream SysNav uses 5 degrees and 0.3 m object-relative novelty.
         self.declare_parameter("view_angle_threshold_deg", 5.0)
         self.declare_parameter("view_range_threshold_m", 0.30)
@@ -542,7 +542,7 @@ class PoseAwareObjectMapper(Node):
         for index, det in enumerate(detections):
             label = clean_label(str(det.get("label", det.get("class", ""))))
             confidence = finite_float(det.get("confidence", det.get("score", 0.0)), 0.0) or 0.0
-            if not label or confidence < min_score:
+            if not label or confidence <= min_score:
                 continue
             payload_geometry = str(payload.get("geometry", "")) if isinstance(payload, dict) else ""
             is_3d = bool(det.get("points_map") or det.get("centroid_map") or det.get("bbox3d")) \
