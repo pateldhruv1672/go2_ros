@@ -141,7 +141,10 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     bt['bond_heartbeat_period'] = 0.10
 
     ctrl = params.setdefault('controller_server', {}).setdefault('ros__parameters', {})
-    ctrl['controller_frequency'] = 10.0
+    ctrl['controller_frequency'] = float(os.environ.get('GO2_CONTROLLER_FREQUENCY', '5.0'))
+    # GO2_V11_6_1_CONTROL_RATE
+    # Conservative WebRTC diagnostic rate. Override with
+    # GO2_CONTROLLER_FREQUENCY after command/response timing is measured.
     ctrl['costmap_update_timeout'] = 1.0
     ctrl['progress_checker_plugins'] = ['progress_checker']
     ctrl['current_progress_checker'] = 'progress_checker'
@@ -149,6 +152,13 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     ctrl['goal_checker_plugins'] = ['general_goal_checker']
     ctrl['current_goal_checker'] = 'general_goal_checker'
     ctrl['controller_plugins'] = ['FollowPath']
+    # GO2_V11_6_2_DWB_DIAGNOSTICS
+    follow = ctrl.setdefault('FollowPath', {})
+    follow['debug_trajectory_details'] = True
+    follow['publish_evaluation'] = True
+    follow['publish_local_plan'] = True
+    follow['publish_trajectories'] = True
+    follow['publish_cost_grid_pc'] = True
     ctrl['use_realtime_priority'] = False
     ctrl['enable_stamped_cmd_vel'] = False
 
@@ -160,8 +170,8 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
 
     goal_checker = ctrl.setdefault('general_goal_checker', {})
     goal_checker['plugin'] = 'nav2_controller::SimpleGoalChecker'
-    goal_checker['xy_goal_tolerance'] = float(os.environ.get('GO2_NAV_GOAL_XY_TOLERANCE_M', '0.12'))
-    goal_checker['yaw_goal_tolerance'] = float(os.environ.get('GO2_NAV_GOAL_YAW_TOLERANCE_RAD', '0.30'))
+    goal_checker['xy_goal_tolerance'] = 0.30
+    goal_checker['yaw_goal_tolerance'] = 0.45
     goal_checker['stateful'] = True
 
     # GO2_V11_3_DWB_ACTUATOR_CONTRACT
@@ -171,20 +181,23 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     follow = ctrl.setdefault('FollowPath', {})
     follow['min_vel_x'] = 0.0
     follow['min_vel_y'] = 0.0
-    follow['min_speed_xy'] = float(os.environ.get('GO2_NAV_MIN_SPEED_XY', '0.08'))
-    follow['min_speed_theta'] = float(os.environ.get('GO2_NAV_MIN_SPEED_THETA', '0.18'))
+    follow['min_speed_xy'] = float(os.environ.get('GO2_NAV_MIN_SPEED_XY', '0.0'))
+    follow['min_speed_theta'] = float(os.environ.get('GO2_NAV_MIN_SPEED_THETA', '0.0'))
     follow['max_vel_x'] = float(os.environ.get('GO2_NAV_MAX_X', '0.30'))
     follow['max_speed_xy'] = follow['max_vel_x']
-    follow['max_vel_theta'] = float(os.environ.get('GO2_NAV_MAX_THETA', '0.60'))
+    follow['max_vel_theta'] = float(os.environ.get('GO2_NAV_MAX_THETA', '0.30'))
     follow['acc_lim_x'] = float(os.environ.get('GO2_NAV_ACC_X', '0.45'))
-    follow['acc_lim_theta'] = float(os.environ.get('GO2_NAV_ACC_THETA', '1.00'))
+    follow['acc_lim_theta'] = float(os.environ.get('GO2_NAV_ACC_THETA', '0.40'))
     follow['decel_lim_x'] = -abs(float(os.environ.get('GO2_NAV_DECEL_X', '0.60')))
-    follow['decel_lim_theta'] = -abs(float(os.environ.get('GO2_NAV_DECEL_THETA', '1.20')))
-    follow['sim_time'] = float(os.environ.get('GO2_NAV_SIM_TIME', '1.0'))
-    follow['xy_goal_tolerance'] = goal_checker['xy_goal_tolerance']
-    follow['yaw_goal_tolerance'] = goal_checker['yaw_goal_tolerance']
+    follow['decel_lim_theta'] = -abs(float(os.environ.get('GO2_NAV_DECEL_THETA', '0.50')))
     follow['trans_stopped_velocity'] = 0.05
     follow['theta_stopped_velocity'] = 0.08
+    # GO2_V11_6_ANGULAR_FIDELITY
+    # Do not force a minimum yaw command. The physical command path should
+    # preserve DWB's requested angular velocity instead of quantizing it.
+    follow['vtheta_samples'] = int(os.environ.get('GO2_NAV_VTHETA_SAMPLES', '31'))
+    follow['limit_vel_cmd_in_traj'] = True
+    follow['RotateToGoal.slowing_factor'] = float(os.environ.get('GO2_NAV_ROTATE_SLOWING_FACTOR', '8.0'))
 
     # Keep FollowPath from base nav2_params.yaml. Do not override DWB with MPPI here.
 
@@ -263,6 +276,14 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     global_inflation['inflation_radius'] = 0.70
     global_inflation['cost_scaling_factor'] = 3.0
 
+    # GO2_V11_6_2_SAFE_RECOVERY
+    behavior = params.setdefault('behavior_server', {}).setdefault('ros__parameters', {})
+    behavior['cycle_frequency'] = 5.0
+    behavior['simulate_ahead_time'] = 1.0
+    behavior['max_rotational_vel'] = 0.20
+    behavior['min_rotational_vel'] = 0.05
+    behavior['rotational_acc_lim'] = 0.35
+    behavior['transform_tolerance'] = 0.5
     cm = params.setdefault('collision_monitor', {}).setdefault('ros__parameters', {})
     cm['enabled'] = True
     cm['enable_stamped_cmd_vel'] = False
@@ -289,7 +310,7 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
         cm['observation_sources'] = ['pointcloud']
     stop = cm.setdefault('StopPolygon', {})
     stop['type'] = 'polygon'
-    stop['points'] = '[[0.65, 0.28], [0.65, -0.28], [-0.20, -0.28], [-0.20, 0.28]]'
+    stop['points'] = '[[0.45, 0.28], [0.45, -0.28], [-0.20, -0.28], [-0.20, 0.28]]'
     stop['action_type'] = 'stop'
     stop['min_points'] = 4
     stop['visualize'] = True
@@ -361,6 +382,8 @@ def launch_setup(context, *args, **kwargs):
     nav2_start_delay_sec = float(LaunchConfiguration('nav2_start_delay_sec').perform(context))
     scan_input_topic = LaunchConfiguration('scan_input_topic').perform(context).strip() or '/scan'
     scan_nav_topic = LaunchConfiguration('scan_nav_topic').perform(context).strip() or '/scan_nav'
+    # V11.5: localization must use the measurement-time scan, not the retimestamped safety scan.
+    amcl_scan_topic = LaunchConfiguration('amcl_scan_topic').perform(context).strip() or scan_input_topic
     pointcloud_topic = LaunchConfiguration('pointcloud_topic').perform(context).strip() or '/point_cloud2'
     stvl_enabled = LaunchConfiguration('stvl_enabled').perform(context).strip() or 'auto'
     scan_frame_id = LaunchConfiguration('scan_frame_id').perform(context).strip() or 'base_link'
@@ -404,6 +427,7 @@ def launch_setup(context, *args, **kwargs):
             f'Checked configured path "{configured}" and session-local map files in "{session_dir}".'
         )
     print(f'[semantic_nav_resume] using session={session_name} map={map_yaml}')
+    print(f'[semantic_nav_resume] AMCL measurement scan={amcl_scan_topic}; retimed safety scan={scan_nav_topic}')
     print(f"[semantic_nav_resume] collision_source={os.environ.get('GO2_COLLISION_SOURCE','pointcloud')} safety_scan={os.environ.get('GO2_SAFETY_SCAN_TOPIC', scan_nav_topic)} timeout={os.environ.get('GO2_COLLISION_SOURCE_TIMEOUT_SEC','2.0')}s")
     nodes = [
         Node(package='go2_semantic_nav_agent', executable='scan_retimestamp_node', name='scan_retimestamp_node', output='screen', parameters=[{
@@ -414,10 +438,9 @@ def launch_setup(context, *args, **kwargs):
             'use_latest_tf_stamp': True,
             'tf_target_frame': 'odom',
             'tf_source_frame': scan_frame_id,
-            'preserve_input_header': True,
         }]),
         Node(package='nav2_map_server', executable='map_server', name='resume_map_server', output='screen', parameters=[{'yaml_filename': map_yaml}]),
-        Node(package='nav2_amcl', executable='amcl', name='amcl', output='screen', parameters=[amcl_cfg, {'scan_topic': scan_nav_topic}]),
+        Node(package='nav2_amcl', executable='amcl', name='amcl', output='screen', parameters=[amcl_cfg, {'scan_topic': amcl_scan_topic}]),
         Node(package='nav2_lifecycle_manager', executable='lifecycle_manager', name='resume_map_lifecycle_manager', output='screen', parameters=[{
             'autostart': True,
             'node_names': ['resume_map_server', 'amcl'],
@@ -434,8 +457,6 @@ def launch_setup(context, *args, **kwargs):
             'fallback_enable': _bool_flag(os.environ.get('GO2_SEMANTIC_FALLBACK_ENABLE', '0'), default=False),
             'initialpose_stamp_backdate_sec': 0.10,
             'scan_topic': scan_nav_topic,
-            'tour_auto_advance': _bool_flag(os.environ.get('GO2_TOUR_AUTO_ADVANCE', '0'), default=False),
-            'tour_default_pause_sec': float(os.environ.get('GO2_TOUR_PAUSE_SEC', '2.0')),
         }]),
     ]
     print('[semantic_nav_resume] semantic_nav_node immediate+respawn')
@@ -493,7 +514,7 @@ def generate_launch_description():
             'source_timeout_sec': 0.40,
             'nav2_max_x': float(os.environ.get('GO2_NAV_MAX_X', '0.30')),
             'nav2_max_y': 0.0,
-            'nav2_max_theta': float(os.environ.get('GO2_NAV_MAX_THETA', '0.60')),
+            'nav2_max_theta': float(os.environ.get('GO2_NAV_MAX_THETA', '0.30')),
             'omi_max_x': 0.25,
             'omi_max_y': 0.20,
             'omi_max_theta': 0.60,
@@ -513,6 +534,7 @@ def generate_launch_description():
         DeclareLaunchArgument('nav2_start_delay_sec', default_value='8.0'),
         DeclareLaunchArgument('scan_input_topic', default_value='/scan'),
         DeclareLaunchArgument('scan_nav_topic', default_value='/scan_nav'),
+        DeclareLaunchArgument('amcl_scan_topic', default_value='/scan'),
         DeclareLaunchArgument('pointcloud_topic', default_value='/point_cloud2'),
         DeclareLaunchArgument('stvl_enabled', default_value='auto'),
         DeclareLaunchArgument('scan_frame_id', default_value='base_link'),
