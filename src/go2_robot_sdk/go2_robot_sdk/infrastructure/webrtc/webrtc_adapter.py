@@ -134,8 +134,11 @@ class WebRTCAdapter(IRobotDataReceiver, IRobotController):
             return 0.0
         sign = 1.0 if value > 0.0 else -1.0
         scaled = abs(value) * gain
-        if minimum > 0.0:
-            scaled = max(scaled, minimum)
+        # IMPORTANT: `minimum` is an actuator deadband, not a command floor.
+        # Never turn a tiny DWB correction into a larger physical kick. DWB is
+        # configured to sample at/above the same physical minimum when moving.
+        if minimum > 0.0 and scaled < minimum:
+            return 0.0
         if maximum > 0.0:
             scaled = min(scaled, maximum)
         return sign * scaled

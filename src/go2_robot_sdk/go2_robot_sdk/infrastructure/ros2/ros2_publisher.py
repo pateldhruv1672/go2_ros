@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import logging
+import math
 
 from rclpy.node import Node
 from tf2_ros import TransformBroadcaster
@@ -33,6 +34,10 @@ class ROS2Publisher(IRobotDataPublisher):
         self.broadcaster = broadcaster
         self.bridge = CvBridge()
         self.camera_info = load_camera_info()
+        # Per-robot history for deriving base-frame twist from successive odom poses.
+        # The upstream Go2 odometry feed contains pose but the ROS Odometry message
+        # previously left twist at zero, which breaks DWB velocity feedback.
+        self._odom_twist_history = {}
 
     def publish_odometry(self, robot_data: RobotData) -> None:
         """Publish odometry data"""
@@ -76,10 +81,59 @@ class ROS2Publisher(IRobotDataPublisher):
 
         self.broadcaster.sendTransform(odom_trans)
 
+    @staticmethod
+    def _yaw_from_quaternion(x: float, y: float, z: float, w: float) -> float:
+        # Standard yaw extraction, robust to small roll/pitch from the quadruped body.
+        siny_cosp = 2.0 * (w * z + x * y)
+        cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
+        return math.atan2(siny_cosp, cosy_cosp)
+
+    def _estimate_base_twist(self, robot_idx: int, x: float, y: float, yaw: float, stamp_ns: int):
+        """Estimate child/base-frame vx, vy, wz from successive odom poses.
+
+        The raw Go2 odometry stream is pose-rich but this ROS adapter historically
+        published a zero twist. DWB uses odometry velocity feedback, so derive it
+        here with dt guards, body-frame rotation, wrap-safe yaw difference, and
+        light low-pass filtering.
+        """
+        previous = self._odom_twist_history.get(robot_idx)
+        vx_body = vy_body = wz = 0.0
+        if previous is not None:
+            dt = (stamp_ns - previous['stamp_ns']) * 1e-9
+            # The live stream can occasionally deliver duplicate/bursty timestamps.
+            if 0.01 <= dt <= 0.75:
+                vx_odom = (x - previous['x']) / dt
+                vy_odom = (y - previous['y']) / dt
+                dyaw = math.atan2(math.sin(yaw - previous['yaw']), math.cos(yaw - previous['yaw']))
+                raw_wz = dyaw / dt
+
+                # nav_msgs/Odometry twist is expressed in child_frame_id (base_link).
+                c = math.cos(yaw)
+                sn = math.sin(yaw)
+                raw_vx_body = c * vx_odom + sn * vy_odom
+                raw_vy_body = -sn * vx_odom + c * vy_odom
+
+                # Reject impossible spikes caused by pose discontinuities/local resets.
+                raw_vx_body = max(-2.0, min(2.0, raw_vx_body))
+                raw_vy_body = max(-2.0, min(2.0, raw_vy_body))
+                raw_wz = max(-4.0, min(4.0, raw_wz))
+
+                alpha = 0.45
+                vx_body = alpha * raw_vx_body + (1.0 - alpha) * previous.get('vx', 0.0)
+                vy_body = alpha * raw_vy_body + (1.0 - alpha) * previous.get('vy', 0.0)
+                wz = alpha * raw_wz + (1.0 - alpha) * previous.get('wz', 0.0)
+
+        self._odom_twist_history[robot_idx] = {
+            'x': x, 'y': y, 'yaw': yaw, 'stamp_ns': stamp_ns,
+            'vx': vx_body, 'vy': vy_body, 'wz': wz,
+        }
+        return vx_body, vy_body, wz
+
     def _publish_odometry_topic(self, robot_data: RobotData, robot_idx: int) -> None:
-        """Publish Odometry topic"""
+        """Publish Odometry pose plus derived base-frame velocity feedback."""
         odom_msg = Odometry()
-        odom_msg.header.stamp = self.node.get_clock().now().to_msg()
+        now = self.node.get_clock().now()
+        odom_msg.header.stamp = now.to_msg()
         odom_msg.header.frame_id = 'odom'
 
         if self.config.conn_mode == 'single':
@@ -89,15 +143,36 @@ class ROS2Publisher(IRobotDataPublisher):
 
         position = robot_data.odometry_data.position
         orientation = robot_data.odometry_data.orientation
+        x = float(position['x'])
+        y = float(position['y'])
+        z = float(position['z'])
+        qx = float(orientation['x'])
+        qy = float(orientation['y'])
+        qz = float(orientation['z'])
+        qw = float(orientation['w'])
 
-        odom_msg.pose.pose.position.x = float(position['x'])
-        odom_msg.pose.pose.position.y = float(position['y'])
-        odom_msg.pose.pose.position.z = float(position['z']) + 0.07
+        odom_msg.pose.pose.position.x = x
+        odom_msg.pose.pose.position.y = y
+        odom_msg.pose.pose.position.z = z + 0.07
+        odom_msg.pose.pose.orientation.x = qx
+        odom_msg.pose.pose.orientation.y = qy
+        odom_msg.pose.pose.orientation.z = qz
+        odom_msg.pose.pose.orientation.w = qw
 
-        odom_msg.pose.pose.orientation.x = float(orientation['x'])
-        odom_msg.pose.pose.orientation.y = float(orientation['y'])
-        odom_msg.pose.pose.orientation.z = float(orientation['z'])
-        odom_msg.pose.pose.orientation.w = float(orientation['w'])
+        yaw = self._yaw_from_quaternion(qx, qy, qz, qw)
+        vx, vy, wz = self._estimate_base_twist(robot_idx, x, y, yaw, now.nanoseconds)
+        odom_msg.twist.twist.linear.x = float(vx)
+        odom_msg.twist.twist.linear.y = float(vy)
+        odom_msg.twist.twist.linear.z = 0.0
+        odom_msg.twist.twist.angular.x = 0.0
+        odom_msg.twist.twist.angular.y = 0.0
+        odom_msg.twist.twist.angular.z = float(wz)
+
+        # Non-zero diagonal covariance tells consumers this is estimated feedback,
+        # rather than falsely claiming perfect certainty.
+        odom_msg.twist.covariance[0] = 0.02
+        odom_msg.twist.covariance[7] = 0.02
+        odom_msg.twist.covariance[35] = 0.03
 
         self.publishers['odometry'][robot_idx].publish(odom_msg)
 

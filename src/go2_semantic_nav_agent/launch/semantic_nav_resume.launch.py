@@ -154,15 +154,34 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
 
     progress = ctrl.setdefault('progress_checker', {})
     progress['plugin'] = 'nav2_controller::PoseProgressChecker'
-    progress['required_movement_radius'] = 0.005
-    progress['required_movement_angle'] = 0.02
-    progress['movement_time_allowance'] = 600.0
+    progress['required_movement_radius'] = float(os.environ.get('GO2_NAV_PROGRESS_RADIUS_M', '0.08'))
+    progress['required_movement_angle'] = float(os.environ.get('GO2_NAV_PROGRESS_ANGLE_RAD', '0.12'))
+    progress['movement_time_allowance'] = float(os.environ.get('GO2_NAV_PROGRESS_TIMEOUT_SEC', '12.0'))
 
     goal_checker = ctrl.setdefault('general_goal_checker', {})
     goal_checker['plugin'] = 'nav2_controller::SimpleGoalChecker'
     goal_checker['xy_goal_tolerance'] = 0.30
     goal_checker['yaw_goal_tolerance'] = 0.45
     goal_checker['stateful'] = True
+
+    # GO2_V11_3_DWB_ACTUATOR_CONTRACT
+    # DWB knows the Go2's usable motion floor; the WebRTC adapter treats the same
+    # values as deadbands and never amplifies a smaller command. Keep this test
+    # envelope conservative until straight and turning path tracking are verified.
+    follow = ctrl.setdefault('FollowPath', {})
+    follow['min_vel_x'] = 0.0
+    follow['min_vel_y'] = 0.0
+    follow['min_speed_xy'] = float(os.environ.get('GO2_NAV_MIN_SPEED_XY', '0.08'))
+    follow['min_speed_theta'] = float(os.environ.get('GO2_NAV_MIN_SPEED_THETA', '0.18'))
+    follow['max_vel_x'] = float(os.environ.get('GO2_NAV_MAX_X', '0.30'))
+    follow['max_speed_xy'] = follow['max_vel_x']
+    follow['max_vel_theta'] = float(os.environ.get('GO2_NAV_MAX_THETA', '0.60'))
+    follow['acc_lim_x'] = float(os.environ.get('GO2_NAV_ACC_X', '0.45'))
+    follow['acc_lim_theta'] = float(os.environ.get('GO2_NAV_ACC_THETA', '1.00'))
+    follow['decel_lim_x'] = -abs(float(os.environ.get('GO2_NAV_DECEL_X', '0.60')))
+    follow['decel_lim_theta'] = -abs(float(os.environ.get('GO2_NAV_DECEL_THETA', '1.20')))
+    follow['trans_stopped_velocity'] = 0.05
+    follow['theta_stopped_velocity'] = 0.08
 
     # Keep FollowPath from base nav2_params.yaml. Do not override DWB with MPPI here.
 
@@ -408,6 +427,7 @@ def launch_setup(context, *args, **kwargs):
             'restore_spawn_on_start': restore_spawn_on_start,
             'allow_manual_initialpose_override': True,
             'fallback_cmd_topic': '/cmd_vel_omi',
+            'fallback_enable': _bool_flag(os.environ.get('GO2_SEMANTIC_FALLBACK_ENABLE', '0'), default=False),
             'initialpose_stamp_backdate_sec': 0.10,
             'scan_topic': scan_nav_topic,
         }]),
@@ -465,9 +485,9 @@ def generate_launch_description():
             'escape_topic': '/cmd_vel_escape',
             'output_topic': '/cmd_vel_nav',
             'source_timeout_sec': 0.40,
-            'nav2_max_x': 0.75,
+            'nav2_max_x': float(os.environ.get('GO2_NAV_MAX_X', '0.30')),
             'nav2_max_y': 0.0,
-            'nav2_max_theta': 0.90,
+            'nav2_max_theta': float(os.environ.get('GO2_NAV_MAX_THETA', '0.60')),
             'omi_max_x': 0.25,
             'omi_max_y': 0.20,
             'omi_max_theta': 0.60,
