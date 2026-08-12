@@ -36,7 +36,7 @@ HTML = r'''<!doctype html>
 </head>
 <body><div class="wrap">
 <div class="hero"><div><div class="eyebrow">Unitree Go2 · Live Mission Console</div><h1>Sparky</h1><div class="muted">Navigation, perception, memory, speech and tour orchestration.</div></div><span class="status-pill" id="systemPill">Connecting</span></div>
-<div class="muted">The phone performs speech recognition. Only text is sent to the DGX. Motion still passes through Sparky's safety/confirmation gate.</div>
+<div class="muted">The phone performs speech recognition. Only text is sent to the DGX. Phone Sit/Stand/Wave/Dance/Front Flip gestures are one-tap. Navigation and object-finding stay confirmation-gated.</div>
 <div class="card">
 <label>Demo PIN / API token</label><input id="token" type="password" inputmode="numeric" autocomplete="off" placeholder="0000">
 <div class="muted" style="margin-top:7px">For the supervised demo you can use SPARKY_WEB_TOKEN=0000. The same value is used as the Admin PIN by default.</div>
@@ -56,7 +56,7 @@ HTML = r'''<!doctype html>
 <label>Guest Tour Host</label>
 <div class="row"><button class="primary" onclick="host('welcome')">Welcome Guests</button><button onclick="host('lab_intro')">Lab Intro</button><button onclick="host('sparky_intro')">Introduce Sparky</button></div>
 <div class="row" style="margin-top:10px"><button onclick="host('capabilities')">Capabilities</button><button class="safe" onclick="host('safe_moves')">Show Safe Moves</button><button onclick="quick('start the tour')">Start Saved Tour</button></div>
-<div class="row" style="margin-top:10px"><button onclick="quick('wave')">Wave</button><button onclick="quick('stretch')">Stretch</button><button onclick="quick('sit')">Sit</button><button onclick="quick('stand')">Stand</button><button onclick="quick('heart')">Heart</button></div>
+<div class="row" style="margin-top:10px"><button onclick="quick('wave')">Wave</button><button onclick="quick('dance')">Dance</button><button onclick="quick('stretch')">Stretch</button><button onclick="quick('sit')">Sit</button><button onclick="quick('stand')">Stand</button><button onclick="quick('heart')">Heart</button><button class="danger" title="Immediate phone gesture; blocked while semantic navigation is active" onclick="quick('front flip')">Front Flip</button></div>
 </div>
 <div class="card">
 <label>Ask Sparky (read-only)</label><textarea id="query" placeholder="What do you see? / What do you remember? / How many chairs do you remember?"></textarea>
@@ -122,8 +122,7 @@ async function refresh(){try{
  setPill('systemPill',(agentFresh&&navFresh?'System ready':'System needs attention'),agentFresh&&navFresh,true);
  document.getElementById('vlmLive').textContent=vlm?(vlm.success===false?'VLM error: '+(vlm.error||'unknown'):((vlm.summary||'No summary')+'  ·  '+(vlm.provider||'?')+' / '+(vlm.model||'?'))):'No live VLM call yet. Ask “What do you see in front of me?”';
  if(speechReq?.text)document.getElementById('result').textContent=speechReq.text; document.getElementById('orchestration').textContent=JSON.stringify({agent,nav,speech,motion,tour},null,2);
- document.getElementById('eventHistory').textContent=(s.history||[]).slice(-24).reverse().map(x=>new Date((x.received_unix||0)*1000).toLocaleTimeString()+'  '+x.key+'  '+short(x.value)).join('
-')||'No events yet.';
+ document.getElementById('eventHistory').textContent=(s.history||[]).slice(-24).reverse().map(x=>new Date((x.received_unix||0)*1000).toLocaleTimeString()+'  '+x.key+'  '+short(x.value)).join('\n')||'No events yet.';
  document.getElementById('state').textContent=JSON.stringify(s,null,2); document.getElementById('tourBadge').textContent='tour: '+short(value(s,'tour_status')); document.getElementById('voiceBadge').textContent='agent: '+short(agent); document.getElementById('navBadge').textContent='nav: '+short(nav);
 }catch(e){document.getElementById('state').textContent='Status error: '+e.message;setPill('systemPill','Disconnected',false)}}
 async function refreshMap(){try{
@@ -167,12 +166,14 @@ class PhoneWebGatewayNode(Node):
         self.declare_parameter("auto_prefix_wake_word", True)
         self.declare_parameter("transcript_topic", "/go2_voice/transcript")
         self.declare_parameter("query_topic", "/go2_agent/query")
+        self.declare_parameter("vlm_query_topic", "/go2_vlm/query")
         self.declare_parameter("semantic_nav_command_topic", "/semantic_nav/command")
         self.declare_parameter("snapshot_topic", "/go2_memory/write_snapshot_now")
         self.declare_parameter("tour_host_command_topic", "/go2_tour/host_command")
 
         self.transcript_pub = self.create_publisher(String, str(self.get_parameter("transcript_topic").value), 10)
         self.query_pub = self.create_publisher(String, str(self.get_parameter("query_topic").value), 10)
+        self.vlm_query_pub = self.create_publisher(String, str(self.get_parameter("vlm_query_topic").value), 10)
         self.semantic_command_pub = self.create_publisher(String, str(self.get_parameter("semantic_nav_command_topic").value), 10)
         self.snapshot_pub = self.create_publisher(String, str(self.get_parameter("snapshot_topic").value), 10)
         self.tour_host_pub = self.create_publisher(String, str(self.get_parameter("tour_host_command_topic").value), 10)
@@ -349,14 +350,36 @@ class PhoneWebGatewayNode(Node):
             if wake and not already_prefixed:
                 stripped = f"{wake}, {stripped}"
         payload={"text":stripped,"confidence":max(0.0,min(1.0,float(confidence))),"source":source or "phone_web","input_kind":"command"}; self.transcript_pub.publish(String(data=json.dumps(payload,sort_keys=True))); return stripped
+    @staticmethod
+    def _is_live_visual_query(text:str)->bool:
+        low=" ".join(str(text or "").lower().split())
+        phrases=(
+            "what do you see", "what can you see", "what are you seeing",
+            "look in front", "look around", "current camera", "camera view",
+            "describe what you see", "describe the scene", "observe",
+        )
+        return any(p in low for p in phrases)
     def publish_query(self,text:str,confidence:float=1.0,source:str="phone_web_query")->None:
-        payload={"text":text.strip(),"user_text":text.strip(),"confidence":max(0.0,min(1.0,float(confidence))),"source":source or "phone_web_query","read_only":True,"verified":True,"input_kind":"query"}; self.query_pub.publish(String(data=json.dumps(payload,sort_keys=True)))
+        clean=text.strip()
+        payload={"text":clean,"user_text":clean,"confidence":max(0.0,min(1.0,float(confidence))),"source":source or "phone_web_query","read_only":True,"verified":True,"safety_checked":True,"input_kind":"query"}
+        if self._is_live_visual_query(clean):
+            visual={"request_id":f"vlm_{time.time_ns()}","question":clean,"text":clean,"source":source or "phone_web_query","verified":True}
+            self.vlm_query_pub.publish(String(data=json.dumps(visual,sort_keys=True)))
+        else:
+            self.query_pub.publish(String(data=json.dumps(payload,sort_keys=True)))
 
     def publish_tour_host(self,script:str,source:str="phone_web_tour_host")->None:
         script=str(script or "").strip()
         if not script: return
-        payload={"script":script,"source":source or "phone_web_tour_host","time_unix":time.time()}
-        self.tour_host_pub.publish(String(data=json.dumps(payload,sort_keys=True)))
+        # Route dashboard Tour Host controls through the same transcript safety gate.
+        phrases={
+            "full_intro":"start the introduction", "welcome":"welcome the guests",
+            "lab_intro":"introduce the digital twin lab",
+            "research_intro":"tell us about the research",
+            "sparky_intro":"introduce yourself", "capabilities":"tell us your capabilities",
+            "safe_moves":"show us some moves",
+        }
+        self.publish_command(phrases.get(script,script.replace("_"," ")),confidence=1.0,source=source)
     def _session_root(self)->Path:
         return Path(os.path.expanduser(str(self.get_parameter("session_root").value))).resolve()
     def _admin_session_dir(self)->Path:

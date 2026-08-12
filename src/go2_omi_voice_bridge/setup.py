@@ -31,6 +31,7 @@ setup(
             "tour_voice_command_router = go2_omi_voice_bridge.tour_voice_command_router:main",
             'semantic_tour_adapter_node = go2_omi_voice_bridge.semantic_tour_adapter_node:main',
             "phone_web_gateway_node = go2_omi_voice_bridge.phone_web_gateway_node:main",
+            "tour_host_script_node = go2_omi_voice_bridge.tour_host_script_node:main",
             "omi_skill_intent_router = go2_omi_voice_bridge.omi_skill_intent_router:main",
                     'speech_arbiter_node = go2_omi_voice_bridge.speech_arbiter_node:main',
 ],

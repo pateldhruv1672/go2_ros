@@ -124,8 +124,8 @@ class VLMCheckpointNode(Node):
         request_id = str(payload.get('request_id') or f'vlm_{self.get_clock().now().nanoseconds}')
         question = str(payload.get('question') or payload.get('text') or 'What do you see in front of me?').strip()
         detector_context = payload.get('object_inventory')
-        if not isinstance(detector_context, dict):
-            detector_context = {}
+        if not isinstance(detector_context, dict) or not detector_context:
+            detector_context = dict(self.latest_object_inventory) if isinstance(self.latest_object_inventory, dict) else {}
         image_age = time.monotonic() - self.latest_image_monotonic if self.latest_image_monotonic > 0.0 else 1e9
         max_age = max(0.2, float(self.get_parameter('max_live_image_age_sec').value))
         image_bytes = self._encode_image(self.latest_image) if self.latest_image is not None and image_age <= max_age else None

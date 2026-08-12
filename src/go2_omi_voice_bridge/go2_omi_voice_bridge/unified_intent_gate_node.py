@@ -46,6 +46,8 @@ INTENT_FIND_OBJECT = "find_object"
 INTENT_MOTION_SKILL = "motion_skill"
 INTENT_AGENT_QUERY = "agent_query"
 INTENT_TOUR_HOST = "tour_host_script"
+PHONE_NO_CONFIRM_MOTION_SKILLS = {"sit", "stand_up", "hello", "dance1", "dance2", "front_flip"}
+# Phone aliases normalize as: wave->hello, stand->stand_up, dance->dance1.
 
 # SPARKY_GUEST_TOUR_HOST_V1
 
@@ -195,12 +197,14 @@ class UnifiedIntentGateNode(Node):
         self.declare_parameter("wake_words", ["sparky", "go2", "robot"])
         self.declare_parameter("require_wake_word", True)
         self.declare_parameter("require_confirmation_for_motion", True)
+        self.declare_parameter("emit_legacy_tour_topics", True)
         self.declare_parameter("duplicate_suppression_sec", 4.0)
         self.declare_parameter("ignore_transcripts_during_tts", True)
         self.declare_parameter("tts_feedback_cooldown_sec", 3.0)
         self.declare_parameter("tts_feedback_preroll_sec", 0.75)
         self.declare_parameter("agent_command_topic", "/go2_agent/user_command")
         self.declare_parameter("agent_query_topic", "/go2_agent/query")
+        self.declare_parameter("vlm_query_topic", "/go2_vlm/query")
         self.declare_parameter("tts_topic", "/go2_tts/say")
         self.declare_parameter("cmd_vel_topic", "/cmd_vel_out")
         self.declare_parameter("nav_command_topic", "/semantic_nav/command")
@@ -208,6 +212,7 @@ class UnifiedIntentGateNode(Node):
 
         self.agent_pub = self.create_publisher(String, str(self.get_parameter("agent_command_topic").value), 10)
         self.query_pub = self.create_publisher(String, str(self.get_parameter("agent_query_topic").value), 10)
+        self.vlm_query_pub = self.create_publisher(String, str(self.get_parameter("vlm_query_topic").value), 10)
         self.verify_pub = self.create_publisher(String, "/go2_voice/verification_request", 10)
         self.state_pub = self.create_publisher(String, "/go2_voice/verification_state", 10)
         self.tts_pub = self.create_publisher(String, str(self.get_parameter("tts_topic").value), 10)
@@ -348,6 +353,18 @@ class UnifiedIntentGateNode(Node):
             self._handle_immediate_stop(intent)
             return
 
+        # SPARKY_PHONE_INSTANT_GESTURES_V12_6
+        # Dashboard/phone speech gestures are immediate, but ONLY for this explicit skill allowlist.
+        phone_source = str(payload.get("source") or "").strip().lower()
+        phone_instant_motion = (
+            (phone_source == "phone_web" or phone_source.startswith("phone_"))
+            and intent.intent == INTENT_MOTION_SKILL
+            and str(intent.metadata.get("motion_skill") or "") in PHONE_NO_CONFIRM_MOTION_SKILLS
+        )
+        if phone_instant_motion:
+            self._state({"state": "phone_instant_motion", "intent": intent.intent, "skill": intent.metadata.get("motion_skill"), "source": phone_source})
+            self._publish_approved(intent, verified=True)
+            return
         if self._requires_confirmation(intent):
             self.pending = PendingCommand(intent=intent, created_at=time.time())
             prompt = self._confirmation_prompt(intent)
@@ -359,6 +376,10 @@ class UnifiedIntentGateNode(Node):
         self._publish_approved(intent, verified=True)
 
     def _requires_confirmation(self, intent: ParsedIntent) -> bool:
+        # SPARKY_SAFE_MOVES_NO_CONFIRM_V1
+        # The dashboard "Show Safe Moves" routine is a constrained low-risk demo.
+        if intent.intent == INTENT_TOUR_HOST and str(intent.metadata.get("host_script") or "") == "safe_moves":
+            return False
         if not self._bool("require_confirmation_for_motion"):
             return False
         return intent.requires_confirmation or intent.requires_motion or intent.intent in {
@@ -439,8 +460,18 @@ class UnifiedIntentGateNode(Node):
                 "safety_checked": True,
             }, sort_keys=True)))
             self._say(f"Executing {skill.replace('_', ' ')}.", "status")
-        elif intent.intent in {INTENT_COUNT_OBJECTS, INTENT_WHERE_OBJECT, INTENT_AGENT_QUERY, INTENT_WHERE_AM_I, INTENT_OBSERVE, INTENT_FUN_FACT}:
-            # Read-only path: the supervisor is expected to suppress nav commands on /go2_agent/query.
+        elif intent.intent == INTENT_OBSERVE:
+            # Visual questions must use the current camera frame, not persistent memory.
+            visual = {
+                "request_id": f"vlm_{time.time_ns()}",
+                "question": intent.text,
+                "text": intent.text,
+                "source": "unified_voice",
+                "verified": verified,
+            }
+            self.vlm_query_pub.publish(String(data=json.dumps(visual, sort_keys=True, default=str)))
+        elif intent.intent in {INTENT_COUNT_OBJECTS, INTENT_WHERE_OBJECT, INTENT_AGENT_QUERY, INTENT_WHERE_AM_I, INTENT_FUN_FACT}:
+            # Read-only path: the supervisor hard-suppresses motion on /go2_agent/query.
             self.query_pub.publish(String(data=json.dumps(payload, sort_keys=True, default=str)))
         else:
             # Verified command path. find_object is handled by world tools; semantic place navigation
@@ -448,12 +479,14 @@ class UnifiedIntentGateNode(Node):
             self.agent_pub.publish(String(data=json.dumps(payload, sort_keys=True, default=str)))
 
         msg = String(data=json.dumps(payload, sort_keys=True, default=str))
-        if intent.intent == INTENT_START_TOUR:
-            self.tour_start_pub.publish(msg)
-        elif intent.intent == INTENT_CONTINUE_TOUR:
-            self.tour_continue_pub.publish(msg)
-        elif intent.intent == INTENT_SKIP_CHECKPOINT:
-            self.tour_skip_pub.publish(msg)
+        # Compatibility topics can be disabled when LangGraph is the sole Tour command router.
+        if self._bool("emit_legacy_tour_topics"):
+            if intent.intent == INTENT_START_TOUR:
+                self.tour_start_pub.publish(msg)
+            elif intent.intent == INTENT_CONTINUE_TOUR:
+                self.tour_continue_pub.publish(msg)
+            elif intent.intent == INTENT_SKIP_CHECKPOINT:
+                self.tour_skip_pub.publish(msg)
 
         self._state({"state": "approved", "intent": intent.intent, "verified": verified})
 

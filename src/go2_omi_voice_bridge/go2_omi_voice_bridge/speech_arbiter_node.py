@@ -22,7 +22,7 @@ def _text(raw: str) -> tuple[str, Dict[str, Any]]:
         return raw, {'text': raw}
     if not isinstance(p, dict):
         return raw, {'text': raw}
-    for key in ('text', 'speech', 'narration', 'response', 'message', 'data'):
+    for key in ('text', 'speech', 'narration', 'response', 'message', 'summary', 'data'):
         v = p.get(key)
         if isinstance(v, str) and v.strip():
             return v.strip(), p
@@ -45,7 +45,7 @@ class SpeechArbiter(Node):
         self.recent: Dict[str, float] = {}
         self.current: Dict[str, Any] | None = None
         self.deadline = 0.0
-        for topic in ('/go2_speech/request', '/go2_tour/narration'):
+        for topic in ('/go2_speech/request', '/go2_tour/narration', '/go2_agent/speech', '/agent/reply', '/go2_vlm/query_result'):
             self.create_subscription(String, topic, lambda m, t=topic: self._enqueue(m, t), 10)
         self.create_subscription(String, '/go2_tts/status', self._tts_status, 10)
         self.create_timer(0.10, self._tick)

@@ -18,6 +18,10 @@ class ScanRetimestampNode(Node):
         self.declare_parameter('frame_id', 'base_link')
         self.declare_parameter('stamp_offset_sec', 0.25)
         self.declare_parameter('use_latest_tf_stamp', True)
+        # Keep measurement geometry tied to its real acquisition time.
+        # /scan_nav remains a QoS bridge; it must not pretend the same ranges
+        # were measured at a newer robot pose.
+        self.declare_parameter('preserve_input_header', True)
         self.declare_parameter('tf_target_frame', 'odom')
         self.declare_parameter('tf_source_frame', 'base_link')
         input_topic = str(self.get_parameter('input_topic').value)
@@ -25,6 +29,7 @@ class ScanRetimestampNode(Node):
         self.frame_id = str(self.get_parameter('frame_id').value)
         self.stamp_offset_sec = float(self.get_parameter('stamp_offset_sec').value)
         self.use_latest_tf_stamp = bool(self.get_parameter('use_latest_tf_stamp').value)
+        self.preserve_input_header = bool(self.get_parameter('preserve_input_header').value)
         self.tf_target_frame = str(self.get_parameter('tf_target_frame').value)
         self.tf_source_frame = str(self.get_parameter('tf_source_frame').value)
         self.tf_buffer = Buffer()
@@ -46,7 +51,8 @@ class ScanRetimestampNode(Node):
         self.sub = self.create_subscription(LaserScan, input_topic, self.scan_cb, input_qos)
         self.get_logger().info(
             f'Retimestamping {input_topic} -> {output_topic}; input_qos=BEST_EFFORT '
-            f'output_qos=RELIABLE use_latest_tf_stamp={self.use_latest_tf_stamp}'
+            f'output_qos=RELIABLE preserve_input_header={self.preserve_input_header} '
+            f'use_latest_tf_stamp={self.use_latest_tf_stamp}'
         )
 
     def output_stamp(self):
@@ -67,8 +73,18 @@ class ScanRetimestampNode(Node):
 
     def scan_cb(self, msg: LaserScan) -> None:
         out = LaserScan()
-        out.header.stamp = self.output_stamp()
-        out.header.frame_id = self.frame_id or msg.header.frame_id
+        if self.preserve_input_header:
+            # LaserScan.header.stamp is the measurement acquisition time.
+            # Copy it exactly so TF transforms the ranges at the pose where
+            # they were actually observed. The input /scan is already in
+            # base_link in the Go2 base stack.
+            out.header.stamp = msg.header.stamp
+            out.header.frame_id = msg.header.frame_id
+        else:
+            # Legacy behavior retained only as an explicit opt-out for
+            # diagnostics/rollback comparisons.
+            out.header.stamp = self.output_stamp()
+            out.header.frame_id = self.frame_id or msg.header.frame_id
         out.angle_min = msg.angle_min
         out.angle_max = msg.angle_max
         out.angle_increment = msg.angle_increment
