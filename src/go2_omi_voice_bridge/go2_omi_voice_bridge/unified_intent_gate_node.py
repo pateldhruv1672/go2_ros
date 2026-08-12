@@ -196,7 +196,7 @@ class UnifiedIntentGateNode(Node):
         self.declare_parameter("confirmation_timeout_sec", 15.0)
         self.declare_parameter("wake_words", ["sparky", "go2", "robot"])
         self.declare_parameter("require_wake_word", True)
-        self.declare_parameter("require_confirmation_for_motion", True)
+        self.declare_parameter("require_confirmation_for_motion", False)
         self.declare_parameter("emit_legacy_tour_topics", True)
         self.declare_parameter("duplicate_suppression_sec", 4.0)
         self.declare_parameter("ignore_transcripts_during_tts", True)
@@ -376,20 +376,11 @@ class UnifiedIntentGateNode(Node):
         self._publish_approved(intent, verified=True)
 
     def _requires_confirmation(self, intent: ParsedIntent) -> bool:
-        # SPARKY_SAFE_MOVES_NO_CONFIRM_V1
-        # The dashboard "Show Safe Moves" routine is a constrained low-risk demo.
-        if intent.intent == INTENT_TOUR_HOST and str(intent.metadata.get("host_script") or "") == "safe_moves":
-            return False
-        if not self._bool("require_confirmation_for_motion"):
-            return False
-        return intent.requires_confirmation or intent.requires_motion or intent.intent in {
-            INTENT_NAVIGATE_TO_PLACE,
-            INTENT_START_TOUR,
-            INTENT_CONTINUE_TOUR,
-            INTENT_SKIP_CHECKPOINT,
-            INTENT_FIND_OBJECT,
-            INTENT_MOTION_SKILL,
-        }
+        # SPARKY_NO_CONFIRMATIONS_V12_7
+        # Operator requested immediate execution for user commands.
+        # Hard runtime safety boundaries (stop/cancel, collision monitor,
+        # Nav2, localization checks, and motion-skill nav interlock) remain.
+        return False
 
     def _confirmation_prompt(self, intent: ParsedIntent) -> str:
         if intent.intent == INTENT_TOUR_HOST:
@@ -435,6 +426,12 @@ class UnifiedIntentGateNode(Node):
         self._state({"state": "rejected", "intent": pending.intent.intent if pending else None, "text": rejection_text})
 
     def _publish_approved(self, intent: ParsedIntent, verified: bool, confirmation_text: str = "") -> None:
+        # SPARKY_TOUR_AUTO_INTRO_V12_7
+        if intent.intent == INTENT_START_TOUR:
+            self.host_pub.publish(String(data=json.dumps({
+                "script": "full_intro", "source": "unified_voice",
+                "verified": True, "safety_checked": True,
+            }, sort_keys=True)))
         payload = intent.to_agent_payload(verified=verified, source="unified_voice")
         if confirmation_text:
             payload["confirmation_text"] = confirmation_text

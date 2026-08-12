@@ -160,8 +160,8 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
 
     goal_checker = ctrl.setdefault('general_goal_checker', {})
     goal_checker['plugin'] = 'nav2_controller::SimpleGoalChecker'
-    goal_checker['xy_goal_tolerance'] = 0.30
-    goal_checker['yaw_goal_tolerance'] = 0.45
+    goal_checker['xy_goal_tolerance'] = float(os.environ.get('GO2_NAV_GOAL_XY_TOLERANCE_M', '0.12'))
+    goal_checker['yaw_goal_tolerance'] = float(os.environ.get('GO2_NAV_GOAL_YAW_TOLERANCE_RAD', '0.30'))
     goal_checker['stateful'] = True
 
     # GO2_V11_3_DWB_ACTUATOR_CONTRACT
@@ -180,6 +180,9 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     follow['acc_lim_theta'] = float(os.environ.get('GO2_NAV_ACC_THETA', '1.00'))
     follow['decel_lim_x'] = -abs(float(os.environ.get('GO2_NAV_DECEL_X', '0.60')))
     follow['decel_lim_theta'] = -abs(float(os.environ.get('GO2_NAV_DECEL_THETA', '1.20')))
+    follow['sim_time'] = float(os.environ.get('GO2_NAV_SIM_TIME', '1.0'))
+    follow['xy_goal_tolerance'] = goal_checker['xy_goal_tolerance']
+    follow['yaw_goal_tolerance'] = goal_checker['yaw_goal_tolerance']
     follow['trans_stopped_velocity'] = 0.05
     follow['theta_stopped_velocity'] = 0.08
 
@@ -411,6 +414,7 @@ def launch_setup(context, *args, **kwargs):
             'use_latest_tf_stamp': True,
             'tf_target_frame': 'odom',
             'tf_source_frame': scan_frame_id,
+            'preserve_input_header': True,
         }]),
         Node(package='nav2_map_server', executable='map_server', name='resume_map_server', output='screen', parameters=[{'yaml_filename': map_yaml}]),
         Node(package='nav2_amcl', executable='amcl', name='amcl', output='screen', parameters=[amcl_cfg, {'scan_topic': scan_nav_topic}]),
@@ -430,6 +434,8 @@ def launch_setup(context, *args, **kwargs):
             'fallback_enable': _bool_flag(os.environ.get('GO2_SEMANTIC_FALLBACK_ENABLE', '0'), default=False),
             'initialpose_stamp_backdate_sec': 0.10,
             'scan_topic': scan_nav_topic,
+            'tour_auto_advance': _bool_flag(os.environ.get('GO2_TOUR_AUTO_ADVANCE', '0'), default=False),
+            'tour_default_pause_sec': float(os.environ.get('GO2_TOUR_PAUSE_SEC', '2.0')),
         }]),
     ]
     print('[semantic_nav_resume] semantic_nav_node immediate+respawn')

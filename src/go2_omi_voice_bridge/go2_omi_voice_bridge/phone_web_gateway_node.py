@@ -275,7 +275,7 @@ class PhoneWebGatewayNode(Node):
                 if path=="/api/command":
                     sent=node.publish_command(text,confidence=confidence,source=source); self._json(HTTPStatus.ACCEPTED,{"ok":True,"kind":"command","text":sent}); return
                 if path=="/api/query":
-                    node.publish_query(text,confidence=confidence,source=source); self._json(HTTPStatus.ACCEPTED,{"ok":True,"kind":"read_only_query","text":text}); return
+                    node.publish_query(text,confidence=confidence,source=source); self._json(HTTPStatus.ACCEPTED,{"ok":True,"kind":"unified_intent","text":text}); return
                 self._json(HTTPStatus.NOT_FOUND,{"error":"not found"})
 
         self._server=ThreadingHTTPServer((host,port),Handler); self._server.daemon_threads=True
@@ -360,13 +360,13 @@ class PhoneWebGatewayNode(Node):
         )
         return any(p in low for p in phrases)
     def publish_query(self,text:str,confidence:float=1.0,source:str="phone_web_query")->None:
-        clean=text.strip()
-        payload={"text":clean,"user_text":clean,"confidence":max(0.0,min(1.0,float(confidence))),"source":source or "phone_web_query","read_only":True,"verified":True,"safety_checked":True,"input_kind":"query"}
-        if self._is_live_visual_query(clean):
-            visual={"request_id":f"vlm_{time.time_ns()}","question":clean,"text":clean,"source":source or "phone_web_query","verified":True}
-            self.vlm_query_pub.publish(String(data=json.dumps(visual,sort_keys=True)))
-        else:
-            self.query_pub.publish(String(data=json.dumps(payload,sort_keys=True)))
+        # SPARKY_PHONE_SINGLE_INTENT_PATH_V12_7
+        # Route every phone utterance through the unified classifier.
+        # INTENT_OBSERVE is then sent to fresh-camera VLM; read-only
+        # questions remain queries; actionable intents execute directly.
+        clean=str(text or "").strip()
+        if not clean: return
+        self.publish_command(clean, confidence=confidence, source=source or "phone_web_query")
 
     def publish_tour_host(self,script:str,source:str="phone_web_tour_host")->None:
         script=str(script or "").strip()

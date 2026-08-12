@@ -106,7 +106,7 @@ def generate_launch_description():
         Node(
             package='go2_omi_voice_bridge', executable='unified_intent_gate_node', name='go2_unified_intent_gate', output='screen',
             parameters=[{
-                'require_confirmation_for_motion': True, 'emit_legacy_tour_topics': False,
+                'require_confirmation_for_motion': False, 'emit_legacy_tour_topics': False,
                 'require_wake_word': True, 'ignore_transcripts_during_tts': True,
                 'agent_command_topic': '/go2_agent/user_command', 'agent_query_topic': '/go2_agent/query',
                 'vlm_query_topic': '/go2_vlm/query', 'nav_command_topic': '/semantic_nav/command',

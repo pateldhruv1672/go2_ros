@@ -61,15 +61,24 @@ class ArtifactStoreFiles:
         return json.loads(path.read_text(encoding='utf-8'))
 
     def read_jsonl(self, session_name: str, relative_path: str) -> List[Dict[str, Any]]:
+        # SPARKY_JSONL_RESILIENCE_V12_7
+        # Append-only robot memory must be fail-soft: preserve the file,
+        # skip only malformed rows, and let valid memory remain usable.
         path = self.session_dir(session_name) / relative_path
         if not path.exists():
             return []
         records: List[Dict[str, Any]] = []
-        with path.open('r', encoding='utf-8') as f:
-            for line in f:
+        with path.open("r", encoding="utf-8", errors="replace") as f:
+            for line_no, line in enumerate(f, 1):
                 line = line.strip()
-                if line:
-                    records.append(json.loads(line))
+                if not line:
+                    continue
+                try:
+                    value = json.loads(line)
+                except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError):
+                    continue
+                if isinstance(value, dict):
+                    records.append(value)
         return records
 
     def write_yaml(self, session_name: str, relative_path: str, record: Dict[str, Any]) -> Path:
