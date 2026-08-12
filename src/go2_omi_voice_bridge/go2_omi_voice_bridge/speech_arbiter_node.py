@@ -59,11 +59,11 @@ class SpeechArbiter(Node):
         key = _norm(text)
         window = float(self.get_parameter('dedupe_window_sec').value)
         if key and now - self.recent.get(key, -1e9) < window:
-            self._publish('duplicate_dropped', source=source, text=text[:180])
+            self._publish('duplicate_dropped', source=source, text=text[:180], request_id=payload.get('request_id'))
             return
         self.recent[key] = now
         priority = str(payload.get('priority') or 'normal').lower()
-        item = {'text': text, 'source': source, 'priority': priority, 'category': payload.get('category', 'speech')}
+        item = {'text': text, 'source': source, 'priority': priority, 'category': payload.get('category', 'speech'), 'request_id': payload.get('request_id')}
         if priority in {'urgent', 'high'}:
             self.queue.clear()
             item['interrupt'] = True
@@ -83,9 +83,10 @@ class SpeechArbiter(Node):
         except Exception:
             return
         if isinstance(p, dict) and str(p.get('event') or '') in {'local_speaker_done', 'speech_done'}:
+            done_request_id = (self.current or {}).get('request_id')
             self.current = None
             self.deadline = 0.0
-            self._publish('speech_done', queued=len(self.queue))
+            self._publish('speech_done', queued=len(self.queue), request_id=done_request_id)
 
     def _tick(self) -> None:
         now = time.monotonic()
@@ -101,7 +102,7 @@ class SpeechArbiter(Node):
         self.deadline = now + max(3.0, words / wpm * 60.0 + 3.0)
         self.current = item
         self.out.publish(String(data=json.dumps(item, sort_keys=True)))
-        self._publish('speaking', source=item.get('source'), text=item.get('text', '')[:240], queued=len(self.queue))
+        self._publish('speaking', source=item.get('source'), text=item.get('text', '')[:240], queued=len(self.queue), request_id=item.get('request_id'))
 
     def _publish(self, event: str, **extra: Any) -> None:
         self.status.publish(String(data=json.dumps({'event': event, 'stamp_sec': time.time(), **extra}, sort_keys=True, default=str)))

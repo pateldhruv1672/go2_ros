@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -55,6 +56,9 @@ class VLMCheckpointNode(Node):
         self.declare_parameter("vlm_api_key", "")
         self.declare_parameter("vlm_base_url", "")
         self.declare_parameter("vlm_prompt", "")
+        self.declare_parameter("query_topic", "/go2_vlm/query")
+        self.declare_parameter("query_result_topic", "/go2_vlm/query_result")
+        self.declare_parameter("max_live_image_age_sec", 2.5)
         self.declare_parameter("enable_graph_memory", True)
         self.declare_parameter("enable_voxel_memory", True)
         self.declare_parameter("enable_vector_memory", True)
@@ -77,18 +81,22 @@ class VLMCheckpointNode(Node):
             base_url=str(self.get_parameter("vlm_base_url").value),
         )
         self.latest_image: Optional[Image] = None
+        self.latest_image_monotonic = 0.0
         self.latest_odom: Optional[Odometry] = None
         self.latest_object_inventory: Dict[str, Any] = {}
         self.status_pub = self.create_publisher(String, "/go2_vlm_checkpoint/status", 10)
+        self.query_result_pub = self.create_publisher(String, str(self.get_parameter("query_result_topic").value), 10)
         self.create_subscription(Image, str(self.get_parameter("camera_topic").value), self._on_image, qos_profile_sensor_data)
         self.create_subscription(Odometry, str(self.get_parameter("odom_topic").value), self._on_odom, 20)
         self.create_subscription(String, "/go2_memory/object_inventory", self._on_object_inventory, 10)
         self.create_subscription(String, "/go2_vlm_checkpoint/write_now", self._on_write_now, 10)
+        self.create_subscription(String, str(self.get_parameter("query_topic").value), self._on_query, 10)
         self.create_timer(float(self.get_parameter("write_period_sec").value), self._timer)
         self.get_logger().info(f"VLM checkpoint writer ready; session={self.session_name}")
 
     def _on_image(self, msg: Image) -> None:
         self.latest_image = msg
+        self.latest_image_monotonic = time.monotonic()
 
     def _on_odom(self, msg: Odometry) -> None:
         self.latest_odom = msg
@@ -99,6 +107,63 @@ class VLMCheckpointNode(Node):
             self.latest_object_inventory = value if isinstance(value, dict) else {}
         except Exception:
             self.latest_object_inventory = {}
+
+    def _on_query(self, msg: String) -> None:
+        """Analyze the CURRENT camera frame for a single user question.
+
+        This path is intentionally ephemeral: it does not write a checkpoint and
+        it never answers from persistent memory. Every request gets a fresh image
+        snapshot and a fresh VLM invocation.
+        """
+        try:
+            payload = json.loads(msg.data) if str(msg.data or '').strip().startswith('{') else {'question': msg.data}
+        except Exception:
+            payload = {'question': msg.data}
+        if not isinstance(payload, dict):
+            payload = {'question': str(msg.data or '')}
+        request_id = str(payload.get('request_id') or f'vlm_{self.get_clock().now().nanoseconds}')
+        question = str(payload.get('question') or payload.get('text') or 'What do you see in front of me?').strip()
+        detector_context = payload.get('object_inventory')
+        if not isinstance(detector_context, dict):
+            detector_context = {}
+        image_age = time.monotonic() - self.latest_image_monotonic if self.latest_image_monotonic > 0.0 else 1e9
+        max_age = max(0.2, float(self.get_parameter('max_live_image_age_sec').value))
+        image_bytes = self._encode_image(self.latest_image) if self.latest_image is not None and image_age <= max_age else None
+        if image_bytes is None:
+            out = {'event':'live_query_result','request_id':request_id,'success':False,'summary':'','provider':self.vlm.provider,'model':self.vlm.model,'error':f'current camera frame is stale or unavailable (age_sec={image_age:.2f})','stamp_sec':self.get_clock().now().nanoseconds / 1e9,'detector_context':detector_context}
+            encoded=json.dumps(out,sort_keys=True,default=str); self.query_result_pub.publish(String(data=encoded)); self.status_pub.publish(String(data=encoded)); return
+        prompt = (
+            'You are the live vision system for a Unitree Go2 robot. Analyze ONLY the CURRENT attached camera image. '
+            'Answer the operator question in one or two concise spoken sentences. Do not use saved memory as current visual evidence. '
+            'Use the detector context only as supporting hints, correct it if the image disagrees, and mention uncertainty when needed. '
+            f'Operator question: {question}\n'
+            f'Live detector context: {json.dumps(detector_context, default=str)[:5000]}'
+        )
+        self.status_pub.publish(String(data=json.dumps({
+            'event': 'live_query_started', 'request_id': request_id,
+            'provider': self.vlm.provider, 'model': self.vlm.model,
+        }, sort_keys=True)))
+        try:
+            result = self.vlm.summarize_image(image_bytes, mime_type='image/jpeg', prompt=prompt)
+            out = {
+                'event': 'live_query_result', 'request_id': request_id,
+                'success': bool(result.success), 'summary': str(result.summary or ''),
+                'provider': str(result.provider or self.vlm.provider),
+                'model': str(result.model or self.vlm.model), 'error': str(result.error or ''),
+                'stamp_sec': self.get_clock().now().nanoseconds / 1e9,
+                'detector_context': detector_context,
+            }
+        except Exception as exc:
+            out = {
+                'event': 'live_query_result', 'request_id': request_id,
+                'success': False, 'summary': '', 'provider': self.vlm.provider,
+                'model': self.vlm.model, 'error': str(exc),
+                'stamp_sec': self.get_clock().now().nanoseconds / 1e9,
+                'detector_context': detector_context,
+            }
+        encoded = json.dumps(out, sort_keys=True, default=str)
+        self.query_result_pub.publish(String(data=encoded))
+        self.status_pub.publish(String(data=encoded))
 
     def _timer(self) -> None:
         if _as_bool(self.get_parameter("auto_write_checkpoints").value):

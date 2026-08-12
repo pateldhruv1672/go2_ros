@@ -175,7 +175,7 @@ class AgenticVoiceActionNode(Node):
 
     TOOL_SCHEMA = [
         {'name': 'speak', 'args': {}, 'purpose': 'Natural conversation or grounded answer.'},
-        {'name': 'live_vision_summary', 'args': {}, 'purpose': 'Deterministic summary of fresh live YOLO/SAM tracks only; never persistent memory.'},
+        {'name': 'live_vision_summary', 'args': {'question': 'live camera question'}, 'purpose': 'Fresh camera VLM analysis fused with live YOLO/SAM hints; never persistent memory.'},
         {'name': 'navigate_to_place', 'args': {'place': 'saved place/checkpoint name'}, 'purpose': 'Navigate with semantic_nav/Nav2.'},
         {'name': 'start_tour', 'args': {}, 'purpose': 'Start the saved route from the beginning.'},
         {'name': 'continue_tour', 'args': {}, 'purpose': 'Continue/resume the saved tour after a stop.'},
@@ -201,6 +201,10 @@ class AgenticVoiceActionNode(Node):
         self.declare_parameter('history_turns', 10)
         self.declare_parameter('max_object_records', 80)
         self.declare_parameter('hybrid_fast_path', True)
+        self.declare_parameter('live_vlm_query_topic', '/go2_vlm/query')
+        self.declare_parameter('live_vlm_result_topic', '/go2_vlm/query_result')
+        self.declare_parameter('live_vlm_timeout_sec', 35.0)
+        self.declare_parameter('semantic_dispatch_ack_timeout_sec', 5.0)
 
         self.session_root = str(self.get_parameter('session_root').value)
         self.memory = MemoryTools(self.session_root, str(self.get_parameter('session_name').value))
@@ -211,14 +215,21 @@ class AgenticVoiceActionNode(Node):
         self.latest_robot_pose: Dict[str, Any] = {}
         self.create_subscription(OccupancyGrid, '/map', self._on_map, 1)
         self.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', self._on_amcl_pose, 10)
+        self.create_subscription(String, str(self.get_parameter('live_vlm_result_topic').value), self._vlm_result_cb, 10)
         self.session_dir = Path(self.session_root).expanduser() / self.session_name
         self.history_path = self.session_dir / 'memory' / 'agentic_conversation.jsonl'
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
         self.history = self._load_history()
         self.latest: Dict[str, Any] = {}
+        self._vlm_condition = threading.Condition()
+        self._vlm_results: Dict[str, Dict[str, Any]] = {}
+        self._current_read_only = False
+        self._current_text = ''
+        self._active_request_id = ''
         self.pending_tool: Optional[Dict[str, Any]] = None
 
         self.semantic_pub = self.create_publisher(String, '/semantic_nav/command', 10)
+        self.vlm_query_pub = self.create_publisher(String, str(self.get_parameter('live_vlm_query_topic').value), 10)
         self.motion_pub = self.create_publisher(String, '/motion_skills/command', 10)
         self.speech_pub = self.create_publisher(String, '/go2_speech/request', 10)
         self.status_pub = self.create_publisher(String, '/go2_agent/status', 10)
@@ -247,7 +258,7 @@ class AgenticVoiceActionNode(Node):
             float(self.get_parameter('ollama_timeout_sec').value),
         )
         self.graph = self._build_graph()
-        self.work_q: queue.Queue[tuple[str, str]] = queue.Queue(maxsize=16)
+        self.work_q: queue.Queue[tuple[str, str, bool]] = queue.Queue(maxsize=16)
         self.worker = threading.Thread(target=self._worker, daemon=True)
         self.worker.start()
         self._publish_state('idle', detail='ready')
@@ -278,6 +289,28 @@ class AgenticVoiceActionNode(Node):
         yaw=2.0*math.atan2(float(q.z),float(q.w))
         self.latest_robot_pose={'frame_id':msg.header.frame_id or 'map','x':float(p.x),'y':float(p.y),'yaw':yaw}
 
+    def _vlm_result_cb(self, msg: String) -> None:
+        try:
+            payload = json.loads(msg.data)
+        except Exception:
+            return
+        if not isinstance(payload, dict):
+            return
+        request_id = str(payload.get('request_id') or '')
+        if not request_id:
+            return
+        with self._vlm_condition:
+            self._vlm_results[request_id] = payload
+            self._vlm_condition.notify_all()
+        self.latest['live_vlm_result'] = payload
+
+    @staticmethod
+    def _is_side_effect_tool(tool: str) -> bool:
+        return tool in {
+            'navigate_to_place', 'find_object', 'start_tour', 'continue_tour', 'pause_tour',
+            'save_tour_stop', 'update_tour_stop', 'reorder_tour_stops', 'motion_skill', 'stop',
+        }
+
     @staticmethod
     def _fast_object_phrase(text: str, verbs: tuple[str, ...]) -> str:
         t=_clean_wake(text).strip().lower().strip(' .!?')
@@ -297,8 +330,9 @@ class AgenticVoiceActionNode(Node):
         if t in {
             'what do you see', 'what can you see', 'what do you see right now',
             'what can you see right now', 'describe what you see', 'tell me what you see',
+            'what do you see in front of me', 'what is in front of you', 'what is in front of me',
         }:
-            return {'tool':'live_vision_summary','args':{},'speech':''}
+            return {'tool':'live_vision_summary','args':{'question': text},'speech':''}
         if t in {'start tour','start the tour','begin tour','begin the tour'}:
             return {'tool':'start_tour','args':{},'speech':'Starting the saved tour.'}
         if t in {'continue tour','continue the tour','resume tour','resume the tour','next stop'}:
@@ -374,13 +408,24 @@ class AgenticVoiceActionNode(Node):
         if not text:
             return
         source = detected_source or source
-        self._publish_state('listening', text=text, source=source)
+        read_only = source == 'query'
+        try:
+            _payload = json.loads(msg.data)
+            if isinstance(_payload, dict):
+                read_only = bool(_payload.get('read_only', read_only)) or str(_payload.get('input_kind') or '').lower() == 'query'
+        except Exception:
+            pass
+        self._publish_state('listening', text=text, source=source, read_only=read_only)
         if _emergency_stop(text):
             self._execute_stop('emergency_stop')
             self._speak('Stopping now.', category='safety', priority='urgent')
             self._append_history('user', text, source)
             self._append_history('assistant', 'Stopping now.', 'safety')
             self._publish_state('idle', detail='emergency stop executed')
+            return
+        if self.pending_tool is not None and read_only and (_is_yes(text) or _is_no(text)):
+            self._speak('The Ask panel is read-only and cannot confirm a pending motion. Use Command to confirm or cancel it.', category='safety')
+            self._publish_state('read_only_confirmation_blocked', text=text, source=source)
             return
         if self.pending_tool is not None and (_is_yes(text) or _is_no(text)):
             self._append_history('user', text, source)
@@ -400,17 +445,21 @@ class AgenticVoiceActionNode(Node):
                 self._publish_state('idle', tool_result=result)
             return
         try:
-            self.work_q.put_nowait((text, source))
+            self.work_q.put_nowait((text, source, read_only))
         except queue.Full:
             self._speak('I am still working on the previous request. Please try again in a moment.', category='busy')
 
     def _worker(self) -> None:
         while rclpy.ok():
             try:
-                text, source = self.work_q.get(timeout=0.25)
+                text, source, read_only = self.work_q.get(timeout=0.25)
             except queue.Empty:
                 continue
             try:
+                self._current_read_only = bool(read_only)
+                self._current_text = text
+                self._active_request_id = f'req_{time.time_ns()}'
+                self._publish_state('request_received', request_id=self._active_request_id, text=text, source=source, read_only=self._current_read_only)
                 self._append_history('user', text, source)
                 fast_plan = self._hybrid_fast_plan(text)
                 if fast_plan is not None:
@@ -433,6 +482,9 @@ class AgenticVoiceActionNode(Node):
                 self._speak(message, category='error')
                 self._publish_state('error', error=str(exc))
             finally:
+                self._current_read_only = False
+                self._current_text = ''
+                self._active_request_id = ''
                 self.work_q.task_done()
 
     def _graph_context(self, state: VoiceState) -> Dict[str, Any]:
@@ -493,6 +545,22 @@ class AgenticVoiceActionNode(Node):
     def _graph_execute(self, state: VoiceState) -> Dict[str, Any]:
         plan = dict(state.get('plan') or {})
         tool = str(plan.get('tool') or 'speak')
+        if self._current_read_only and self._is_side_effect_tool(tool):
+            normalized_request = re.sub(r'[^a-z0-9]+', ' ', self._current_text.lower()).strip()
+            if tool == 'stop' and normalized_request in {'stop', 'stop now', 'emergency stop', 'stop moving'}:
+                # An explicit stop remains fail-safe even when entered through Ask.
+                self._publish_state('read_only_emergency_stop_allowed', request_id=self._active_request_id, tool=tool)
+            elif tool == 'find_object':
+                safe_plan = dict(plan)
+                safe_plan['tool'] = 'query_object_memory'
+                safe_plan['speech'] = ''
+                self._publish_state('read_only_reroute', request_id=self._active_request_id, blocked_tool=tool, safe_tool='query_object_memory')
+                return {'tool_result': self._execute_tool(safe_plan)}
+            else:
+                return {'tool_result': {
+                    'ok': False, 'read_only_blocked': True, 'tool': tool,
+                    'speech': 'That Ask panel is read-only, so I did not execute a motion or navigation action. Use Command when you want me to act.'
+                }}
         if tool == 'motion_skill':
             args = plan.get('args') if isinstance(plan.get('args'), dict) else {}
             skill = _normalize_motion_skill(str(args.get('skill') or ''))
@@ -532,40 +600,43 @@ class AgenticVoiceActionNode(Node):
         if tool == 'speak':
             return {'ok': True, 'tool': tool}
         if tool == 'live_vision_summary':
-            inv = self.latest.get('object_inventory')
-            if not isinstance(inv, dict):
-                return {'ok': False, 'tool': tool, 'speech': 'I do not have a fresh live YOLO and SAM view right now, so I will not guess.'}
-            try:
-                age = max(0.0, time.time() - float(inv.get('stamp_sec') or 0.0))
-            except Exception:
-                age = 999.0
-            if age > 3.5:
-                return {'ok': False, 'tool': tool, 'speech': 'My live vision feed is stale right now, so I will not guess what is in front of me.'}
-            unique = {}
-            for det in (inv.get('visible_objects') or []):
-                if not isinstance(det, dict):
-                    continue
-                try:
-                    conf = float(det.get('confidence') or det.get('score') or 0.0)
-                except Exception:
-                    conf = 0.0
-                if conf <= 0.60:
-                    continue
-                label = str(det.get('label') or det.get('class') or 'object').strip().lower() or 'object'
-                track = det.get('track_id')
-                if track is not None:
-                    key = (label, str(track))
-                else:
-                    bbox = det.get('bbox') or det.get('box_xyxy') or []
-                    key = (label, tuple(round(float(x), -1) for x in bbox[:4]) if isinstance(bbox, (list, tuple)) else str(bbox))
-                old = unique.get(key)
-                if old is None or conf > old[0]:
-                    unique[key] = (conf, label)
-            counts = Counter(label for _conf, label in unique.values())
-            if not counts:
-                return {'ok': True, 'tool': tool, 'visible_count': 0, 'speech': 'I do not currently have any objects above sixty percent confidence in my live view.'}
-            parts = [f'{count} {label}' + ('' if count == 1 else 's') for label, count in sorted(counts.items())]
-            return {'ok': True, 'tool': tool, 'visible_count': sum(counts.values()), 'visible_counts': dict(counts), 'speech': 'I can currently see ' + ', '.join(parts) + '.'}
+            question = str(args.get('question') or self._current_text or 'What do you see in front of me?').strip()
+            request_id = f'{self._active_request_id or "req"}_vlm_{time.time_ns()}'
+            inventory = self.latest.get('object_inventory')
+            if not isinstance(inventory, dict):
+                inventory = {}
+            request = {
+                'request_id': request_id, 'question': question,
+                'object_inventory': inventory, 'source': 'agent_live_vision',
+            }
+            with self._vlm_condition:
+                self._vlm_results.pop(request_id, None)
+            self.event_pub.publish(String(data=json.dumps({
+                'type': 'vlm_call', 'phase': 'request', 'request_id': self._active_request_id,
+                'vlm_request_id': request_id, 'question': question,
+            }, sort_keys=True)))
+            self.vlm_query_pub.publish(String(data=json.dumps(request, sort_keys=True, default=str)))
+            deadline = time.monotonic() + max(1.0, float(self.get_parameter('live_vlm_timeout_sec').value))
+            result = None
+            with self._vlm_condition:
+                while rclpy.ok() and time.monotonic() < deadline:
+                    result = self._vlm_results.pop(request_id, None)
+                    if result is not None:
+                        break
+                    self._vlm_condition.wait(timeout=min(0.25, max(0.01, deadline - time.monotonic())))
+            if not isinstance(result, dict):
+                return {'ok': False, 'tool': tool, 'speech': 'My live camera VLM did not answer in time, so I will not reuse an old visual answer.', 'vlm_request_id': request_id}
+            self.event_pub.publish(String(data=json.dumps({
+                'type': 'vlm_call', 'phase': 'result', 'request_id': self._active_request_id,
+                'vlm_request_id': request_id, 'success': bool(result.get('success')),
+                'provider': result.get('provider'), 'model': result.get('model'),
+                'error': result.get('error', ''),
+            }, sort_keys=True, default=str)))
+            summary = str(result.get('summary') or '').strip()
+            if not bool(result.get('success')) or not summary:
+                err = str(result.get('error') or 'unknown VLM error')
+                return {'ok': False, 'tool': tool, 'speech': f'My live vision call failed: {err}. I will not guess from stale memory.', 'vlm': result}
+            return {'ok': True, 'tool': tool, 'speech': summary, 'vlm': result, 'fresh_live_image': True}
         if tool == 'stop':
             return self._execute_stop('agent_request')
         if tool == 'navigate_to_place':
@@ -640,7 +711,49 @@ class AgenticVoiceActionNode(Node):
                 return {'ok': False, 'error': 'object label is required'}
             searched = self.object_memory.search(label, room, limit=12)
             matches = searched.get('matches') or []
+            object_source = 'durable_object_memory'
             if not matches:
+                live_map = self.latest.get('live_object_map')
+                live_objects = live_map.get('objects', []) if isinstance(live_map, dict) else []
+                qlabel = re.sub(r'[^a-z0-9]+', ' ', label.lower()).strip()
+                live_matches = []
+                for item in live_objects if isinstance(live_objects, list) else []:
+                    if not isinstance(item, dict) or not bool(item.get('confirmed')):
+                        continue
+                    try:
+                        conf = float(item.get('confidence') or 0.0)
+                    except Exception:
+                        conf = 0.0
+                    if conf <= 0.60:
+                        continue
+                    ilabel = re.sub(r'[^a-z0-9]+', ' ', str(item.get('label') or '').lower()).strip()
+                    if not ilabel or not (qlabel == ilabel or qlabel in ilabel or ilabel in qlabel):
+                        continue
+                    try:
+                        pose = {'frame_id':'map','x':float(item['x']),'y':float(item['y']),'z':float(item.get('z') or 0.0)}
+                    except Exception:
+                        continue
+                    live_matches.append({
+                        'id': f"live_mapper_{item.get('object_id', 'na')}", 'label': str(item.get('label') or label),
+                        'object_pose': pose, 'map_pose': dict(pose), 'confidence': conf,
+                        'confirmations': int(item.get('confirmations') or 0), 'observations': int(item.get('observations') or 0),
+                        'extent_x': item.get('extent_x'), 'extent_y': item.get('extent_y'), 'extent_z': item.get('extent_z'),
+                        'confirmed': True, 'source': 'live_confirmed_mapper_fallback',
+                    })
+                if live_matches:
+                    matches = live_matches
+                    object_source = 'live_confirmed_mapper_fallback'
+                    self._publish_state('object_memory_live_fallback', object_label=label, candidates=len(matches))
+            if not matches:
+                inv = self.latest.get('object_inventory')
+                visible = (inv.get('visible_counts') or {}) if isinstance(inv, dict) else {}
+                visible_count = 0
+                for k, v in visible.items() if isinstance(visible, dict) else []:
+                    if qlabel == re.sub(r'[^a-z0-9]+', ' ', str(k).lower()).strip():
+                        try: visible_count += int(v)
+                        except Exception: pass
+                if visible_count:
+                    return {'ok': False, 'tool': tool, 'visible_only': True, 'speech': f'I can currently see {label}, but I do not yet have a confirmed registered-3D map location for it. I need another valid mapped observation before I can navigate safely.'}
                 return {'ok': False, 'tool': tool, 'speech': f'I do not have a confirmed mapped location for {label}.'}
             # Prefer the closest high-quality UNIQUE object to the current localized robot pose.
             rx=self.latest_robot_pose.get('x'); ry=self.latest_robot_pose.get('y')
@@ -656,17 +769,50 @@ class AgenticVoiceActionNode(Node):
                 return {'ok':False,'tool':tool,'speech':f'I remember {label}, but I cannot find a safe reachable standoff near it right now.','details':selected}
             pose=selected.get('pose') or {}
             self._publish_state('acting', action='object_nav_dispatch', object_label=str(obj.get('label') or label), navigation_pose=pose, planning_verified=bool(selected.get('planning_verified')))
+            before_status = json.dumps(self.latest.get('semantic_nav_status'), sort_keys=True, default=str)
             self._semantic({
                 'type':'navigate_to_pose','pose':pose,
                 'name':str(obj.get('label') or label),'object_id':obj.get('id'),
                 'object_label':str(obj.get('label') or label),'object_pose':obj.get('object_pose') or {},
                 'room':obj.get('room_id') or room,'verify_live_after_arrival':True,
-                'planning_verified':bool(selected.get('planning_verified')),'source':'deduplicated_object_memory_nav2_selector',
+                'planning_verified':bool(selected.get('planning_verified')),'source':f'{object_source}_nav2_selector',
             })
+            deadline = time.monotonic() + max(0.5, float(self.get_parameter('semantic_dispatch_ack_timeout_sec').value))
+            nav_ack_status = ''
+            last_progress = ''
+            while rclpy.ok() and time.monotonic() < deadline:
+                current = self.latest.get('semantic_nav_status')
+                current_text = json.dumps(current, sort_keys=True, default=str)
+                low = current_text.lower()
+                if current_text != before_status:
+                    if any(token in low for token in (
+                        'goal rejected', 'server not available', 'skipping_goal_', 'refusing_go_pose',
+                        'goal_send_failed', 'failed',
+                    )):
+                        nav_ack_status = current_text
+                        break
+                    if any(token in low for token in ('goal accepted', 'navigating target=')):
+                        nav_ack_status = current_text
+                        break
+                    if any(token in low for token in ('object_memory_goal', 'sending_goal')):
+                        last_progress = current_text
+                time.sleep(0.05)
+            if not nav_ack_status:
+                nav_ack_status = last_progress
+            low_ack = nav_ack_status.lower()
+            accepted = bool(nav_ack_status) and any(x in low_ack for x in ('goal accepted', 'navigating target='))
+            if not accepted:
+                return {
+                    'ok':False,'success':False,'tool':tool,'nav_dispatched':False,'object':obj,
+                    'navigation_pose':pose,'planning_verified':bool(selected.get('planning_verified')),
+                    'nav_ack_status':nav_ack_status or 'no semantic-nav acknowledgement',
+                    'speech':f'I found {obj.get("label", label)}, but Nav2 did not acknowledge the navigation dispatch, so I will not claim that I am moving.'
+                }
             return {
                 'ok':True,'success':True,'tool':tool,'nav_dispatched':True,'object':obj,
                 'navigation_pose':pose,'planning_verified':bool(selected.get('planning_verified')),
-                'speech':f'I found a unique remembered {obj.get("label", label)} and selected a safe standoff near its stored physical location.'
+                'nav_ack_status':nav_ack_status,
+                'speech':f'I found a unique remembered {obj.get("label", label)} and Nav2 accepted the route toward a safe standoff.'
             }
         if tool == 'motion_skill':
             skill = _normalize_motion_skill(str(args.get('skill') or '').strip())
@@ -683,8 +829,11 @@ class AgenticVoiceActionNode(Node):
         return {'ok': True, 'tool': 'stop', 'reason': reason}
 
     def _semantic(self, payload: Dict[str, Any]) -> None:
+        payload = dict(payload)
+        if self._active_request_id:
+            payload.setdefault('request_id', self._active_request_id)
         self.semantic_pub.publish(String(data=json.dumps(payload, sort_keys=True)))
-        self.event_pub.publish(String(data=json.dumps({'type': 'tool_call', 'tool': payload.get('type'), 'payload': payload}, sort_keys=True)))
+        self.event_pub.publish(String(data=json.dumps({'type': 'tool_call', 'request_id': self._active_request_id, 'tool': payload.get('type'), 'payload': payload}, sort_keys=True)))
 
     def _speak(self, text: str, *, category: str = 'speech', priority: str = 'normal') -> None:
         text = str(text or '').strip()
@@ -700,6 +849,8 @@ class AgenticVoiceActionNode(Node):
 
     def _publish_state(self, state: str, **extra: Any) -> None:
         payload = {'state': state, 'session_name': self.session_name, 'stamp_sec': time.time(), **extra}
+        if self._active_request_id and 'request_id' not in payload:
+            payload['request_id'] = self._active_request_id
         msg = String(data=json.dumps(payload, sort_keys=True, default=str))
         self.state_pub.publish(msg)
         self.status_pub.publish(msg)

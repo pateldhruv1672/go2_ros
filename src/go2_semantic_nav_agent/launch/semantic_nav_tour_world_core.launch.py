@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, GroupAction, TimerAction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -35,9 +35,15 @@ def generate_launch_description():
             'enable_object_perception': LaunchConfiguration('enable_object_perception'),
             'enable_sam2': LaunchConfiguration('enable_sam2'),
             'enable_vlm_backup': LaunchConfiguration('enable_vlm_backup'),
+            'vlm_provider': LaunchConfiguration('vlm_provider'),
+            'vlm_model': LaunchConfiguration('vlm_model'),
         }.items(),
     )
 
+    resume_world_scoped = GroupAction(
+        scoped=True,
+        actions=[resume_world],
+    )
     return LaunchDescription([
         DeclareLaunchArgument('session_root', default_value='~/.ros/go2_semantic_nav_sessions'),
         DeclareLaunchArgument('session_name', default_value='auto'),
@@ -50,6 +56,8 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_object_perception', default_value='true'),
         DeclareLaunchArgument('enable_sam2', default_value='true'),
         DeclareLaunchArgument('enable_vlm_backup', default_value='false'),
+        DeclareLaunchArgument('vlm_provider', default_value=os.environ.get('GO2_LIVE_VLM_PROVIDER', 'openrouter')),
+        DeclareLaunchArgument('vlm_model', default_value=os.environ.get('GO2_LIVE_VLM_MODEL', 'google/gemini-2.5-flash')),
 
         DeclareLaunchArgument('enable_agentic_voice', default_value='true'),
         DeclareLaunchArgument('ollama_url', default_value=os.environ.get('OLLAMA_CHAT_URL', 'http://127.0.0.1:11434/api/chat')),
@@ -77,19 +85,19 @@ def generate_launch_description():
 
         DeclareLaunchArgument('enable_omi_input', default_value='false'),
 
-        resume_world,
-
-        Node(
-            package='rviz2',
-            executable='rviz2',
-            name='sparky_tour_rviz',
-            output='screen',
-            condition=IfCondition(LaunchConfiguration('rviz2')),
-            arguments=['-d', rviz_config],
-            additional_env={'LIBGL_ALWAYS_SOFTWARE': __import__('os').environ.get('LIBGL_ALWAYS_SOFTWARE', '1')},
-            respawn=True,
-            respawn_delay=3.0,
-        ),
+        resume_world_scoped,
+        TimerAction(period=2.5, actions=[
+            Node(
+                package='rviz2',
+                executable='rviz2',
+                name='sparky_tour_rviz',
+                output='screen',
+                condition=IfCondition(LaunchConfiguration('rviz2')),
+                arguments=['-d', rviz_config],
+                respawn=True,
+                respawn_delay=3.0,
+            ),
+        ]),
 
         Node(
             package='go2_langgraph_agent', executable='agentic_voice_action_node',

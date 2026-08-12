@@ -2126,6 +2126,7 @@ class SemanticNavNode(Node):
         self._goal_send_retry_ns = 0
         self._goal_send_retry_count = 0
         self._active_goal_handle = goal_handle
+        self.publish_status(f'goal accepted target={self._goal_place.name if self._goal_place else "-"}')
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self.goal_result_cb)
 
@@ -2248,7 +2249,7 @@ class SemanticNavNode(Node):
         cmd = str((event or {}).get('type') or parts[0]).lower()
         event_place = str((event or {}).get('place') or (event or {}).get('target') or '').strip()
         # SPARKY_OBJECT_GO_POSE_V1
-        if cmd in {'go_pose', 'navigate_to_pose'} and isinstance(event, dict):
+        if cmd in {'go_pose', 'navigate_to_pose', 'object_goal'} and isinstance(event, dict):
             pose_data = event.get('pose') if isinstance(event.get('pose'), dict) else event
             try:
                 x = float(pose_data.get('x'))
@@ -2447,34 +2448,6 @@ class SemanticNavNode(Node):
                 self.publish_status('places: none')
             for line in lines:
                 self.publish_status(line)
-            return
-        if cmd in {'navigate_to_pose', 'go_pose', 'object_goal'} and isinstance(event, dict):
-            # object_memory_direct_pose: the agent supplies a SAFE STANDOFF goal,
-            # never the object's occupied centroid as the robot base goal.
-            raw_pose = event.get('pose') or event.get('goal') or {}
-            if not isinstance(raw_pose, dict) or raw_pose.get('x') is None or raw_pose.get('y') is None:
-                self.publish_status('object_goal_rejected missing_pose')
-                return
-            try:
-                gx, gy = float(raw_pose.get('x')), float(raw_pose.get('y'))
-                if raw_pose.get('yaw') is not None:
-                    gyaw = float(raw_pose.get('yaw'))
-                else:
-                    qz, qw = float(raw_pose.get('qz', 0.0)), float(raw_pose.get('qw', 1.0))
-                    gyaw = 2.0 * math.atan2(qz, qw)
-            except Exception as exc:
-                self.publish_status(f'object_goal_rejected invalid_pose error={exc}')
-                return
-            name = str(event.get('name') or event.get('object_label') or event.get('object_id') or 'remembered_object').strip()
-            place = Place(
-                name=f'object_goal_{route_slugify(name)}', x=gx, y=gy, yaw=gyaw,
-                room=str(event.get('room') or ''), category='object_memory_goal',
-                aliases=[], tags=['object_memory', 'temporary_goal'],
-                description=str(event.get('description') or ''),
-                source='object_memory', frame_id=str(raw_pose.get('frame_id') or self.map_frame),
-            )
-            self.publish_status(f'object_memory_goal object={name} x={gx:.2f} y={gy:.2f} yaw={gyaw:.2f}')
-            self.send_goal(place, route_goal_active=False)
             return
         if cmd in {'go', 'navigate'}:
             query = event_place or ' '.join(parts[1:]).replace('to ', '').strip()
