@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -59,6 +60,8 @@ class VLMCheckpointNode(Node):
         self.declare_parameter("query_topic", "/go2_vlm/query")
         self.declare_parameter("query_result_topic", "/go2_vlm/query_result")
         self.declare_parameter("max_live_image_age_sec", 2.5)
+        self.declare_parameter("fresh_frame_wait_timeout_sec", 1.5)
+        self.declare_parameter("detector_context_wait_sec", 0.25)
         self.declare_parameter("enable_graph_memory", True)
         self.declare_parameter("enable_voxel_memory", True)
         self.declare_parameter("enable_vector_memory", True)
@@ -84,6 +87,11 @@ class VLMCheckpointNode(Node):
         self.latest_image_monotonic = 0.0
         self.latest_odom: Optional[Odometry] = None
         self.latest_object_inventory: Dict[str, Any] = {}
+        self._sensor_lock = threading.Lock()
+        self._live_query_lock = threading.Lock()
+        self.latest_image_received_unix = 0.0
+        self.latest_odom_received_unix = 0.0
+        self.latest_object_inventory_received_unix = 0.0
         self.status_pub = self.create_publisher(String, "/go2_vlm_checkpoint/status", 10)
         self.query_result_pub = self.create_publisher(String, str(self.get_parameter("query_result_topic").value), 10)
         self.create_subscription(Image, str(self.get_parameter("camera_topic").value), self._on_image, qos_profile_sensor_data)
@@ -95,75 +103,147 @@ class VLMCheckpointNode(Node):
         self.get_logger().info(f"VLM checkpoint writer ready; session={self.session_name}")
 
     def _on_image(self, msg: Image) -> None:
-        self.latest_image = msg
-        self.latest_image_monotonic = time.monotonic()
+        now_unix = time.time()
+        with self._sensor_lock:
+            self.latest_image = msg
+            self.latest_image_monotonic = time.monotonic()
+            self.latest_image_received_unix = now_unix
 
     def _on_odom(self, msg: Odometry) -> None:
-        self.latest_odom = msg
+        with self._sensor_lock:
+            self.latest_odom = msg
+            self.latest_odom_received_unix = time.time()
 
     def _on_object_inventory(self, msg: String) -> None:
         try:
             value = json.loads(msg.data)
-            self.latest_object_inventory = value if isinstance(value, dict) else {}
+            value = value if isinstance(value, dict) else {}
         except Exception:
-            self.latest_object_inventory = {}
+            value = {}
+        with self._sensor_lock:
+            self.latest_object_inventory = value
+            self.latest_object_inventory_received_unix = time.time()
 
     def _on_query(self, msg: String) -> None:
-        """Analyze the CURRENT camera frame for a single user question.
-
-        This path is intentionally ephemeral: it does not write a checkpoint and
-        it never answers from persistent memory. Every request gets a fresh image
-        snapshot and a fresh VLM invocation.
-        """
+        """Schedule a live query against sensor data received after this request."""
         try:
             payload = json.loads(msg.data) if str(msg.data or '').strip().startswith('{') else {'question': msg.data}
         except Exception:
             payload = {'question': msg.data}
         if not isinstance(payload, dict):
             payload = {'question': str(msg.data or '')}
-        request_id = str(payload.get('request_id') or f'vlm_{self.get_clock().now().nanoseconds}')
+        payload = dict(payload)
+        payload.setdefault('request_id', f'vlm_{self.get_clock().now().nanoseconds}')
+        try:
+            command_received_unix = float(payload.get('command_received_unix') or time.time())
+        except Exception:
+            command_received_unix = time.time()
+        payload['command_received_unix'] = command_received_unix
+        # SPARKY_POST_COMMAND_SENSOR_BARRIER_V12_8
+        threading.Thread(
+            target=self._run_live_query_serialized,
+            args=(payload,),
+            name=f"vlm-fresh-{str(payload['request_id'])[-12:]}",
+            daemon=True,
+        ).start()
+
+    def _run_live_query_serialized(self, payload: Dict[str, Any]) -> None:
+        # Preserve request/response order when OpenRouter calls overlap.
+        with self._live_query_lock:
+            self._run_live_query_after_fresh_frame(payload)
+
+    def _run_live_query_after_fresh_frame(self, payload: Dict[str, Any]) -> None:
+        request_id = str(payload.get('request_id') or f'vlm_{time.time_ns()}')
         question = str(payload.get('question') or payload.get('text') or 'What do you see in front of me?').strip()
-        detector_context = payload.get('object_inventory')
-        if not isinstance(detector_context, dict) or not detector_context:
-            detector_context = dict(self.latest_object_inventory) if isinstance(self.latest_object_inventory, dict) else {}
-        image_age = time.monotonic() - self.latest_image_monotonic if self.latest_image_monotonic > 0.0 else 1e9
+        command_received_unix = float(payload.get('command_received_unix') or time.time())
+        sensor_not_before_unix = float(payload.get('sensor_not_before_unix') or command_received_unix)
+        wait_timeout = max(0.2, float(self.get_parameter('fresh_frame_wait_timeout_sec').value))
+        deadline = time.monotonic() + wait_timeout
+        image_msg = None
+        image_arrival_unix = 0.0
+        while time.monotonic() < deadline:
+            with self._sensor_lock:
+                candidate = self.latest_image
+                candidate_arrival = self.latest_image_received_unix
+            if candidate is not None and candidate_arrival >= sensor_not_before_unix:
+                image_msg = candidate
+                image_arrival_unix = candidate_arrival
+                break
+            time.sleep(0.02)
+        sensor_wait_sec = max(0.0, time.time() - sensor_not_before_unix)
+        end_to_end_wait_sec = max(0.0, time.time() - command_received_unix)
+        if image_msg is None:
+            out = {
+                'event':'live_query_result','request_id':request_id,'success':False,'summary':'',
+                'provider':self.vlm.provider,'model':self.vlm.model,
+                'error':f'no camera frame arrived after the command within {wait_timeout:.2f}s',
+                'stamp_sec':self.get_clock().now().nanoseconds / 1e9,
+                'command_received_unix':command_received_unix,'sensor_not_before_unix':sensor_not_before_unix,'sensor_wait_sec':sensor_wait_sec,'end_to_end_wait_sec':end_to_end_wait_sec,
+                'freshness_policy':'post_command_frame_required',
+            }
+            encoded=json.dumps(out,sort_keys=True,default=str)
+            self.query_result_pub.publish(String(data=encoded)); self.status_pub.publish(String(data=encoded)); return
+
+        # Give the detector/object inventory a short bounded window to catch up to
+        # the same operator request. The RGB image remains the source of truth.
+        detector_wait = max(0.0, float(self.get_parameter('detector_context_wait_sec').value))
+        detector_deadline = time.monotonic() + detector_wait
+        detector_context: Dict[str, Any] = {}
+        detector_arrival_unix = 0.0
+        while True:
+            with self._sensor_lock:
+                detector_context = dict(self.latest_object_inventory) if isinstance(self.latest_object_inventory, dict) else {}
+                detector_arrival_unix = self.latest_object_inventory_received_unix
+            if detector_arrival_unix >= sensor_not_before_unix or time.monotonic() >= detector_deadline:
+                break
+            time.sleep(0.02)
+        detector_fresh = detector_arrival_unix >= sensor_not_before_unix
+        image_age = max(0.0, time.time() - image_arrival_unix)
         max_age = max(0.2, float(self.get_parameter('max_live_image_age_sec').value))
-        image_bytes = self._encode_image(self.latest_image) if self.latest_image is not None and image_age <= max_age else None
+        image_bytes = self._encode_image(image_msg) if image_age <= max_age else None
         if image_bytes is None:
-            out = {'event':'live_query_result','request_id':request_id,'success':False,'summary':'','provider':self.vlm.provider,'model':self.vlm.model,'error':f'current camera frame is stale or unavailable (age_sec={image_age:.2f})','stamp_sec':self.get_clock().now().nanoseconds / 1e9,'detector_context':detector_context}
-            encoded=json.dumps(out,sort_keys=True,default=str); self.query_result_pub.publish(String(data=encoded)); self.status_pub.publish(String(data=encoded)); return
+            out = {
+                'event':'live_query_result','request_id':request_id,'success':False,'summary':'',
+                'provider':self.vlm.provider,'model':self.vlm.model,
+                'error':f'post-command camera frame could not be encoded or became stale (age_sec={image_age:.2f})',
+                'stamp_sec':self.get_clock().now().nanoseconds / 1e9,
+                'command_received_unix':command_received_unix,'sensor_not_before_unix':sensor_not_before_unix,'image_received_unix':image_arrival_unix,
+                'sensor_wait_sec':sensor_wait_sec,'end_to_end_wait_sec':end_to_end_wait_sec,'detector_fresh':detector_fresh,
+                'freshness_policy':'post_command_frame_required',
+            }
+            encoded=json.dumps(out,sort_keys=True,default=str)
+            self.query_result_pub.publish(String(data=encoded)); self.status_pub.publish(String(data=encoded)); return
         prompt = (
             'You are the live vision system for a Unitree Go2 robot. Analyze ONLY the CURRENT attached camera image. '
-            'Answer the operator question in one or two concise spoken sentences. Do not use saved memory as current visual evidence. '
-            'Use the detector context only as supporting hints, correct it if the image disagrees, and mention uncertainty when needed. '
+            'The image was received after the operator command, so answer about that fresh scene only. '
+            'Use detector context only as supporting hints, correct it if the image disagrees, and mention uncertainty when needed. '
             f'Operator question: {question}\n'
-            f'Live detector context: {json.dumps(detector_context, default=str)[:5000]}'
+            f'Live detector context (fresh={detector_fresh}): {json.dumps(detector_context, default=str)[:5000]}'
         )
         self.status_pub.publish(String(data=json.dumps({
-            'event': 'live_query_started', 'request_id': request_id,
-            'provider': self.vlm.provider, 'model': self.vlm.model,
-        }, sort_keys=True)))
+            'event':'live_query_started','request_id':request_id,'provider':self.vlm.provider,
+            'model':self.vlm.model,'command_received_unix':command_received_unix,'sensor_not_before_unix':sensor_not_before_unix,
+            'image_received_unix':image_arrival_unix,'sensor_wait_sec':sensor_wait_sec,
+            'detector_fresh':detector_fresh,'freshness_policy':'post_command_frame_required',
+        },sort_keys=True,default=str)))
         try:
             result = self.vlm.summarize_image(image_bytes, mime_type='image/jpeg', prompt=prompt)
             out = {
-                'event': 'live_query_result', 'request_id': request_id,
-                'success': bool(result.success), 'summary': str(result.summary or ''),
-                'provider': str(result.provider or self.vlm.provider),
-                'model': str(result.model or self.vlm.model), 'error': str(result.error or ''),
-                'stamp_sec': self.get_clock().now().nanoseconds / 1e9,
-                'detector_context': detector_context,
+                'event':'live_query_result','request_id':request_id,'success':bool(result.success),
+                'summary':str(result.summary or ''),'provider':str(result.provider or self.vlm.provider),
+                'model':str(result.model or self.vlm.model),'error':str(result.error or ''),
             }
         except Exception as exc:
-            out = {
-                'event': 'live_query_result', 'request_id': request_id,
-                'success': False, 'summary': '', 'provider': self.vlm.provider,
-                'model': self.vlm.model, 'error': str(exc),
-                'stamp_sec': self.get_clock().now().nanoseconds / 1e9,
-                'detector_context': detector_context,
-            }
-        encoded = json.dumps(out, sort_keys=True, default=str)
-        self.query_result_pub.publish(String(data=encoded))
-        self.status_pub.publish(String(data=encoded))
+            out = {'event':'live_query_result','request_id':request_id,'success':False,'summary':'',
+                   'provider':self.vlm.provider,'model':self.vlm.model,'error':str(exc)}
+        out.update({
+            'stamp_sec':self.get_clock().now().nanoseconds / 1e9,
+            'command_received_unix':command_received_unix,'sensor_not_before_unix':sensor_not_before_unix,'image_received_unix':image_arrival_unix,
+            'sensor_wait_sec':sensor_wait_sec,'detector_context':detector_context,
+            'detector_fresh':detector_fresh,'freshness_policy':'post_command_frame_required',
+        })
+        encoded=json.dumps(out,sort_keys=True,default=str)
+        self.query_result_pub.publish(String(data=encoded)); self.status_pub.publish(String(data=encoded))
 
     def _timer(self) -> None:
         if _as_bool(self.get_parameter("auto_write_checkpoints").value):

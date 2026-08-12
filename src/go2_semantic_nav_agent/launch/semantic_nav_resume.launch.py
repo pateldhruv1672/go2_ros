@@ -164,14 +164,14 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
 
     progress = ctrl.setdefault('progress_checker', {})
     progress['plugin'] = 'nav2_controller::PoseProgressChecker'
-    progress['required_movement_radius'] = float(os.environ.get('GO2_NAV_PROGRESS_RADIUS_M', '0.08'))
-    progress['required_movement_angle'] = float(os.environ.get('GO2_NAV_PROGRESS_ANGLE_RAD', '0.12'))
-    progress['movement_time_allowance'] = float(os.environ.get('GO2_NAV_PROGRESS_TIMEOUT_SEC', '12.0'))
+    progress['required_movement_radius'] = float(os.environ.get('GO2_NAV_PROGRESS_RADIUS_M', '0.05'))
+    progress['required_movement_angle'] = float(os.environ.get('GO2_NAV_PROGRESS_ANGLE_RAD', '0.08'))
+    progress['movement_time_allowance'] = float(os.environ.get('GO2_NAV_PROGRESS_TIMEOUT_SEC', '15.0'))
 
     goal_checker = ctrl.setdefault('general_goal_checker', {})
     goal_checker['plugin'] = 'nav2_controller::SimpleGoalChecker'
-    goal_checker['xy_goal_tolerance'] = 0.30
-    goal_checker['yaw_goal_tolerance'] = 0.45
+    goal_checker['xy_goal_tolerance'] = float(os.environ.get('GO2_NAV_GOAL_XY_TOLERANCE_M', '0.18'))
+    goal_checker['yaw_goal_tolerance'] = float(os.environ.get('GO2_NAV_GOAL_YAW_TOLERANCE_RAD', '0.30'))
     goal_checker['stateful'] = True
 
     # GO2_V11_3_DWB_ACTUATOR_CONTRACT
@@ -183,13 +183,16 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     follow['min_vel_y'] = 0.0
     follow['min_speed_xy'] = float(os.environ.get('GO2_NAV_MIN_SPEED_XY', '0.0'))
     follow['min_speed_theta'] = float(os.environ.get('GO2_NAV_MIN_SPEED_THETA', '0.0'))
-    follow['max_vel_x'] = float(os.environ.get('GO2_NAV_MAX_X', '0.30'))
+    follow['max_vel_x'] = float(os.environ.get('GO2_NAV_MAX_X', '0.40'))
     follow['max_speed_xy'] = follow['max_vel_x']
     follow['max_vel_theta'] = float(os.environ.get('GO2_NAV_MAX_THETA', '0.30'))
     follow['acc_lim_x'] = float(os.environ.get('GO2_NAV_ACC_X', '0.45'))
     follow['acc_lim_theta'] = float(os.environ.get('GO2_NAV_ACC_THETA', '0.40'))
-    follow['decel_lim_x'] = -abs(float(os.environ.get('GO2_NAV_DECEL_X', '0.60')))
+    follow['decel_lim_x'] = -abs(float(os.environ.get('GO2_NAV_DECEL_X', '0.45')))
     follow['decel_lim_theta'] = -abs(float(os.environ.get('GO2_NAV_DECEL_THETA', '0.50')))
+    follow['sim_time'] = float(os.environ.get('GO2_NAV_SIM_TIME', '1.1'))
+    follow['yaw_goal_tolerance'] = goal_checker['yaw_goal_tolerance']
+    follow['xy_goal_tolerance'] = goal_checker['xy_goal_tolerance']
     follow['trans_stopped_velocity'] = 0.05
     follow['theta_stopped_velocity'] = 0.08
     # GO2_V11_6_ANGULAR_FIDELITY
@@ -457,6 +460,8 @@ def launch_setup(context, *args, **kwargs):
             'fallback_enable': _bool_flag(os.environ.get('GO2_SEMANTIC_FALLBACK_ENABLE', '0'), default=False),
             'initialpose_stamp_backdate_sec': 0.10,
             'scan_topic': scan_nav_topic,
+            'tour_auto_advance': _bool_flag(os.environ.get('GO2_TOUR_AUTO_ADVANCE', '1'), default=True),
+            'tour_default_pause_sec': float(os.environ.get('GO2_TOUR_PAUSE_SEC', '2.0')),
         }]),
     ]
     print('[semantic_nav_resume] semantic_nav_node immediate+respawn')
@@ -512,9 +517,10 @@ def generate_launch_description():
             'escape_topic': '/cmd_vel_escape',
             'output_topic': '/cmd_vel_nav',
             'source_timeout_sec': 0.40,
-            'nav2_max_x': float(os.environ.get('GO2_NAV_MAX_X', '0.30')),
+            'nav2_max_x': float(os.environ.get('GO2_NAV_MAX_X', '0.40')),
             'nav2_max_y': 0.0,
             'nav2_max_theta': float(os.environ.get('GO2_NAV_MAX_THETA', '0.30')),
+            'nav2_zero_subfloor_x': False,
             'omi_max_x': 0.25,
             'omi_max_y': 0.20,
             'omi_max_theta': 0.60,

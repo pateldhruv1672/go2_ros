@@ -16,9 +16,24 @@ def _strip_room_suffix(value: str) -> str:
     value = re.sub(r"\b(in|inside|within) (this|the|current) (room|area|lab)\b.*$", "", value).strip()
     return value.strip(" .?!,:;")
 
+# SPARKY_FUSED_OBJECT_QUERY_V13_2
+def _clean_object_query(value: str) -> tuple[str, bool]:
+    value = _norm(value)
+    nearest = bool(re.search(r"\b(nearest|nearerst|closest|closeest)\b", value))
+    value = re.sub(r"^(hey\s+)?sparky\s+", "", value)
+    value = re.sub(r"^(please\s+)?(can you\s+|could you\s+|would you\s+)?", "", value)
+    value = re.sub(r"^(find|locate|search for|look for|go find)\s+", "", value)
+    value = re.sub(r"\b(nearest|nearerst|closest|closeest|nearby)\b", " ", value)
+    value = re.sub(r"^(the|a|an|my|our)\s+", "", value.strip())
+    value = re.sub(r"\b(to me|from me|around me|near me|please|now)\b", " ", value)
+    value = " ".join(value.split())
+    return value or "object", nearest
+
 
 def classify_world_intent(text: str, hinted_intent: str = "") -> Dict[str, Any]:
     norm = _norm(text)
+    norm = re.sub(r"^(hey\s+)?sparky\s+", "", norm)
+    norm = re.sub(r"^(please\s+)?(can you\s+|could you\s+|would you\s+)?", "", norm)
     hint = (hinted_intent or "").strip().lower()
     # SPARKY_VISIBLE_MEMORY_QUERY_V2
     if hint in {"count_objects", "find_object", "where_object", "visible_objects", "memory_summary", "web_search"}:
@@ -67,10 +82,12 @@ def classify_world_intent(text: str, hinted_intent: str = "") -> Dict[str, Any]:
         query = query[: room_match.start()].strip()
     query = _strip_room_suffix(query)
     query = re.sub(r"\b(this room|the room|current room|here)\b", "", query).strip()
+    query, nearest = _clean_object_query(query)
     return {
         "intent": intent,
         "object_query": query or "object",
         "room": room,
+        "nearest": nearest,
         "requires_motion": intent == "find_object",
     }
 
@@ -162,24 +179,36 @@ class WorldAgentTools:
             speech = f"I remember {remembered} confirmed {label}{where}, and I can currently see {visible_count}."
         return {"success": True, "speech": speech, "remembered_count": remembered, "visible_count": visible_count, "result": result}
 
-    def where_object(self, label: str, room: str = "") -> Dict[str, Any]:
-        result = self.memory.query_objects(label=label, room=room, confirmed_only=True, limit=20)
+    def where_object(self, label: str, room: str = "", robot_map_pose=None, nearest: bool = False) -> Dict[str, Any]:
+        label, inferred_nearest = _clean_object_query(label)
+        nearest = bool(nearest or inferred_nearest)
+        result = self.memory.query_objects(
+            label=label, room=room, confirmed_only=True, limit=20,
+            robot_map_pose=robot_map_pose, nearest=nearest,
+        )
         objects = result.get("objects") or []
         if not objects:
-            return {"success": False, "speech": f"I do not have a confirmed remembered location for {label}.", "objects": []}
+            db = (result.get("mapper_sql") or {}).get("db_path") or "mapper/unified memory"
+            return {"success": False, "speech": f"I do not have a confirmed remembered location for {label}. I checked {db}.", "objects": [], "memory_result": result}
         obj = objects[0]
         data = self._object_data(obj)
         pose = data.get("map_pose") or {}
         room_id = data.get("room_id") or "the mapped area"
-        speech = f"I remember {label} in {room_id}"
+        source = data.get("memory_source") or "unified_memory"
+        distance = data.get("distance_from_robot_m")
+        qualifier = "nearest remembered " if nearest else "remembered "
+        speech = f"I found the {qualifier}{label} in {room_id}"
+        if distance is not None:
+            speech += f", about {float(distance):.1f} meters from my current map pose"
         if pose:
-            speech += f" near map position x {float(pose.get('x', 0.0)):.1f}, y {float(pose.get('y', 0.0)):.1f}."
-        else:
-            speech += "."
-        return {"success": True, "speech": speech, "object": obj, "objects": objects}
+            speech += f", near map x {float(pose.get('x', 0.0)):.1f}, y {float(pose.get('y', 0.0)):.1f}"
+        speech += f". Memory source: {source}."
+        return {"success": True, "speech": speech, "object": obj, "objects": objects, "memory_result": result}
 
-    def find_object(self, label: str, room: str = "") -> Dict[str, Any]:
-        located = self.where_object(label, room)
+    def find_object(self, label: str, room: str = "", robot_map_pose=None, nearest: bool = False) -> Dict[str, Any]:
+        label, inferred_nearest = _clean_object_query(label)
+        nearest = bool(nearest or inferred_nearest)
+        located = self.where_object(label, room, robot_map_pose=robot_map_pose, nearest=nearest)
         if not located.get("success"):
             return located
         obj = located.get("object") or {}
@@ -188,20 +217,22 @@ class WorldAgentTools:
         if not approach:
             return {
                 "success": False,
-                "speech": f"I remember where {label} was seen, but I do not have a verified safe approach pose for it yet, so I will not move toward it.",
+                "speech": f"I found the remembered {label}, but it has no safe observation viewpoint in memory yet, so I cannot create a Nav2 goal for it.",
                 "object": obj,
             }
         nav = {
             "action": "navigate_to_pose",
             "pose": approach,
-            "reason": "memory_first_object_search",
+            "reason": "nearest_memory_first_object_search" if nearest else "memory_first_object_search",
             "object_id": obj.get("id"),
             "object_label": data.get("label") or label,
             "verify_live_after_arrival": True,
         }
+        distance = data.get("distance_from_robot_m")
+        distance_text = f" about {float(distance):.1f} meters away" if distance is not None else ""
         return {
             "success": True,
-            "speech": f"I found a confirmed remembered {label}. I will navigate to the last safe viewpoint where it was observed, then verify it live.",
+            "speech": f"I found the {'nearest ' if nearest else ''}confirmed remembered {label}{distance_text}. I will navigate to its last safe observation viewpoint and verify it live.",
             "object": obj,
             "nav_command": nav,
         }

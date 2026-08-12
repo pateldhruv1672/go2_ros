@@ -54,7 +54,8 @@ def generate_launch_description():
             parameters=[{
                 'session_root': session_root, 'session_name': session_name,
                 'camera_topic': camera_topic, 'auto_write_checkpoints': False,
-                'vlm_provider': vlm_provider, 'vlm_model': vlm_model, 'vlm_base_url': vlm_base_url,
+                'vlm_provider': vlm_provider, 'vlm_model': vlm_model,
+                'fresh_frame_wait_timeout_sec': 1.5, 'detector_context_wait_sec': 0.25, 'vlm_base_url': vlm_base_url,
                 'enable_graph_memory': b('enable_rich_memory'),
                 'enable_voxel_memory': b('enable_rich_memory'),
                 'enable_vector_memory': b('enable_rich_memory'),

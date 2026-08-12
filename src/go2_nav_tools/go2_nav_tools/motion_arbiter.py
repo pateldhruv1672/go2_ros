@@ -37,6 +37,8 @@ class MotionArbiter(Node):
         self.declare_parameter('nav2_max_x', 0.75)
         self.declare_parameter('nav2_max_y', 0.0)
         self.declare_parameter('nav2_max_theta', 0.90)
+        self.declare_parameter('nav2_min_effective_x', 0.30)
+        self.declare_parameter('nav2_zero_subfloor_x', False)
 
         self.declare_parameter('omi_max_x', 0.25)
         self.declare_parameter('omi_max_y', 0.20)
@@ -118,16 +120,17 @@ class MotionArbiter(Node):
         return 'none', Twist()
 
     def _clip_twist(self, source: str, msg: Twist) -> Twist:
+        # SPARKY_CONTROLLER_COMMAND_FIDELITY_V13_1
+        # Do not rewrite a DWB trajectory after it has been scored. The Go2
+        # executable floor belongs in the controller/physical calibration, not
+        # as a downstream component mutation that turns arcs into pure spins.
         out = Twist()
-
         max_x = float(self.get_parameter(f'{source}_max_x').value) if source != 'none' else 0.0
         max_y = float(self.get_parameter(f'{source}_max_y').value) if source != 'none' else 0.0
         max_theta = float(self.get_parameter(f'{source}_max_theta').value) if source != 'none' else 0.0
-
         out.linear.x = clip(msg.linear.x, -max_x, max_x)
         out.linear.y = clip(msg.linear.y, -max_y, max_y)
         out.angular.z = clip(msg.angular.z, -max_theta, max_theta)
-
         return out
 
     def _tick(self):

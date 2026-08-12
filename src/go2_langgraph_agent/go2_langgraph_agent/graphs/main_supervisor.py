@@ -5,6 +5,7 @@ from typing import Any, Dict
 
 import rclpy
 from nav_msgs.msg import Odometry
+from geometry_msgs.msg import PoseWithCovarianceStamped
 from rclpy.node import Node
 from std_msgs.msg import String
 
@@ -127,6 +128,7 @@ class MainSupervisor(Node):
         self.create_subscription(String, "/semantic_nav/event", lambda m: self._store_json("semantic_nav_event", m), 10)
         self.create_subscription(String, "/go2_vlm_checkpoint/status", lambda m: self._store_vlm(m), 10)
         self.create_subscription(Odometry, str(self.get_parameter("odom_topic").value), self._on_odom, 10)
+        self.create_subscription(PoseWithCovarianceStamped, "/amcl_pose", self._on_amcl_pose, 10)
         try:
             self.orchestrator = AgentOrchestrator(
                 self.memory,
@@ -172,6 +174,16 @@ class MainSupervisor(Node):
             "velocity": {"linear_x": t.linear.x, "linear_y": t.linear.y, "angular_z": t.angular.z},
         }
 
+    def _on_amcl_pose(self, msg: PoseWithCovarianceStamped) -> None:
+        p = msg.pose.pose.position
+        q = msg.pose.pose.orientation
+        self.latest["map_pose"] = {
+            "frame_id": msg.header.frame_id or "map",
+            "x": float(p.x), "y": float(p.y), "z": float(p.z),
+            "qx": float(q.x), "qy": float(q.y), "qz": float(q.z), "qw": float(q.w),
+            "stamp_sec": float(msg.header.stamp.sec) + 1e-9 * float(msg.header.stamp.nanosec),
+        }
+
     def _live_context(self) -> Dict[str, Any]:
         return dict(self.latest)
 
@@ -206,6 +218,8 @@ class MainSupervisor(Node):
         if not intent:
             return False
         label = str(parsed.get("object_query") or (payload or {}).get("semantic_target") or "object") if isinstance(payload, dict) else str(parsed.get("object_query") or "object")
+        nearest = bool(parsed.get("nearest"))
+        robot_map_pose = self.latest.get("map_pose") if isinstance(self.latest.get("map_pose"), dict) else None
         room = str(parsed.get("room") or "")
         # SPARKY_VISIBLE_MEMORY_SUPERVISOR_V2
         if intent == "visible_objects":
@@ -215,7 +229,7 @@ class MainSupervisor(Node):
         elif intent == "count_objects":
             result = self.world_tools.count_objects(label, room, self.latest.get("object_inventory") if isinstance(self.latest.get("object_inventory"), dict) else {})
         elif intent == "where_object":
-            result = self.world_tools.where_object(label, room)
+            result = self.world_tools.where_object(label, room, robot_map_pose=robot_map_pose, nearest=nearest)
         elif intent == "web_search":
             result = self.world_tools.web_search(text)
         elif intent == "find_object":
@@ -226,7 +240,7 @@ class MainSupervisor(Node):
             elif not _as_bool(self.get_parameter("enable_object_navigation").value):
                 result = {"success": False, "speech": "I found the object in memory, but object navigation is disabled on this run."}
             else:
-                result = self.world_tools.find_object(label, room)
+                result = self.world_tools.find_object(label, room, robot_map_pose=robot_map_pose, nearest=nearest)
                 nav = result.get("nav_command") or {}
                 if nav:
                     # SPARKY_OBJECT_NAV_VIA_SEMANTIC_NAV_V1
@@ -374,9 +388,14 @@ class MainSupervisor(Node):
                 return
             semantic_command = self._semantic_resume_command(msg)
             if semantic_command:
+                # SPARKY_FRONTDOOR_NO_DUPLICATE_ROUTING_SPEECH_V12_9
                 self.semantic_nav_pub.publish(String(data=json.dumps(semantic_command, sort_keys=True)))
-                self.speech_pub.publish(String(data="Routing that through saved resume memory."))
-                self._publish_status({"semantic_resume_command": semantic_command, "session_name": self.session_name})
+                metadata = (raw_payload.get("metadata") or {}) if isinstance(raw_payload, dict) else {}
+                frontdoor_handled = bool((raw_payload or {}).get("frontdoor_handled")) if isinstance(raw_payload, dict) else False
+                frontdoor_handled = frontdoor_handled or bool(metadata.get("frontdoor"))
+                if not frontdoor_handled:
+                    self.speech_pub.publish(String(data="Routing that through saved resume memory."))
+                self._publish_status({"semantic_resume_command": semantic_command, "session_name": self.session_name, "frontdoor_handled": frontdoor_handled})
                 return
             if _as_bool(self.get_parameter("enable_langgraph_streaming").value):
                 state, updates = self.orchestrator.run_with_stream(msg.data)

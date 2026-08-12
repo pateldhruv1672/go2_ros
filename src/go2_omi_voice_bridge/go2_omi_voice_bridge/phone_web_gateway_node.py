@@ -41,16 +41,15 @@ HTML = r'''<!doctype html>
 <label>Demo PIN / API token</label><input id="token" type="password" inputmode="numeric" autocomplete="off" placeholder="0000">
 <div class="muted" style="margin-top:7px">For the supervised demo you can use SPARKY_WEB_TOKEN=0000. The same value is used as the Admin PIN by default.</div>
 </div>
-<div class="card">
-<label>Phone speech recognition</label>
-<div class="row" style="margin-top:10px"><button class="primary" onclick="startSpeech('command')">🎤 Speak command</button><button onclick="startSpeech('query')">🎤 Ask question</button><button onclick="stopSpeech()">Stop listening</button></div>
-<div class="muted" id="speechStatus" style="margin-top:10px">Tap a microphone button and allow microphone access.</div>
+<div class="card" id="agentConsoleCard">
+<!-- SPARKY_PHONE_UNIFIED_AGENT_UI_V12_8 -->
+<label>Talk to Sparky</label>
+<textarea id="agentInput" placeholder="Ask anything or give a command: What do you see? / Start the tour / Find the chair / Sit / Return to spawn"></textarea>
+<div class="row"><button class="primary" onclick="sendAgentInput()">Send to Sparky</button><button onclick="startSpeech('agent')">🎤 Speak</button><button onclick="stopSpeech()">Stop listening</button><button class="danger" onclick="quick('stop')">STOP</button></div>
+<div class="muted" id="speechStatus" style="margin-top:10px">One input goes through the same intent → VLM/memory/tool → action pipeline.</div>
 <pre id="speechTranscript" style="min-height:44px;max-height:120px">No transcript yet.</pre>
-<label style="display:flex;gap:8px;align-items:center"><input id="autoSendSpeech" type="checkbox" checked style="width:auto"> Automatically send final transcript</label>
-</div>
-<div class="card">
-<label>Command</label><textarea id="command" placeholder="Welcome guests / Start the tour / Find the chair / Stop"></textarea>
-<div class="row"><button class="primary" onclick="sendCommand()">Send command</button><button class="safe" onclick="command('yes')">Confirm / Yes</button><button onclick="command('no')">Reject / No</button><button class="danger" onclick="command('stop')">STOP</button></div>
+<label style="display:flex;gap:8px;align-items:center"><input id="autoSendSpeech" type="checkbox" checked style="width:auto"> Automatically send final speech transcript</label>
+<div id="result" class="muted" style="margin-top:10px"></div>
 </div>
 <div class="card">
 <label>Guest Tour Host</label>
@@ -58,11 +57,6 @@ HTML = r'''<!doctype html>
 <div class="row" style="margin-top:10px"><button onclick="host('capabilities')">Capabilities</button><button class="safe" onclick="host('safe_moves')">Show Safe Moves</button><button onclick="quick('start the tour')">Start Saved Tour</button></div>
 <div class="row" style="margin-top:10px"><button onclick="quick('wave')">Wave</button><button onclick="quick('dance')">Dance</button><button onclick="quick('stretch')">Stretch</button><button onclick="quick('sit')">Sit</button><button onclick="quick('stand')">Stand</button><button onclick="quick('heart')">Heart</button><button class="danger" title="Immediate phone gesture; blocked while semantic navigation is active" onclick="quick('front flip')">Front Flip</button></div>
 </div>
-<div class="card">
-<label>Ask Sparky (read-only)</label><textarea id="query" placeholder="What do you see? / What do you remember? / How many chairs do you remember?"></textarea>
-<button class="primary" onclick="sendQuery()">Ask</button><div id="result" class="muted" style="margin-top:10px"></div>
-</div>
-
 <div class="card">
 <h2>Map & localization</h2>
 <div class="section-note muted">Live saved map with AMCL position and heading. Use this while issuing commands below or from the Command panel.</div>
@@ -103,13 +97,13 @@ async function api(path,method='GET',body=null,admin=false){
  const headers={'X-Sparky-Token':tokenEl.value}; if(admin)headers['X-Sparky-Admin-Pin']=tokenEl.value; if(body)headers['Content-Type']='application/json';
  const r=await fetch(path,{method,headers,body:body?JSON.stringify(body):null}); const t=await r.text(); let v; try{v=JSON.parse(t)}catch{v={text:t}}; if(!r.ok)throw new Error(v.error||t||r.statusText); return v;
 }
-async function command(text,confidence=1.0,source='phone_web'){try{const v=await api('/api/command','POST',{text,confidence,source});document.getElementById('result').textContent='Command accepted: '+(v.text||text)}catch(e){document.getElementById('result').textContent='ERROR: '+e.message}}
-function sendCommand(){command(document.getElementById('command').value)} function quick(t){document.getElementById('command').value=t;command(t)}
+async function command(text,confidence=1.0,source='phone_web'){try{const clean=(text||'').trim();if(!clean)return;const v=await api('/api/command','POST',{text:clean,confidence,source});document.getElementById('result').textContent='Sent to Sparky: '+(v.text||clean)}catch(e){document.getElementById('result').textContent='ERROR: '+e.message}}
+function sendAgentInput(){command(document.getElementById('agentInput').value)} function quick(t){document.getElementById('agentInput').value=t;command(t)}
 async function host(script){try{document.getElementById('result').textContent='Starting Tour Host: '+script;const v=await api('/api/tour_host','POST',{text:script,source:'phone_web_tour_host'});document.getElementById('result').textContent='Tour Host started: '+(v.script||script)}catch(e){document.getElementById('result').textContent='ERROR: '+e.message}}
-async function sendQuery(confidence=1.0,source='phone_web_query'){const text=document.getElementById('query').value;try{const v=await api('/api/query','POST',{text,confidence,source});document.getElementById('result').textContent='Question sent: '+(v.text||text)}catch(e){document.getElementById('result').textContent='ERROR: '+e.message}}
+async function sendQuery(confidence=1.0,source='phone_web_query'){return command(document.getElementById('agentInput').value,confidence,source)}
 let activeRecognition=null;
 function speechCtor(){return window.SpeechRecognition||window.webkitSpeechRecognition||null} function setSpeechStatus(t){document.getElementById('speechStatus').textContent=t}
-function startSpeech(mode){const Ctor=speechCtor();if(!Ctor){setSpeechStatus('Browser SpeechRecognition unavailable. Use the text box or phone keyboard microphone.');return}stopSpeech();const rec=new Ctor();activeRecognition=rec;rec.lang='en-US';rec.continuous=false;rec.interimResults=true;rec.maxAlternatives=1;rec.onstart=()=>setSpeechStatus('Listening on phone…');rec.onerror=e=>{setSpeechStatus('Speech error: '+e.error);activeRecognition=null};rec.onend=()=>{if(activeRecognition===rec){setSpeechStatus('Stopped listening.');activeRecognition=null}};rec.onresult=async e=>{let interim='',finalText='',confidence=1.0;for(let i=e.resultIndex;i<e.results.length;i++){const alt=e.results[i][0];if(e.results[i].isFinal){finalText+=alt.transcript;if(Number.isFinite(alt.confidence)&&alt.confidence>0)confidence=alt.confidence}else interim+=alt.transcript}const shown=(finalText||interim).trim();if(shown)document.getElementById('speechTranscript').textContent=shown;if(!finalText.trim())return;const final=finalText.trim();setSpeechStatus('Recognized: '+final);if(mode==='command')document.getElementById('command').value=final;else if(mode==='query')document.getElementById('query').value=final;else if(mode==='stop_script')document.getElementById('stopScript').value=final;if(document.getElementById('autoSendSpeech').checked){if(mode==='command')await command(final,confidence,'phone_chrome_speech');else if(mode==='query')await sendQuery(confidence,'phone_chrome_speech_query')}};try{rec.start()}catch(e){setSpeechStatus('Could not start microphone: '+e.message);activeRecognition=null}}
+function startSpeech(mode='agent'){const Ctor=speechCtor();if(!Ctor){setSpeechStatus('Browser SpeechRecognition unavailable.\nUse the text box or phone keyboard microphone.');return}stopSpeech();const rec=new Ctor();activeRecognition=rec;rec.lang='en-US';rec.continuous=false;rec.interimResults=true;rec.maxAlternatives=1;rec.onstart=()=>setSpeechStatus('Listening on phone…');rec.onerror=e=>{setSpeechStatus('Speech error: '+e.error);activeRecognition=null};rec.onend=()=>{if(activeRecognition===rec){setSpeechStatus('Stopped listening.');activeRecognition=null}};rec.onresult=async e=>{let interim='',finalText='',confidence=1.0;for(let i=e.resultIndex;i<e.results.length;i++){const alt=e.results[i][0];if(e.results[i].isFinal){finalText+=alt.transcript;if(Number.isFinite(alt.confidence)&&alt.confidence>0)confidence=alt.confidence}else interim+=alt.transcript}const shown=(finalText||interim).trim();if(shown)document.getElementById('speechTranscript').textContent=shown;if(!finalText.trim())return;const final=finalText.trim();setSpeechStatus('Recognized: '+final);if(mode==='stop_script'){document.getElementById('stopScript').value=final;return}document.getElementById('agentInput').value=final;if(document.getElementById('autoSendSpeech').checked)await command(final,confidence,'phone_chrome_speech')};try{rec.start()}catch(e){setSpeechStatus('Could not start microphone: '+e.message);activeRecognition=null}}
 function stopSpeech(){if(activeRecognition){try{activeRecognition.stop()}catch(e){}activeRecognition=null}}
 function short(v){if(v==null)return'?';if(typeof v==='string')return v.slice(0,90);return JSON.stringify(v).slice(0,90)}
 function value(s,k){return s.latest?.[k]?.value}
@@ -336,20 +330,26 @@ class PhoneWebGatewayNode(Node):
             item["age_sec"]=max(0.0,now-float(item.get("received_unix") or now))
         return {"ok":True,"time_unix":now,"latest":latest,"history":history}
     def publish_command(self,text:str,confidence:float=1.0,source:str="phone_web")->str:
-        stripped=text.strip(); low=stripped.lower().strip(" .!?\t\r\n"); no_prefix=low in {"yes","confirm","go ahead","proceed","no","reject","cancel","stop","halt","freeze"}
+        stripped=str(text or "").strip()
+        low=stripped.lower().strip(" .!?\t\r\n")
+        no_prefix=low in {"yes","confirm","go ahead","proceed","no","reject","cancel","stop","halt","freeze"}
         if self._bool_param("auto_prefix_wake_word") and not no_prefix:
             wake=str(self.get_parameter("wake_word").value or "Sparky").strip()
-            # SPARKY_WAKE_PREFIX_NORMALIZATION_V4
-            wake_low = wake.lower()
-            already_prefixed = (
-                low == wake_low
-                or low.startswith(wake_low + " ")
-                or low.startswith(wake_low + ",")
-                or low.startswith(wake_low + ":")
-            )
+            wake_low=wake.lower()
+            already_prefixed=(low==wake_low or low.startswith(wake_low+" ") or low.startswith(wake_low+",") or low.startswith(wake_low+":"))
             if wake and not already_prefixed:
-                stripped = f"{wake}, {stripped}"
-        payload={"text":stripped,"confidence":max(0.0,min(1.0,float(confidence))),"source":source or "phone_web","input_kind":"command"}; self.transcript_pub.publish(String(data=json.dumps(payload,sort_keys=True))); return stripped
+                stripped=f"{wake}, {stripped}"
+        now=time.time()
+        payload={
+            "text":stripped,
+            "confidence":max(0.0,min(1.0,float(confidence))),
+            "source":source or "phone_web",
+            "input_kind":"unified",
+            "request_id":f"phone_{time.time_ns()}",
+            "command_received_unix":now,
+        }
+        self.transcript_pub.publish(String(data=json.dumps(payload,sort_keys=True)))
+        return stripped
     @staticmethod
     def _is_live_visual_query(text:str)->bool:
         low=" ".join(str(text or "").lower().split())
@@ -360,26 +360,20 @@ class PhoneWebGatewayNode(Node):
         )
         return any(p in low for p in phrases)
     def publish_query(self,text:str,confidence:float=1.0,source:str="phone_web_query")->None:
-        # SPARKY_PHONE_SINGLE_INTENT_PATH_V12_7
-        # Route every phone utterance through the unified classifier.
-        # INTENT_OBSERVE is then sent to fresh-camera VLM; read-only
-        # questions remain queries; actionable intents execute directly.
-        clean=str(text or "").strip()
-        if not clean: return
-        self.publish_command(clean, confidence=confidence, source=source or "phone_web_query")
+        # Backward-compatible API endpoint; classification happens once in the unified gate.
+        self.publish_command(text, confidence=confidence, source=source or "phone_web_query")
 
     def publish_tour_host(self,script:str,source:str="phone_web_tour_host")->None:
         script=str(script or "").strip()
-        if not script: return
-        # Route dashboard Tour Host controls through the same transcript safety gate.
+        if not script:
+            return
         phrases={
             "full_intro":"start the introduction", "welcome":"welcome the guests",
-            "lab_intro":"introduce the digital twin lab",
-            "research_intro":"tell us about the research",
+            "lab_intro":"introduce the digital twin lab", "research_intro":"tell us about the research",
             "sparky_intro":"introduce yourself", "capabilities":"tell us your capabilities",
             "safe_moves":"show us some moves",
         }
-        self.publish_command(phrases.get(script,script.replace("_"," ")),confidence=1.0,source=source)
+        self.publish_command(phrases.get(script, script.replace("_", " ")), confidence=1.0, source=source)
     def _session_root(self)->Path:
         return Path(os.path.expanduser(str(self.get_parameter("session_root").value))).resolve()
     def _admin_session_dir(self)->Path:

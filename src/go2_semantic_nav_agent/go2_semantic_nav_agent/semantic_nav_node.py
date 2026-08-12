@@ -250,7 +250,7 @@ class SemanticNavNode(Node):
         self.declare_parameter('vlm_shutdown_wait_sec', 300.0)
         self.declare_parameter('tour_mode', True)
         self.declare_parameter('tour_default_pause_sec', 4.0)
-        self.declare_parameter('tour_auto_advance', False)
+        self.declare_parameter('tour_auto_advance', True)
         self.declare_parameter('route_name', '')
         self.declare_parameter('auto_save_places', True)
         self.declare_parameter('auto_save_interval_sec', 5.0)
@@ -1811,7 +1811,7 @@ class SemanticNavNode(Node):
             speech=f'tour: Heading to {stop.name.replace("_", " ")}.',
             details={'place': asdict(place), 'stop': asdict(stop)},
         ))
-        self.send_goal(place)
+        self.send_goal(place, route_goal_active=True)
 
     def on_stop_reached(self) -> None:
         stop = self.current_route_stop()

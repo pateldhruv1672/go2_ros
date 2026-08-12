@@ -594,10 +594,15 @@ class AgentOrchestrator:
         }
 
     def final_response(self, state: AgentState) -> Dict[str, Any]:
+        # SPARKY_SUPPRESS_HEURISTIC_BOILERPLATE_V12_9
         command = state.get("nav_command") or {}
         if command.get("action") in {"none", None}:
             command = {}
-        speech = state.get("speech_response") or (state.get("decision") or {}).get("spoken_response") or "Done."
+        speech = str(state.get("speech_response") or "").strip()
+        if not speech:
+            decision_speech = str((state.get("decision") or {}).get("spoken_response") or "").strip()
+            if decision_speech not in {"I will proceed safely.", "The debate council approves the next safe step.", "Done."}:
+                speech = decision_speech
         status = {
             "run_id": state.get("run_id"),
             "thread_id": self.thread_id,

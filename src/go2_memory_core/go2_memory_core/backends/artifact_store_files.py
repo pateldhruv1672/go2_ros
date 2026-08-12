@@ -61,9 +61,8 @@ class ArtifactStoreFiles:
         return json.loads(path.read_text(encoding='utf-8'))
 
     def read_jsonl(self, session_name: str, relative_path: str) -> List[Dict[str, Any]]:
-        # SPARKY_JSONL_RESILIENCE_V12_7
-        # Append-only robot memory must be fail-soft: preserve the file,
-        # skip only malformed rows, and let valid memory remain usable.
+        # SPARKY_JSONL_RESILIENCE_V12_8
+        # Append-only memory is fail-soft: preserve the file and skip only malformed rows.
         path = self.session_dir(session_name) / relative_path
         if not path.exists():
             return []

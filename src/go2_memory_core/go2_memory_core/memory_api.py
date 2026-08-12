@@ -161,8 +161,17 @@ class UnifiedMemoryAPI:
         kind = query.get('type', 'all')
         text = query.get('text', '')
         result: Dict[str, Any] = {'session': session_name, 'query': query}
-        if kind in ('all', 'checkpoints'):
-            result['checkpoints'] = self.store.read_jsonl(session_name, 'memory/checkpoints.jsonl')[-int(query.get('limit', 20)):]
+        if kind in ('all', 'checkpoints', 'vlm_checkpoints'):
+            _all_checkpoints = self.store.read_jsonl(session_name, 'memory/checkpoints.jsonl')
+            _limit = int(query.get('limit', 20))
+            if kind in ('all', 'checkpoints'):
+                result['checkpoints'] = _all_checkpoints[-_limit:]
+            if kind in ('all', 'vlm_checkpoints'):
+                result['vlm_checkpoints'] = [
+                    r for r in _all_checkpoints
+                    if (r.get('data') or {}).get('vlm_summary')
+                    or 'vlm' in [str(x).lower() for x in (r.get('source') or (r.get('data') or {}).get('source') or [])]
+                ][-_limit:]
         if kind in ('all', 'places'):
             result['places'] = self.store.read_jsonl(session_name, 'memory/places.jsonl')[-int(query.get('limit', 20)):]
         if kind in ('all', 'spawn'):
