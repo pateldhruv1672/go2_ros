@@ -104,30 +104,20 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     safety_scan_topic = os.environ.get('GO2_SAFETY_SCAN_TOPIC', scan_topic).strip() or scan_topic
     with open(source_path, 'r', encoding='utf-8') as f:
         params = yaml.safe_load(f) or {}
-
-    # GO2_SMAC_SMOOTH_PATH_FLAG
-    # Runtime flag:
-    #   GO2_SMAC_SMOOTH_PATH=0 disables SmacPlannerHybrid internal smoothing.
-    #   GO2_SMAC_SMOOTH_PATH=1 enables it.
-    smac_smooth_raw = os.environ.get('GO2_SMAC_SMOOTH_PATH', '1').strip().lower()
-    smac_smooth_path = smac_smooth_raw not in ('0', 'false', 'no', 'off')
-
+    # SPARKY_NAVFN_DWB_BASELINE_V13_20
+    # Clean rollback to teach_repair navigation architecture:
+    # NavFn global planner + direct DWB local controller.
     planner_params = params.setdefault('planner_server', {}).setdefault('ros__parameters', {})
+    planner_params['planner_plugins'] = ['GridBased']
     grid = planner_params.setdefault('GridBased', {})
-    grid['smooth_path'] = smac_smooth_path
+    grid.clear()
+    grid['plugin'] = 'nav2_navfn_planner::NavfnPlanner'
+    grid['tolerance'] = 0.5
+    grid['use_astar'] = False
+    grid['allow_unknown'] = True
+    grid['use_final_approach_orientation'] = False
 
-    smac_smoother = grid.setdefault('smoother', {})
-    smac_smoother['do_refinement'] = smac_smooth_path
-
-    # These are ignored when smooth_path=false, but keep them minimal for clarity.
-    if not smac_smooth_path:
-        smac_smoother['max_iterations'] = 1
-        smac_smoother['refinement_num'] = 1
-
-    # GO2_ROS_SIDE_OBSTACLE_AVOIDANCE_PATCH
-    # Live obstacle handling:
-    #   /scan -> /scan_nav -> costmaps + collision_monitor -> /cmd_vel_out -> Go2 Sport MOVE.
-
+    # Restore the existing Resume BT contract from teach_repair.
     bt = params.setdefault('bt_navigator', {}).setdefault('ros__parameters', {})
     bt['navigators'] = ['navigate_to_pose', 'navigate_through_poses']
     bt['navigate_to_pose'] = {'plugin': 'nav2_bt_navigator::NavigateToPoseNavigator'}
@@ -140,18 +130,9 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     bt['wait_for_service_timeout'] = 5000
     bt['bond_heartbeat_period'] = 0.10
 
-    # SPARKY_RPP_SAFE_TOUR_V13_11
-    # Regulated Pure Pursuit is the single path-tracking authority. It directly
-    # regulates speed from path curvature and goal approach; downstream nodes
-    # only arbitrate/clamp and do not reinterpret the trajectory.
     ctrl = params.setdefault('controller_server', {}).setdefault('ros__parameters', {})
-    ctrl['controller_frequency'] = float(os.environ.get('GO2_RPP_CONTROLLER_HZ', '20.0'))
+    ctrl['controller_frequency'] = 10.0
     ctrl['costmap_update_timeout'] = 1.0
-    ctrl['min_x_velocity_threshold'] = 0.01
-    ctrl['min_y_velocity_threshold'] = 0.01
-    ctrl['min_theta_velocity_threshold'] = 0.01
-    ctrl['failure_tolerance'] = 0.3
-    ctrl['speed_limit_topic'] = 'speed_limit'
     ctrl['progress_checker_plugins'] = ['progress_checker']
     ctrl['current_progress_checker'] = 'progress_checker'
     ctrl.pop('progress_checker_plugin', None)
@@ -162,233 +143,72 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     ctrl['enable_stamped_cmd_vel'] = False
 
     progress = ctrl.setdefault('progress_checker', {})
+    progress.clear()
     progress['plugin'] = 'nav2_controller::PoseProgressChecker'
-    progress['required_movement_radius'] = float(os.environ.get('GO2_RPP_PROGRESS_RADIUS_M', '0.04'))
-    progress['required_movement_angle'] = float(os.environ.get('GO2_RPP_PROGRESS_ANGLE_RAD', '0.06'))
-    progress['movement_time_allowance'] = float(os.environ.get('GO2_RPP_PROGRESS_TIMEOUT_SEC', '8.0'))
+    progress['required_movement_radius'] = float(os.environ.get('GO2_NAV_PROGRESS_RADIUS_M', '0.08'))
+    progress['required_movement_angle'] = float(os.environ.get('GO2_NAV_PROGRESS_ANGLE_RAD', '0.12'))
+    progress['movement_time_allowance'] = float(os.environ.get('GO2_NAV_PROGRESS_TIMEOUT_SEC', '12.0'))
 
     goal_checker = ctrl.setdefault('general_goal_checker', {})
+    goal_checker.clear()
     goal_checker['plugin'] = 'nav2_controller::SimpleGoalChecker'
-    goal_checker['xy_goal_tolerance'] = float(os.environ.get('GO2_RPP_XY_GOAL_TOLERANCE', '0.18'))
-    goal_checker['yaw_goal_tolerance'] = float(os.environ.get('GO2_RPP_YAW_GOAL_TOLERANCE', '0.20'))
+    goal_checker['xy_goal_tolerance'] = 0.30
+    goal_checker['yaw_goal_tolerance'] = 0.45
     goal_checker['stateful'] = True
 
     follow = ctrl.setdefault('FollowPath', {})
     follow.clear()
-    # SPARKY_RPP_FLAT_NAMESPACE_V13_14
-    # RotationShim's primary_controller is a plugin-class STRING. The child
-    # controller is configured under the SAME FollowPath namespace in Jazzy.
-    follow['plugin'] = 'nav2_rotation_shim_controller::RotationShimController'
-    follow['primary_controller'] = 'nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController'
-
-    # Rotation shim: decisive initial/U-turn/final heading alignment.
-    follow['angular_dist_threshold'] = float(os.environ.get('GO2_SHIM_ANGULAR_THRESHOLD', '0.35'))
-    follow['angular_disengage_threshold'] = float(os.environ.get('GO2_SHIM_DISENGAGE_THRESHOLD', '0.12'))
-    follow['forward_sampling_distance'] = float(os.environ.get('GO2_SHIM_FORWARD_SAMPLE_M', '0.25'))
-    follow['rotate_to_heading_angular_vel'] = float(os.environ.get('GO2_SHIM_ROTATE_WZ', '0.75'))
-    follow['max_angular_accel'] = float(os.environ.get('GO2_SHIM_MAX_ANGULAR_ACCEL', '2.20'))
-    follow['simulate_ahead_time'] = float(os.environ.get('GO2_SHIM_SIM_AHEAD_SEC', '0.70'))
-    follow['rotate_to_goal_heading'] = True
-    follow['rotate_to_heading_once'] = False
-    follow['closed_loop'] = True
-    follow['use_path_orientations'] = False
-
-    # RPP child controller parameters. These MUST be FollowPath.* (flat), not
-    # FollowPath.primary_controller.*. 0.45 m/s is physically proven on Go2.
-    follow['desired_linear_vel'] = float(os.environ.get('GO2_RPP_CRUISE_MPS', '0.48'))
-    follow['lookahead_dist'] = float(os.environ.get('GO2_RPP_LOOKAHEAD_M', '0.35'))
-    follow['min_lookahead_dist'] = float(os.environ.get('GO2_RPP_MIN_LOOKAHEAD_M', '0.20'))
-    follow['max_lookahead_dist'] = float(os.environ.get('GO2_RPP_MAX_LOOKAHEAD_M', '0.55'))
-    follow['lookahead_time'] = float(os.environ.get('GO2_RPP_LOOKAHEAD_TIME', '0.70'))
-    follow['use_velocity_scaled_lookahead_dist'] = True
-    follow['transform_tolerance'] = 0.50
-    follow['min_approach_linear_velocity'] = float(os.environ.get('GO2_RPP_MIN_APPROACH_MPS', '0.30'))
-    follow['approach_velocity_scaling_dist'] = float(os.environ.get('GO2_RPP_APPROACH_DIST_M', '0.65'))
-    follow['use_regulated_linear_velocity_scaling'] = True
-    follow['regulated_linear_scaling_min_radius'] = float(os.environ.get('GO2_RPP_MIN_RADIUS_M', '0.55'))
-    follow['regulated_linear_scaling_min_speed'] = float(os.environ.get('GO2_RPP_MIN_REGULATED_MPS', '0.36'))
-    follow['use_cost_regulated_linear_velocity_scaling'] = False
-    follow['cost_scaling_dist'] = 0.30
-    follow['cost_scaling_gain'] = 1.0
-    follow['inflation_cost_scaling_factor'] = 3.0
-    follow['use_rotate_to_heading'] = True
-    follow['rotate_to_heading_min_angle'] = float(os.environ.get('GO2_RPP_ROTATE_MIN_ANGLE', '1.05'))
-    # rotate_to_heading_angular_vel and max_angular_accel are shared with shim
-    # because both controllers use the same FollowPath namespace.
-    follow['allow_reversing'] = False
-    follow['use_collision_detection'] = True
-    follow['max_allowed_time_to_collision_up_to_carrot'] = float(os.environ.get('GO2_RPP_COLLISION_HORIZON_SEC', '0.60'))
-    follow['max_robot_pose_search_dist'] = 10.0
-    follow['use_fixed_curvature_lookahead'] = False
-    follow['interpolate_curvature_after_goal'] = True
-
-    # SPARKY_REACTIVE_DWB_V13_15
-    # RPP was too slow/wide for the Go2 in this lab. Use the controller family
-    # that previously moved the robot (DWB), but put RotationShim in front so
-    # large initial/final heading errors become decisive in-place rotations.
-    # Shorter rollout + higher control rate makes corrections more reactive.
-    ctrl['controller_frequency'] = float(os.environ.get('GO2_NAV_CONTROLLER_HZ', '25.0'))
-    ctrl['costmap_update_timeout'] = float(os.environ.get('GO2_NAV_COSTMAP_TIMEOUT_SEC', '0.50'))
-    ctrl['min_x_velocity_threshold'] = 0.001
-    ctrl['min_y_velocity_threshold'] = 0.001
-    ctrl['min_theta_velocity_threshold'] = 0.001
-
-    progress['required_movement_radius'] = float(os.environ.get('GO2_NAV_PROGRESS_RADIUS_M', '0.05'))
-    progress['required_movement_angle'] = float(os.environ.get('GO2_NAV_PROGRESS_ANGLE_RAD', '0.08'))
-    progress['movement_time_allowance'] = float(os.environ.get('GO2_NAV_PROGRESS_TIMEOUT_SEC', '8.0'))
-    goal_checker['xy_goal_tolerance'] = float(os.environ.get('GO2_NAV_XY_TOLERANCE', '0.18'))
-    goal_checker['yaw_goal_tolerance'] = float(os.environ.get('GO2_NAV_YAW_TOLERANCE', '0.20'))
-
-    follow.clear()
-    follow['plugin'] = 'nav2_rotation_shim_controller::RotationShimController'
-    follow['primary_controller'] = 'dwb_core::DWBLocalPlanner'
-    follow['angular_dist_threshold'] = float(os.environ.get('GO2_NAV_SHIM_TRIGGER_RAD', '0.30'))
-    follow['angular_disengage_threshold'] = float(os.environ.get('GO2_NAV_SHIM_RELEASE_RAD', '0.08'))
-    follow['forward_sampling_distance'] = float(os.environ.get('GO2_NAV_SHIM_SAMPLE_M', '0.20'))
-    follow['rotate_to_heading_angular_vel'] = float(os.environ.get('GO2_NAV_SHIM_WZ', '0.80'))
-    follow['max_angular_accel'] = float(os.environ.get('GO2_NAV_SHIM_ACC_THETA', '2.40'))
-    follow['simulate_ahead_time'] = float(os.environ.get('GO2_NAV_SHIM_SIM_SEC', '0.45'))
-    follow['rotate_to_goal_heading'] = True
-    follow['rotate_to_heading_once'] = False
-    follow['closed_loop'] = True
-    follow['use_path_orientations'] = False
-
-    # DWB values are placed in the same FollowPath namespace because Jazzy's
-    # RotationShim configures its primary controller with the FollowPath name.
+    follow['plugin'] = 'dwb_core::DWBLocalPlanner'
     follow['debug_trajectory_details'] = False
     follow['min_vel_x'] = 0.0
-    follow['max_vel_x'] = float(os.environ.get('GO2_NAV_MAX_X', '0.50'))
+    follow['max_vel_x'] = float(os.environ.get('GO2_NAV_MAX_X', '0.30'))
     follow['min_vel_y'] = 0.0
     follow['max_vel_y'] = 0.0
-    follow['max_vel_theta'] = float(os.environ.get('GO2_NAV_MAX_THETA', '0.90'))
-    follow['min_speed_xy'] = float(os.environ.get('GO2_NAV_MIN_SPEED_XY', '0.30'))
+    follow['max_vel_theta'] = float(os.environ.get('GO2_NAV_MAX_THETA', '0.60'))
+    follow['min_speed_xy'] = float(os.environ.get('GO2_NAV_MIN_SPEED_XY', '0.08'))
     follow['max_speed_xy'] = follow['max_vel_x']
-    follow['min_speed_theta'] = float(os.environ.get('GO2_NAV_MIN_SPEED_THETA', '0.25'))
-    # High enough acceleration that DWB does not spend seconds commanding the
-    # physically useless twitch range before reaching a usable Go2 stride.
-    follow['acc_lim_x'] = float(os.environ.get('GO2_NAV_ACC_X', '2.00'))
+    follow['min_speed_theta'] = float(os.environ.get('GO2_NAV_MIN_SPEED_THETA', '0.18'))
+    follow['acc_lim_x'] = float(os.environ.get('GO2_NAV_ACC_X', '0.45'))
     follow['acc_lim_y'] = 0.0
-    follow['acc_lim_theta'] = float(os.environ.get('GO2_NAV_ACC_THETA', '3.00'))
-    follow['decel_lim_x'] = -abs(float(os.environ.get('GO2_NAV_DECEL_X', '2.50')))
+    follow['acc_lim_theta'] = float(os.environ.get('GO2_NAV_ACC_THETA', '1.00'))
+    follow['decel_lim_x'] = -abs(float(os.environ.get('GO2_NAV_DECEL_X', '0.60')))
     follow['decel_lim_y'] = 0.0
-    follow['decel_lim_theta'] = -abs(float(os.environ.get('GO2_NAV_DECEL_THETA', '3.20')))
-    follow['vx_samples'] = int(os.environ.get('GO2_NAV_VX_SAMPLES', '10'))
+    follow['decel_lim_theta'] = -abs(float(os.environ.get('GO2_NAV_DECEL_THETA', '1.20')))
+    follow['vx_samples'] = 16
     follow['vy_samples'] = 1
-    follow['vtheta_samples'] = int(os.environ.get('GO2_NAV_VTHETA_SAMPLES', '24'))
-    follow['sim_time'] = float(os.environ.get('GO2_NAV_SIM_TIME', '0.80'))
-    follow['linear_granularity'] = 0.03
-    follow['angular_granularity'] = 0.02
+    follow['vtheta_samples'] = 28
+    follow['sim_time'] = 1.40
+    follow['linear_granularity'] = 0.05
+    follow['angular_granularity'] = 0.025
     follow['transform_tolerance'] = 0.5
+    follow['xy_goal_tolerance'] = 0.30
+    follow['yaw_goal_tolerance'] = 0.70
     follow['trans_stopped_velocity'] = 0.05
     follow['theta_stopped_velocity'] = 0.08
     follow['short_circuit_trajectory_evaluation'] = True
     follow['stateful'] = True
-    follow['critics'] = ['RotateToGoal', 'Oscillation', 'BaseObstacle', 'GoalAlign', 'PathAlign', 'PathDist', 'GoalDist']
-    follow['BaseObstacle.scale'] = 0.8
-    follow['PathAlign.scale'] = 5.0
-    follow['PathAlign.forward_point_distance'] = 0.22
-    follow['PathDist.scale'] = 6.0
-    follow['GoalAlign.scale'] = 4.0
-    follow['GoalAlign.forward_point_distance'] = 0.22
-    follow['GoalDist.scale'] = 8.0
-    follow['RotateToGoal.scale'] = 20.0
-    follow['RotateToGoal.slowing_factor'] = 4.0
-    follow['RotateToGoal.lookahead_time'] = -1.0
-    follow['Oscillation.scale'] = 1.0
-    # END_SPARKY_REACTIVE_DWB_V13_15
-    # SPARKY_STRICT_PATH_V13_16
-    # SPARKY_JAZZY_ROTATION_SHIM_DWB_V13_16_5
-    # ROS 2 Jazzy RotationShim configures its child controller with the SAME
-    # plugin namespace ("FollowPath"). Thus primary_controller is a scalar
-    # plugin class and DWB parameters live directly under FollowPath.
-    ctrl['controller_frequency'] = 20.0
-    ctrl['costmap_update_timeout'] = 0.5
-    ctrl['min_x_velocity_threshold'] = 0.01
-    ctrl['min_y_velocity_threshold'] = 0.01
-    ctrl['min_theta_velocity_threshold'] = 0.01
-
-    progress = ctrl.setdefault('progress_checker', {})
-    progress['plugin'] = 'nav2_controller::PoseProgressChecker'
-    progress['required_movement_radius'] = 0.05
-    progress['required_movement_angle'] = 0.08
-    progress['movement_time_allowance'] = 10.0
-
-    goal_checker = ctrl.setdefault('general_goal_checker', {})
-    goal_checker['plugin'] = 'nav2_controller::SimpleGoalChecker'
-    goal_checker['xy_goal_tolerance'] = 0.18
-    goal_checker['yaw_goal_tolerance'] = 0.20
-    goal_checker['stateful'] = True
-
-    strict_max_x = float(os.environ.get('SPARKY_NAV_STRICT_MAX_X', '0.375'))
-    strict_max_theta = float(os.environ.get('SPARKY_NAV_STRICT_MAX_THETA', '0.80'))
-
-    follow = ctrl.setdefault('FollowPath', {})
-    follow.clear()
-
-    # Rotation Shim
-    follow['plugin'] = 'nav2_rotation_shim_controller::RotationShimController'
-    follow['primary_controller'] = 'dwb_core::DWBLocalPlanner'
-    follow['angular_dist_threshold'] = 0.30
-    follow['angular_disengage_threshold'] = 0.08
-    follow['forward_sampling_distance'] = 0.18
-    follow['rotate_to_heading_angular_vel'] = 0.75
-    follow['max_angular_accel'] = 2.40
-    follow['max_cost_threshold'] = 254.0
-    follow['simulate_ahead_time'] = 0.45
-    follow['rotate_to_goal_heading'] = True
-    follow['rotate_to_heading_once'] = False
-    follow['closed_loop'] = True
-    follow['use_path_orientations'] = False
-
-    # DWB - SAME FollowPath namespace on ROS 2 Jazzy.
-    follow['debug_trajectory_details'] = False
-    follow['trajectory_generator_name'] = 'dwb_plugins::StandardTrajectoryGenerator'
-    follow['min_vel_x'] = 0.0
-    follow['max_vel_x'] = strict_max_x
-    follow['min_vel_y'] = 0.0
-    follow['max_vel_y'] = 0.0
-    follow['max_vel_theta'] = strict_max_theta
-    follow['min_speed_xy'] = 0.30
-    follow['max_speed_xy'] = strict_max_x
-    follow['min_speed_theta'] = 0.22
-
-    follow['acc_lim_x'] = 1.20
-    follow['acc_lim_y'] = 0.0
-    follow['acc_lim_theta'] = 2.20
-    follow['decel_lim_x'] = -1.50
-    follow['decel_lim_y'] = 0.0
-    follow['decel_lim_theta'] = -2.50
-
-    follow['vx_samples'] = 14
-    follow['vy_samples'] = 1
-    follow['vtheta_samples'] = 28
-    follow['sim_time'] = 0.90
-    follow['linear_granularity'] = 0.03
-    follow['angular_granularity'] = 0.02
-    follow['transform_tolerance'] = 0.5
-    follow['trans_stopped_velocity'] = 0.05
-    follow['short_circuit_trajectory_evaluation'] = True
-    follow['stateful'] = True
-
     follow['critics'] = [
         'RotateToGoal', 'Oscillation', 'BaseObstacle',
         'GoalAlign', 'PathAlign', 'PathDist', 'GoalDist'
     ]
-
-    # Strong path adherence.
-    follow['BaseObstacle.scale'] = 1.0
-    follow['PathAlign.scale'] = 32.0
-    follow['PathAlign.forward_point_distance'] = 0.15
-    follow['PathDist.scale'] = 40.0
-    follow['GoalAlign.scale'] = 16.0
-    follow['GoalAlign.forward_point_distance'] = 0.15
-    follow['GoalDist.scale'] = 18.0
-    follow['RotateToGoal.scale'] = 32.0
+    follow['BaseObstacle.scale'] = 0.6
+    follow['PathAlign.scale'] = 3.0
+    follow['PathAlign.forward_point_distance'] = 0.30
+    follow['PathDist.scale'] = 4.0
+    follow['GoalAlign.scale'] = 5.0
+    follow['GoalAlign.forward_point_distance'] = 0.30
+    follow['GoalDist.scale'] = 10.0
+    follow['RotateToGoal.scale'] = 18.0
     follow['RotateToGoal.slowing_factor'] = 5.0
     follow['RotateToGoal.lookahead_time'] = -1.0
     follow['Oscillation.scale'] = 1.0
 
     local = params.setdefault('local_costmap', {}).setdefault('local_costmap', {}).setdefault('ros__parameters', {})
+    # SPARKY_ODOM_LOCAL_CONTROL_V13_18
+    local['global_frame'] = 'odom'
+    local['robot_base_frame'] = 'base_link'
+    local['update_frequency'] = 10.0
+    local['publish_frequency'] = 5.0
     local['update_frequency'] = float(os.environ.get('GO2_LOCAL_COSTMAP_HZ', '10.0'))
     local['publish_frequency'] = float(os.environ.get('GO2_LOCAL_COSTMAP_PUB_HZ', '5.0'))
     local['rolling_window'] = True
@@ -465,6 +285,10 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
 
     # GO2_V11_6_2_SAFE_RECOVERY
     behavior = params.setdefault('behavior_server', {}).setdefault('ros__parameters', {})
+    # SPARKY_BEHAVIOR_FRAMES_V13_18
+    behavior['local_frame'] = 'odom'
+    behavior['global_frame'] = 'map'
+    behavior['robot_base_frame'] = 'base_link'
     behavior['cycle_frequency'] = 5.0
     behavior['simulate_ahead_time'] = 1.0
     behavior['max_rotational_vel'] = 0.20
