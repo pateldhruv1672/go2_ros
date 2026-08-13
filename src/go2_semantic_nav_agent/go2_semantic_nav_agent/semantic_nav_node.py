@@ -1678,7 +1678,9 @@ class SemanticNavNode(Node):
         return None
 
     def _tour_fact_for_stop(self, stop: RouteStop) -> str:
-        parts = [x.strip() for x in [stop.fact, stop.script, stop.navigation_hint, stop.resume_hook] if x and x.strip()]
+        if stop.script and stop.script.strip():
+            return stop.script.strip()
+        parts = [x.strip() for x in [stop.fact, stop.navigation_hint, stop.resume_hook] if x and x.strip()]
         if parts:
             return ' '.join(parts)
         if stop.place_name:
@@ -1733,6 +1735,7 @@ class SemanticNavNode(Node):
         self._publish_nav_speed_limit(self._tour_speed_limit(), reason='tour_start', force=True)
         stop = self.current_route_stop()
         self.publish_status(f'tour_started route={self.route.name} stop={stop.name if stop else "-"}')
+        welcome_speech = (self.route.guest_prompt or 'Welcome to the Digital Twin Lab. I am Sparky, your robot guide.').strip()
         self.publish_event(PatrolEvent(
             location=self.pose_summary(),
             confidence=1.0,
@@ -1743,7 +1746,7 @@ class SemanticNavNode(Node):
             label=self.route.name,
             route_name=self.route.name,
             stop_name=stop.name if stop else '',
-            speech='tour: Starting the guest tour now.',
+            speech=f'tour: {welcome_speech}',
             details=self.route_summary(),
         ))
         if stop:
@@ -2329,6 +2332,18 @@ class SemanticNavNode(Node):
             return
         if cmd == 'status':
             self.publish_status('status_ok')
+            return
+        if cmd in {'reload_tour', 'tour_reload'}:
+            loaded = self.route_store.load()
+            if loaded is None:
+                self.publish_status('tour_reload_failed_no_route')
+                return
+            self.route = loaded
+            self._normalize_route_stops()
+            self._tour_pause_until_ns = 0
+            self._route_goal_active = False
+            self.publish_markers()
+            self.publish_status(f'tour_reloaded stops={len(self.route.stops)} route={self.route.name}')
             return
         if cmd in {'start_tour', 'tour_start'}:
             if event and event.get('route_name'):

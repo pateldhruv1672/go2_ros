@@ -123,7 +123,7 @@ class FastSAM2TrackerOverlayNode(Node):
         detections_topic = str(self.get_parameter("detections_topic").value)
 
         self.image_pub = (
-            self.create_publisher(Image, annotated_topic, sensor_qos(1))
+            self.create_publisher(Image, annotated_topic, reliable_image_qos(1))
             if bool(self.get_parameter("publish_annotated_image").value)
             else None
         )
@@ -186,11 +186,9 @@ class FastSAM2TrackerOverlayNode(Node):
             return []
 
         device = str(self.get_parameter("device").value)
-        use_fp16 = bool(self.get_parameter("half").value)
-        quantize = (
-            16
-            if use_fp16 and not device.lower().startswith("cpu")
-            else 32
+        use_fp16 = (
+            bool(self.get_parameter("half").value)
+            and not device.lower().startswith("cpu")
         )
         imgsz = int(self.get_parameter("yolo_imgsz").value)
         conf = float(self.get_parameter("yolo_conf").value)
@@ -203,7 +201,7 @@ class FastSAM2TrackerOverlayNode(Node):
                 imgsz=imgsz,
                 max_det=max_det,
                 device=device,
-                quantize=quantize,
+                half=use_fp16,
                 verbose=False,
             )
         except Exception as exc:
@@ -215,7 +213,7 @@ class FastSAM2TrackerOverlayNode(Node):
                     imgsz=imgsz,
                     max_det=max_det,
                     device="cpu",
-                    quantize=32,
+                    half=False,
                     verbose=False,
                 )
             except Exception as exc2:

@@ -43,6 +43,7 @@ export SPARKY_REPAIR_OBJECT_JSONL_ON_START="${SPARKY_REPAIR_OBJECT_JSONL_ON_STAR
 
 
 SESSION_ROOT="${SESSION_ROOT:-$HOME/.ros/go2_semantic_nav_sessions}"
+REQUESTED_SESSION_NAME="${SESSION_NAME:-}"
 #REQUESTED_
 # SPARKY_KILL_STALE_ARBITER_V13_4
 # Do not allow a motion arbiter from a previous Resume invocation to remain
@@ -80,7 +81,7 @@ SAM2_MODEL="${SPARKY_SAM2_MODEL:-$ROOT_DIR/sam2_t.pt}"
 ENABLE_SAM2="${ENABLE_SAM2:-1}"
 [ -f "$SAM2_MODEL" ] || ENABLE_SAM2=0
 ENABLE_OBJECT_PERCEPTION="${ENABLE_OBJECT_PERCEPTION:-1}"
-ENABLE_OBJECT_OVERLAY="${ENABLE_OBJECT_OVERLAY:-0}"
+ENABLE_OBJECT_OVERLAY="${ENABLE_OBJECT_OVERLAY:-1}"
 ENABLE_RICH_MEMORY="${ENABLE_RICH_MEMORY:-0}"
 ENABLE_MOTION_SKILLS="${ENABLE_MOTION_SKILLS:-1}"
 ENABLE_FRONT_FLIP="${ENABLE_FRONT_FLIP:-1}"
@@ -88,9 +89,10 @@ ENABLE_LLM_DEBATE="${ENABLE_LLM_DEBATE:-0}"
 OBJECT_DEVICE="${OBJECT_DEVICE:-cuda:0}"
 SPARKY_YOLO_IMGSZ="${SPARKY_YOLO_IMGSZ:-416}"
 SPARKY_SAM2_IMGSZ="${SPARKY_SAM2_IMGSZ:-384}"
-SPARKY_SAM2_EVERY_N="${SPARKY_SAM2_EVERY_N:-4}"
+SPARKY_SAM2_EVERY_N="${SPARKY_SAM2_EVERY_N:-3}"
 SPARKY_PERCEPTION_PERIOD_SEC="${SPARKY_PERCEPTION_PERIOD_SEC:-0.10}"
 SPARKY_ANNOTATED_PERIOD_SEC="${SPARKY_ANNOTATED_PERIOD_SEC:-0.05}"
+SPARKY_GREEN_PATH_HZ="${SPARKY_GREEN_PATH_HZ:-15}"
 PHONE_PORT="${PHONE_PORT:-8765}"
 LOCAL_SPEAKER_BACKEND="${LOCAL_SPEAKER_BACKEND:-auto}"
 
@@ -156,6 +158,12 @@ else
   fi
 fi
 
+FAST_PATH_PID=""
+if [ -x "$SCRIPT_DIR/fast_green_path_preview.py" ]; then
+  pkill -f "fast_green_path_preview.py" 2>/dev/null || true
+  python3 "$SCRIPT_DIR/fast_green_path_preview.py" --hz "$SPARKY_GREEN_PATH_HZ" > /tmp/sparky_fast_green_path.log 2>&1 &
+  FAST_PATH_PID=$!
+fi
 RVIZ_PID=""
 if ! node_exists /semantic_nav_rviz2; then
   if pgrep -x rviz2 >/dev/null 2>&1; then
@@ -169,6 +177,7 @@ fi
 cleanup(){
   rc=$?
   [ -n "${RVIZ_PID:-}" ] && kill "$RVIZ_PID" 2>/dev/null || true
+  [ -n "${FAST_PATH_PID:-}" ] && kill "$FAST_PATH_PID" 2>/dev/null || true
   if [ "${STARTED_RESUME:-0}" = 1 ] && [ -n "${RESUME_PID:-}" ]; then kill "$RESUME_PID" 2>/dev/null || true; fi
   exit $rc
 }
@@ -188,8 +197,8 @@ echo "  semantic RViz: /semantic_nav_rviz2"
 echo "  phone URL:     http://$LAN_IP:$PHONE_PORT/"
 echo "  VLM:           $VLM_PROVIDER / $VLM_MODEL"
 echo "  object memory: $ENABLE_OBJECT_PERCEPTION"
-echo "  SAM2 masks:    $ENABLE_SAM2 (default OFF for navigation latency)"
-echo "  object overlay:$ENABLE_OBJECT_OVERLAY (default OFF; YOLO detections still run)"
+echo "  SAM2 masks:    $ENABLE_SAM2"
+echo "  object overlay:$ENABLE_OBJECT_OVERLAY (annotated camera ON by default)"
 echo "  rich memory:   $ENABLE_RICH_MEMORY (off by default until navigation foundation is stable)"
 echo "  motion skills: $ENABLE_MOTION_SKILLS (phone Sit/Stand/Wave/Dance are immediate)"
 echo "  confirmations: OFF — one agent router executes user requests directly"

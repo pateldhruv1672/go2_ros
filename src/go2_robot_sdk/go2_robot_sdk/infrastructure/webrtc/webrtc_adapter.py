@@ -206,6 +206,16 @@ class WebRTCAdapter(IRobotDataReceiver, IRobotController):
         except Exception as e:
             logger.error(f"Error sending movement command: {e}")
 
+    def prepare_locomotion_mode(self, robot_id: str) -> None:
+        """Enter normal Go2 Sport locomotion mode once after WebRTC validation."""
+        # SPARKY_PREPARE_LOCOMOTION_V13_22
+        try:
+            command = gen_command(ROBOT_CMD["BalanceStand"])
+            self.send_command(robot_id, command)
+            logger.info("Go2 locomotion prepared with BalanceStand robot=%s", robot_id)
+        except Exception as exc:
+            logger.error("Failed to prepare Go2 locomotion robot=%s error=%r", robot_id, exc)
+
     def send_stand_up_command(self, robot_id: str) -> None:
         """Send stand up command"""
         try:
