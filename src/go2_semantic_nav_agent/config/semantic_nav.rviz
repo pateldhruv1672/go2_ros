@@ -1,393 +1,390 @@
 Panels:
-  - Class: rviz_common/Displays
-    Help Height: 70
-    Name: Displays
-    Property Tree Widget:
-      Expanded:
-        - /PointCloud21
-        - /YOLO + SAM2 Object Memory1
-      Splitter Ratio: 0.5
-    Tree Height: 346
-  - Class: rviz_common/Views
+- Class: rviz_common/Displays
+  Help Height: 70
+  Name: Displays
+  Property Tree Widget:
     Expanded:
-      - /Current View1
-    Name: Views
+    - /PointCloud21
+    - /YOLO + SAM2 Object Memory1
     Splitter Ratio: 0.5
+  Tree Height: 346
+- Class: rviz_common/Views
+  Expanded:
+  - /Current View1
+  Name: Views
+  Splitter Ratio: 0.5
 Visualization Manager:
-  Class: ""
+  Class: ''
   Displays:
-    - Alpha: 0.699999988079071
-      Binary representation: false
-      Binary threshold: 100
-      Class: rviz_default_plugins/Map
-      Color Scheme: map
-      Draw Behind: false
-      Enabled: true
-      Name: Map
-      Topic:
-        Depth: 5
-        Durability Policy: Transient Local
-        Filter size: 10
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /map
-      Update Topic:
-        Depth: 5
-        Durability Policy: Transient Local
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /map_updates
-      Use Timestamp: false
-      Value: true
-    - Alpha: 1
-      Class: rviz_default_plugins/RobotModel
-      Collision Enabled: false
-      Description File: ""
-      Description Source: Topic
-      Description Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /robot_description
-      Enabled: true
-      Links:
-        All Links Enabled: true
-        Expand Joint Details: false
-        Expand Link Details: false
-        Expand Tree: false
-        FL_calf:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        FL_calflower:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        FL_calflower1:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        FL_foot:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        FL_hip:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        FL_thigh:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        FR_calf:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        FR_calflower:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        FR_calflower1:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        FR_foot:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        FR_hip:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        FR_thigh:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        Head_lower:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        Head_upper:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        Link Tree Style: Links in Alphabetic Order
-        RL_calf:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        RL_calflower:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        RL_calflower1:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        RL_foot:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        RL_hip:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        RL_thigh:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        RR_calf:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        RR_calflower:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        RR_calflower1:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        RR_foot:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        RR_hip:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        RR_thigh:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        base_footprint:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        base_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        front_camera:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        imu:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        map:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        odom:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        radar:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-      Mass Properties:
-        Inertia: false
-        Mass: false
-      Name: RobotModel
-      TF Prefix: ""
-      Update Interval: 0
-      Value: true
-      Visual Enabled: true
-    - Alpha: 1
-      Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: 1.0250380039215088
-        Min Value: -1.1133601665496826
+  - Alpha: 0.699999988079071
+    Binary representation: false
+    Binary threshold: 100
+    Class: rviz_default_plugins/Map
+    Color Scheme: map
+    Draw Behind: false
+    Enabled: true
+    Name: Map
+    Topic:
+      Depth: 5
+      Durability Policy: Transient Local
+      Filter size: 10
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+      Value: /map
+    Update Topic:
+      Depth: 5
+      Durability Policy: Transient Local
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+      Value: /map_updates
+    Use Timestamp: false
+    Value: true
+  - Alpha: 1
+    Class: rviz_default_plugins/RobotModel
+    Collision Enabled: false
+    Description File: ''
+    Description Source: Topic
+    Description Topic:
+      Depth: 5
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+      Value: /robot_description
+    Enabled: true
+    Links:
+      All Links Enabled: true
+      Expand Joint Details: false
+      Expand Link Details: false
+      Expand Tree: false
+      FL_calf:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
         Value: true
-      Axis: Z
-      Channel Name: intensity
-      Class: rviz_default_plugins/PointCloud2
-      Color: 255; 255; 255
-      Color Transformer: AxisColor
-      Decay Time: 0
-      Enabled: false
-      Invert Rainbow: false
-      Max Color: 255; 255; 255
-      Max Intensity: 186
-      Min Color: 0; 0; 0
-      Min Intensity: 6
-      Name: PointCloud2
-      Position Transformer: XYZ
-      Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.05000000074505806
-      Style: Boxes
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Best Effort
-        Value: /pointcloud/aggregated
-      Use Fixed Frame: true
-      Use rainbow: true
-      Value: false
-    - Alpha: 1
-      Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
+      FL_calflower:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
         Value: true
-      Axis: Z
-      Channel Name: intensity
-      Class: rviz_default_plugins/LaserScan
-      Color: 224; 27; 36
-      Color Transformer: FlatColor
-      Decay Time: 0
-      Enabled: true
-      Invert Rainbow: false
-      Max Color: 255; 255; 255
-      Max Intensity: 4096
-      Min Color: 0; 0; 0
-      Min Intensity: 0
-      Name: LaserScan
-      Position Transformer: XYZ
-      Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.05000000074505806
-      Style: Spheres
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        Filter size: 10
-        History Policy: Keep Last
-        Reliability Policy: Best Effort
-        Value: /scan_nav
-      Use Fixed Frame: true
-      Use rainbow: true
+      FL_calflower1:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      FL_foot:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      FL_hip:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      FL_thigh:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      FR_calf:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      FR_calflower:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      FR_calflower1:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      FR_foot:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      FR_hip:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      FR_thigh:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      Head_lower:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      Head_upper:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      Link Tree Style: Links in Alphabetic Order
+      RL_calf:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      RL_calflower:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      RL_calflower1:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      RL_foot:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      RL_hip:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      RL_thigh:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      RR_calf:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      RR_calflower:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      RR_calflower1:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      RR_foot:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      RR_hip:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      RR_thigh:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      base_footprint:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+      base_link:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      front_camera:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+        Value: true
+      imu:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+      map:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+      odom:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+      radar:
+        Alpha: 1
+        Show Axes: false
+        Show Trail: false
+    Mass Properties:
+      Inertia: false
+      Mass: false
+    Name: RobotModel
+    TF Prefix: ''
+    Update Interval: 0
+    Value: true
+    Visual Enabled: true
+  - Alpha: 1
+    Autocompute Intensity Bounds: true
+    Autocompute Value Bounds:
+      Max Value: 1.0250380039215088
+      Min Value: -1.1133601665496826
       Value: true
-    - Class: rviz_default_plugins/TF
-      Enabled: false
-      Filter (blacklist): ""
-      Filter (whitelist): ""
-      Frame Timeout: 15
-      Frames:
-        All Enabled: true
-      Marker Scale: 1
-      Name: TF
-      Show Arrows: true
-      Show Axes: true
-      Show Names: false
-      Tree:
-        {}
-      Update Interval: 0
-      Value: false
-    - Class: rviz_default_plugins/MarkerArray
-      Enabled: true
-      Name: Places
-      Namespaces:
-        {}
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /semantic_nav/places_markers
+    Axis: Z
+    Channel Name: intensity
+    Class: rviz_default_plugins/PointCloud2
+    Color: 255; 255; 255
+    Color Transformer: AxisColor
+    Decay Time: 0
+    Enabled: false
+    Invert Rainbow: false
+    Max Color: 255; 255; 255
+    Max Intensity: 186
+    Min Color: 0; 0; 0
+    Min Intensity: 6
+    Name: PointCloud2
+    Position Transformer: XYZ
+    Selectable: true
+    Size (Pixels): 3
+    Size (m): 0.05000000074505806
+    Style: Boxes
+    Topic:
+      Depth: 5
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Best Effort
+      Value: /pointcloud/aggregated
+    Use Fixed Frame: true
+    Use rainbow: true
+    Value: false
+  - Alpha: 1
+    Autocompute Intensity Bounds: true
+    Autocompute Value Bounds:
+      Max Value: 10
+      Min Value: -10
       Value: true
-    - Class: rviz_default_plugins/MarkerArray
-      Enabled: true
-      Name: RoutePreview
-      Namespaces:
-        {}
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /semantic_nav/route_preview
-      Value: true
-    - Class: rviz_default_plugins/MarkerArray
-      Enabled: true
-      Name: YOLO + SAM2 Object Memory
-      Namespaces:
-        sysnav_object_extents: true
-        sysnav_object_labels: true
-        sysnav_object_points: true
-      Topic:
-        Depth: 5
-        Durability Policy: Transient Local
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /go2_vln/object_markers
-      Value: true
-    - Alpha: 1
-      Buffer Length: 1
-      Class: rviz_default_plugins/Path
-      Color: 25; 255; 0
-      Enabled: true
-      Head Diameter: 0.30000001192092896
-      Head Length: 0.20000000298023224
-      Length: 0.30000001192092896
-      Line Style: Lines
-      Line Width: 0.029999999329447746
-      Name: GlobalPlan
-      Offset:
-        X: 0
-        Y: 0
-        Z: 0
-      Pose Color: 255; 85; 255
-      Pose Style: None
-      Radius: 0.029999999329447746
-      Shaft Diameter: 0.10000000149011612
-      Shaft Length: 0.10000000149011612
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        Filter size: 10
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /plan
-      Value: true
-    - Class: rviz_default_plugins/Image
-      Enabled: true
-      Max Value: 1
-      Median window: 5
-      Min Value: 0
-      Name: YOLO + SAM2 Overlay
-      Normalize Range: true
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Best Effort
-        Value: /object_explorer/annotated_image
-      Value: true
+    Axis: Z
+    Channel Name: intensity
+    Class: rviz_default_plugins/LaserScan
+    Color: 224; 27; 36
+    Color Transformer: FlatColor
+    Decay Time: 0
+    Enabled: true
+    Invert Rainbow: false
+    Max Color: 255; 255; 255
+    Max Intensity: 4096
+    Min Color: 0; 0; 0
+    Min Intensity: 0
+    Name: LaserScan
+    Position Transformer: XYZ
+    Selectable: true
+    Size (Pixels): 3
+    Size (m): 0.05000000074505806
+    Style: Spheres
+    Topic:
+      Depth: 5
+      Durability Policy: Volatile
+      Filter size: 10
+      History Policy: Keep Last
+      Reliability Policy: Best Effort
+      Value: /scan_nav
+    Use Fixed Frame: true
+    Use rainbow: true
+    Value: true
+  - Class: rviz_default_plugins/TF
+    Enabled: false
+    Filter (blacklist): ''
+    Filter (whitelist): ''
+    Frame Timeout: 15
+    Frames:
+      All Enabled: true
+    Marker Scale: 1
+    Name: TF
+    Show Arrows: true
+    Show Axes: true
+    Show Names: false
+    Tree: {}
+    Update Interval: 0
+    Value: false
+  - Class: rviz_default_plugins/MarkerArray
+    Enabled: true
+    Name: Places
+    Namespaces: {}
+    Topic:
+      Depth: 5
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+      Value: /semantic_nav/places_markers
+    Value: true
+  - Class: rviz_default_plugins/MarkerArray
+    Enabled: true
+    Name: RoutePreview
+    Namespaces: {}
+    Topic:
+      Depth: 5
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+      Value: /semantic_nav/route_preview
+    Value: true
+  - Class: rviz_default_plugins/MarkerArray
+    Enabled: true
+    Name: YOLO + SAM2 Object Memory
+    Namespaces:
+      sysnav_object_extents: true
+      sysnav_object_labels: true
+      sysnav_object_points: true
+    Topic:
+      Depth: 5
+      Durability Policy: Transient Local
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+      Value: /go2_vln/object_markers
+    Value: true
+  - Alpha: 1
+    Buffer Length: 1
+    Class: rviz_default_plugins/Path
+    Color: 25; 255; 0
+    Enabled: true
+    Head Diameter: 0.30000001192092896
+    Head Length: 0.20000000298023224
+    Length: 0.30000001192092896
+    Line Style: Lines
+    Line Width: 0.029999999329447746
+    Name: GlobalPlan
+    Offset:
+      X: 0
+      Y: 0
+      Z: 0
+    Pose Color: 255; 85; 255
+    Pose Style: None
+    Radius: 0.029999999329447746
+    Shaft Diameter: 0.10000000149011612
+    Shaft Length: 0.10000000149011612
+    Topic:
+      Depth: 5
+      Durability Policy: Volatile
+      Filter size: 10
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+      Value: /plan
+    Value: true
+  - Class: rviz_default_plugins/Image
+    Enabled: true
+    Max Value: 1
+    Median window: 1
+    Min Value: 0
+    Name: YOLO + SAM2 Overlay
+    Normalize Range: true
+    Topic:
+      Depth: 1
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+      Value: /object_explorer/annotated_image
+    Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -395,27 +392,27 @@ Visualization Manager:
     Frame Rate: 30
   Name: root
   Tools:
-    - Class: rviz_default_plugins/Interact
-      Hide Inactive Objects: true
-    - Class: rviz_default_plugins/MoveCamera
-    - Class: rviz_default_plugins/Select
-    - Class: rviz_default_plugins/SetInitialPose
-      Covariance x: 0.25
-      Covariance y: 0.25
-      Covariance yaw: 0.06853891909122467
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /initialpose
-    - Class: rviz_default_plugins/SetGoal
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /goal_pose
+  - Class: rviz_default_plugins/Interact
+    Hide Inactive Objects: true
+  - Class: rviz_default_plugins/MoveCamera
+  - Class: rviz_default_plugins/Select
+  - Class: rviz_default_plugins/SetInitialPose
+    Covariance x: 0.25
+    Covariance y: 0.25
+    Covariance yaw: 0.06853891909122467
+    Topic:
+      Depth: 5
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+      Value: /initialpose
+  - Class: rviz_default_plugins/SetGoal
+    Topic:
+      Depth: 5
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+      Value: /goal_pose
   Transformation:
     Current:
       Class: rviz_default_plugins/TF
@@ -442,7 +439,7 @@ Visualization Manager:
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
       Yaw: 4.282384872436523
-    Saved: ~
+    Saved: null
 Window Geometry:
   Displays:
     collapsed: false

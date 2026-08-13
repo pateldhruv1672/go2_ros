@@ -22,6 +22,22 @@ def sensor_qos(depth: int = 1):
     )
 
 
+def reliable_qos(depth: int = 1):
+    return QoSProfile(
+        reliability=ReliabilityPolicy.RELIABLE,
+        history=HistoryPolicy.KEEP_LAST,
+        depth=depth,
+    )
+
+
+# SPARKY_OVERLAY_RELIABLE_V13_16
+def reliable_image_qos(depth: int = 1):
+    return QoSProfile(
+        reliability=ReliabilityPolicy.RELIABLE,
+        history=HistoryPolicy.KEEP_LAST,
+        depth=depth,
+    )
+
 def iou_xyxy(a, b) -> float:
     ax1, ay1, ax2, ay2 = a
     bx1, by1, bx2, by2 = b
@@ -67,25 +83,27 @@ class FastSAM2TrackerOverlayNode(Node):
 
         self.declare_parameter("image_topic", "/camera/image_raw")
         self.declare_parameter("annotated_image_topic", "/object_explorer/annotated_image")
+        self.declare_parameter("publish_annotated_image", True)
         self.declare_parameter("detections_topic", "/object_explorer/sam2_detections")
 
         self.declare_parameter("device", "cuda:0")
         self.declare_parameter("half", True)
 
         self.declare_parameter("yolo_model", "yolov8n.pt")
-        self.declare_parameter("yolo_imgsz", 640)
+        self.declare_parameter("yolo_imgsz", 416)
         self.declare_parameter("yolo_conf", 0.18)
-        self.declare_parameter("max_detections", 20)
+        self.declare_parameter("max_detections", 15)
         self.declare_parameter("target_classes", "")
 
         self.declare_parameter("enable_sam2", True)
         self.declare_parameter("sam2_model", "sam2_t.pt")
-        self.declare_parameter("sam2_imgsz", 512)
-        self.declare_parameter("sam2_every_n", 1)
+        self.declare_parameter("sam2_imgsz", 384)
+        self.declare_parameter("sam2_every_n", 3)
 
-        self.declare_parameter("inference_period_sec", 0.20)
+        self.declare_parameter("inference_period_sec", 0.12)
         self.declare_parameter("track_iou_threshold", 0.22)
         self.declare_parameter("track_ttl_sec", 2.0)
+        self.declare_parameter("annotated_publish_period_sec", 0.05)
 
         self.bridge = CvBridge()
         self.yolo = None
@@ -93,6 +111,8 @@ class FastSAM2TrackerOverlayNode(Node):
         self.sam2_ready = False
 
         self.last_inference_time = 0.0
+        # SPARKY_LOW_LATENCY_OVERLAY_V13_15
+        self.last_annotated_publish_time = 0.0
         self.frame_count = 0
         self.next_track_id = 1
         self.tracks: Dict[int, Dict[str, Any]] = {}
@@ -102,7 +122,11 @@ class FastSAM2TrackerOverlayNode(Node):
         annotated_topic = str(self.get_parameter("annotated_image_topic").value)
         detections_topic = str(self.get_parameter("detections_topic").value)
 
-        self.image_pub = self.create_publisher(Image, annotated_topic, sensor_qos(1))
+        self.image_pub = (
+            self.create_publisher(Image, annotated_topic, sensor_qos(1))
+            if bool(self.get_parameter("publish_annotated_image").value)
+            else None
+        )
         self.det_pub = self.create_publisher(String, detections_topic, 10)
 
         self.create_subscription(Image, image_topic, self.on_image, sensor_qos(1))
@@ -392,7 +416,7 @@ class FastSAM2TrackerOverlayNode(Node):
 
         cv2.putText(
             out,
-            f"YOLO+SAM2 prompt GPU | det={len(detections)} | tracks={len(self.tracks)}",
+            f"YOLO + {'SAM2' if self.sam2_ready else 'boxes'} | det={len(detections)} | tracks={len(self.tracks)}",
             (10, 26),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.65,
@@ -445,6 +469,9 @@ class FastSAM2TrackerOverlayNode(Node):
             source_stamp_sec = float(msg.header.stamp.sec) + float(msg.header.stamp.nanosec) * 1.0e-9
             self.publish_detections(dets, int(frame.shape[1]), int(frame.shape[0]), source_stamp_sec)
 
+        if self.image_pub is None:
+            return
+
         # Draw last tracks every incoming frame so RViz stays smooth.
         ttl = float(self.get_parameter("track_ttl_sec").value)
         active = []
@@ -453,10 +480,16 @@ class FastSAM2TrackerOverlayNode(Node):
             if now - float(tr.get("last_seen", 0.0)) <= ttl:
                 active.append(dict(tr))
 
-        annotated = self.draw(frame, active)
-        out = self.bridge.cv2_to_imgmsg(annotated, encoding="bgr8")
-        out.header = msg.header
-        self.image_pub.publish(out)
+        # Keep the annotated camera useful even when SAM2 itself is throttled.
+        # YOLO updates quickly; the most recent SAM2 mask is reused between mask passes.
+        if bool(self.get_parameter("publish_annotated_image").value):
+            publish_period = max(0.0, float(self.get_parameter("annotated_publish_period_sec").value))
+            if publish_period <= 0.0 or now - self.last_annotated_publish_time >= publish_period:
+                self.last_annotated_publish_time = now
+                annotated = self.draw(frame, active)
+                out = self.bridge.cv2_to_imgmsg(annotated, encoding="bgr8")
+                out.header = msg.header
+                self.image_pub.publish(out)
 
 
 def main():

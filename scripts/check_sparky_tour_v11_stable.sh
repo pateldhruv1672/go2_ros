@@ -5,6 +5,7 @@ cd "$WS"
 source /opt/ros/jazzy/setup.bash
 source src/.venv/bin/activate
 source install/setup.bash
+source scripts/sparky_runtime_env.sh
 
 export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-7}"
 export ROS_LOCALHOST_ONLY="${ROS_LOCALHOST_ONLY:-0}"
@@ -73,6 +74,37 @@ if grep -qx /go2_memory/object_inventory <<<"$topics"; then
   echo "object_inventory:"
   timeout 3 ros2 topic echo /go2_memory/object_inventory --once 2>/dev/null || true
 fi
+
+echo
+echo "=== ORCHESTRATION / LIVE VLM ==="
+node_check /go2_resume_vlm_backup
+topic_check /go2_vlm/query
+topic_check /go2_vlm/query_result
+topic_check /go2_agent/events
+topic_check /go2_agent/interaction_state
+topic_check /go2_speech/status
+topic_check /motion_skills/status
+topic_check /go2_tour/host_command
+topic_check /go2_tour/host_status
+if grep -qx /go2_vlm/query_result <<<"$topics"; then
+  echo "latest live VLM result (if a query has been made):"
+  timeout 2 ros2 topic echo /go2_vlm/query_result --once 2>/dev/null || true
+fi
+
+echo
+echo "=== DASHBOARD / MAP UI ==="
+node_check /go2_phone_web_gateway
+if command -v curl >/dev/null 2>&1; then
+  if curl -fsS --max-time 2 http://127.0.0.1:8765/api/health >/dev/null; then
+    echo "OK   dashboard http://127.0.0.1:8765"
+  else
+    echo "FAIL dashboard HTTP health"
+  fi
+else
+  echo "WARN curl missing; skipping dashboard HTTP health"
+fi
+topic_check /amcl_pose
+topic_check /map
 
 echo
 echo "=== RVIZ ==="

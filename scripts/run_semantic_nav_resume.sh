@@ -28,11 +28,32 @@ export GO2_RESUME_INTERNAL_RVIZ="${GO2_RESUME_INTERNAL_RVIZ:-1}"
 
 # Only stop the semantic resume overlay and resume-owned Nav2 nodes.
 # Do not kill a healthy base robot bringup, driver, state publisher, or teleop stack here.
+
+# SPARKY_KILL_STALE_ARBITER_V13_4
+# Do not allow a motion arbiter from a previous Resume invocation to remain
+# subscribed to /cmd_vel_nav2 or publishing /cmd_vel_nav.
+pkill -f 'go2_nav_tools/.*/motion_arbiter|/motion_arbiter([[:space:]]|$)' 2>/dev/null || true
+sleep 0.5
 # Kill the parent launch first so old generated /tmp/launch_params_* files cannot
 # keep stale Nav2 parameters alive after a source/config edit.
 pkill -f "ros2 launch go2_semantic_nav_agent semantic_nav_resume.launch.py" || true
+# SPARKY_SINGLE_MOTION_ARBITER_V13_1
+# A Resume launch owns exactly one go2_motion_arbiter. Kill stale copies before
+# the new launch creates its command owner.
+pkill -f "go2_motion_arbiter|go2_nav_tools/.*/motion_arbiter" || true
 sleep 1
-pkill -f "semantic_nav_node|scan_retimestamp_node|resume_map_server|resume_map_lifecycle_manager|semantic_nav_rviz2|controller_server|planner_server|bt_navigator|waypoint_follower|collision_monitor|lifecycle_manager_navigation|behavior_server|opennav_docking" || true
+# V12_8_3_SINGLE_MOTION_ARBITER_OWNER
+# semantic_nav_resume.launch.py owns exactly one go2_motion_arbiter. Kill stale
+# arbiters before restarting Resume so independent 20 Hz publishers cannot race
+# on /cmd_vel_nav after repeated launch/stop cycles.
+pkill -f "go2_motion_arbiter|go2_nav_tools/.*/motion_arbiter" || true
+sleep 1
+if pgrep -af "go2_motion_arbiter|go2_nav_tools/.*/motion_arbiter" >/dev/null 2>&1; then
+  echo "[run_semantic_nav_resume] stale go2_motion_arbiter survived cleanup; refusing duplicate command ownership" >&2
+  pgrep -af "go2_motion_arbiter|go2_nav_tools/.*/motion_arbiter" >&2 || true
+  exit 1
+fi
+pkill -f "semantic_nav_node|scan_retimestamp_node|resume_map_server|resume_map_lifecycle_manager|semantic_nav_rviz2|controller_server|planner_server|bt_navigator|waypoint_follower|collision_monitor|lifecycle_manager_navigation|behavior_server|opennav_docking|go2_motion_arbiter" || true
 sleep 2
 
 ros2 daemon stop || true
@@ -76,6 +97,7 @@ if [ "$BASE_READY" -eq 0 ]; then
 fi
 
 exec ros2 launch go2_semantic_nav_agent semantic_nav_resume.launch.py \
+  session_name:="${SESSION_NAME:-}" \
   rviz2:="${RVIZ2:-true}" \
   restore_spawn_on_start:="${RESTORE_SPAWN_ON_START:-true}" \
   nav2_start_delay_sec:="${NAV2_START_DELAY_SEC:-6.0}" \

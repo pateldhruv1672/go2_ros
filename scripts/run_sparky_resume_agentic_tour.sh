@@ -21,8 +21,36 @@ export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
 export SPARKY_WEB_TOKEN="${SPARKY_WEB_TOKEN:-0000}"
 export SPARKY_ADMIN_PIN="${SPARKY_ADMIN_PIN:-$SPARKY_WEB_TOKEN}"
 
+# SPARKY_TRUE_AGENTIC_NAV_PROFILE_V12_8
+export GO2_TOUR_AUTO_ADVANCE="${GO2_TOUR_AUTO_ADVANCE:-1}"
+export GO2_TOUR_PAUSE_SEC="${GO2_TOUR_PAUSE_SEC:-2.0}"
+export GO2_NAV_MIN_SPEED_XY="${GO2_NAV_MIN_SPEED_XY:-0.30}"
+export GO2_NAV_MIN_SPEED_THETA="${GO2_NAV_MIN_SPEED_THETA:-0.22}"
+export GO2_NAV_MAX_X="${GO2_NAV_MAX_X:-0.40}"
+export GO2_NAV_MAX_THETA="${GO2_NAV_MAX_THETA:-0.50}"
+export GO2_NAV_ACC_X="${GO2_NAV_ACC_X:-0.45}"
+export GO2_NAV_ACC_THETA="${GO2_NAV_ACC_THETA:-0.80}"
+export GO2_NAV_DECEL_X="${GO2_NAV_DECEL_X:-0.45}"
+export GO2_NAV_DECEL_THETA="${GO2_NAV_DECEL_THETA:-0.90}"
+export GO2_NAV_SIM_TIME="${GO2_NAV_SIM_TIME:-1.1}"
+export GO2_NAV_GOAL_XY_TOLERANCE_M="${GO2_NAV_GOAL_XY_TOLERANCE_M:-0.18}"
+export GO2_NAV_GOAL_YAW_TOLERANCE_RAD="${GO2_NAV_GOAL_YAW_TOLERANCE_RAD:-0.30}"
+export GO2_NAV_PROGRESS_RADIUS_M="${GO2_NAV_PROGRESS_RADIUS_M:-0.05}"
+export GO2_NAV_PROGRESS_ANGLE_RAD="${GO2_NAV_PROGRESS_ANGLE_RAD:-0.08}"
+export GO2_NAV_PROGRESS_TIMEOUT_SEC="${GO2_NAV_PROGRESS_TIMEOUT_SEC:-15.0}"
+export GO2_SENSOR_FRESH_FRAME_WAIT_SEC="${GO2_SENSOR_FRESH_FRAME_WAIT_SEC:-1.5}"
+export SPARKY_REPAIR_OBJECT_JSONL_ON_START="${SPARKY_REPAIR_OBJECT_JSONL_ON_START:-1}"
+
+
 SESSION_ROOT="${SESSION_ROOT:-$HOME/.ros/go2_semantic_nav_sessions}"
-REQUESTED_SESSION_NAME="${SESSION_NAME:-}"
+#REQUESTED_
+# SPARKY_KILL_STALE_ARBITER_V13_4
+# Do not allow a motion arbiter from a previous Resume invocation to remain
+# subscribed to /cmd_vel_nav2 or publishing /cmd_vel_nav.
+pkill -f 'go2_nav_tools/.*/motion_arbiter|/motion_arbiter([[:space:]]|$)' 2>/dev/null || true
+sleep 0.5
+
+SESSION_NAME="${SESSION_NAME:-}"
 SESSION_NAME="${SESSION_NAME:-}"
 if [ -z "$SESSION_NAME" ] || [ "$SESSION_NAME" = auto ] || [ "$SESSION_NAME" = latest ]; then
   SESSION_NAME="$(find "$SESSION_ROOT" -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/map.yaml' ';' -printf '%T@ %f\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)"
@@ -30,6 +58,12 @@ fi
 [ -n "$SESSION_NAME" ] || { echo "No resume-ready session with map.yaml found under $SESSION_ROOT" >&2; exit 2; }
 [ -f "$SESSION_ROOT/$SESSION_NAME/map.yaml" ] || { echo "Session $SESSION_NAME has no map.yaml" >&2; exit 2; }
 export SESSION_NAME
+
+if [ "$SPARKY_REPAIR_OBJECT_JSONL_ON_START" = "1" ] && [ -x "$SCRIPT_DIR/repair_sparky_world_memory_jsonl.sh" ]; then
+  "$SCRIPT_DIR/repair_sparky_world_memory_jsonl.sh" "$SESSION_NAME" >/tmp/sparky_object_jsonl_repair.log 2>&1 || {
+    echo "[sparky] WARNING: object JSONL repair failed; see /tmp/sparky_object_jsonl_repair.log" >&2
+  }
+fi
 
 VLM_PROVIDER="${SPARKY_VLM_PROVIDER:-${GO2_TEACH_VLM_PROVIDER:-openrouter}}"
 VLM_MODEL="${SPARKY_VLM_MODEL:-${GO2_TEACH_VLM_MODEL:-google/gemini-2.5-flash}}"
@@ -46,16 +80,35 @@ SAM2_MODEL="${SPARKY_SAM2_MODEL:-$ROOT_DIR/sam2_t.pt}"
 ENABLE_SAM2="${ENABLE_SAM2:-1}"
 [ -f "$SAM2_MODEL" ] || ENABLE_SAM2=0
 ENABLE_OBJECT_PERCEPTION="${ENABLE_OBJECT_PERCEPTION:-1}"
+ENABLE_OBJECT_OVERLAY="${ENABLE_OBJECT_OVERLAY:-0}"
 ENABLE_RICH_MEMORY="${ENABLE_RICH_MEMORY:-0}"
 ENABLE_MOTION_SKILLS="${ENABLE_MOTION_SKILLS:-1}"
 ENABLE_FRONT_FLIP="${ENABLE_FRONT_FLIP:-1}"
 ENABLE_LLM_DEBATE="${ENABLE_LLM_DEBATE:-0}"
 OBJECT_DEVICE="${OBJECT_DEVICE:-cuda:0}"
+SPARKY_YOLO_IMGSZ="${SPARKY_YOLO_IMGSZ:-416}"
+SPARKY_SAM2_IMGSZ="${SPARKY_SAM2_IMGSZ:-384}"
+SPARKY_SAM2_EVERY_N="${SPARKY_SAM2_EVERY_N:-4}"
+SPARKY_PERCEPTION_PERIOD_SEC="${SPARKY_PERCEPTION_PERIOD_SEC:-0.10}"
+SPARKY_ANNOTATED_PERIOD_SEC="${SPARKY_ANNOTATED_PERIOD_SEC:-0.05}"
 PHONE_PORT="${PHONE_PORT:-8765}"
 LOCAL_SPEAKER_BACKEND="${LOCAL_SPEAKER_BACKEND:-auto}"
 
 node_exists(){ ros2 node list 2>/dev/null | grep -qx "$1"; }
-resume_ready(){ node_exists /semantic_nav_node && node_exists /amcl && node_exists /controller_server; }
+lifecycle_active(){ timeout 2 ros2 lifecycle get "$1" 2>/dev/null | grep -q 'active'; }
+# SPARKY_ACTIVE_RESUME_READY_V13_16_5
+node_active(){
+  local node="$1"
+  timeout 2 ros2 lifecycle get "$node" 2>/dev/null | grep -q '^active \[3\]$'
+}
+resume_ready(){
+  node_exists /semantic_nav_node &&
+  node_exists /amcl &&
+  node_active /controller_server &&
+  node_active /planner_server &&
+  node_active /bt_navigator &&
+  node_active /collision_monitor
+}
 param_string(){ ros2 param get "$1" "$2" 2>/dev/null | sed -n 's/^String value is: //p' | head -1; }
 
 if node_exists /semantic_nav_node; then
@@ -67,6 +120,12 @@ if node_exists /semantic_nav_node; then
 fi
 
 # Remove only stale agentic overlay owners; do not kill Resume/Nav2/AMCL/base.
+# SPARKY_PERCEPTION_CLEANUP_V13_16
+pkill -f 'fast_sam2_tracker_overlay_node|go2_pose_aware_object_mapper' 2>/dev/null || true
+# SPARKY_CLEAN_STALE_TTS_V13_3
+# Repeated overlay launches could leave old TTS executables alive.
+pkill -f 'go2_omi_voice_bridge/.*/tts_node|go2_tts_node' 2>/dev/null || true
+pkill -f 'go2_omi_voice_bridge/.*/speech_arbiter_node|go2_speech_arbiter' 2>/dev/null || true
 pkill -f "ros2 launch go2_omi_voice_bridge resume_agentic_tour_overlay.launch.py" 2>/dev/null || true
 pkill -f "go2_unified_intent_gate|go2_phone_web_gateway|go2_speech_arbiter|go2_tour_host_script|go2_langgraph_main_supervisor|go2_world_object_memory|go2_vlm_checkpoint_node" 2>/dev/null || true
 sleep 1
@@ -79,7 +138,7 @@ if ! resume_ready; then
   SESSION_NAME="$SESSION_NAME" RVIZ2=false bash "$SCRIPT_DIR/run_semantic_nav_resume.sh" >"$RESUME_LOG" 2>&1 &
   RESUME_PID=$!
   STARTED_RESUME=1
-  for _ in $(seq 1 60); do
+  for _ in $(seq 1 90); do
     resume_ready && break
     kill -0 "$RESUME_PID" 2>/dev/null || { echo "Resume launcher exited; see $RESUME_LOG" >&2; tail -n 80 "$RESUME_LOG" >&2 || true; exit 3; }
     sleep 1
@@ -129,8 +188,11 @@ echo "  semantic RViz: /semantic_nav_rviz2"
 echo "  phone URL:     http://$LAN_IP:$PHONE_PORT/"
 echo "  VLM:           $VLM_PROVIDER / $VLM_MODEL"
 echo "  object memory: $ENABLE_OBJECT_PERCEPTION"
+echo "  SAM2 masks:    $ENABLE_SAM2 (default OFF for navigation latency)"
+echo "  object overlay:$ENABLE_OBJECT_OVERLAY (default OFF; YOLO detections still run)"
 echo "  rich memory:   $ENABLE_RICH_MEMORY (off by default until navigation foundation is stable)"
 echo "  motion skills: $ENABLE_MOTION_SKILLS (phone Sit/Stand/Wave/Dance are immediate)"
+echo "  confirmations: OFF — one agent router executes user requests directly"
 echo "  front flip:    $ENABLE_FRONT_FLIP (phone Front Flip is immediate; Nav interlock still applies)"
 [ "$SPARKY_WEB_TOKEN" = 0000 ] && echo "  WARNING: using demo dashboard token 0000; change it off a trusted lab LAN."
 echo
@@ -148,6 +210,9 @@ ros2 launch go2_omi_voice_bridge resume_agentic_tour_overlay.launch.py \
   "${VLM_BASE_URL_ARGS[@]}" \
   enable_rich_memory:="$ENABLE_RICH_MEMORY" \
   enable_object_perception:="$ENABLE_OBJECT_PERCEPTION" enable_sam2:="$ENABLE_SAM2" \
+  yolo_imgsz:="$SPARKY_YOLO_IMGSZ" sam2_imgsz:="$SPARKY_SAM2_IMGSZ" sam2_every_n:="$SPARKY_SAM2_EVERY_N" \
+  perception_period_sec:="$SPARKY_PERCEPTION_PERIOD_SEC" annotated_publish_period_sec:="$SPARKY_ANNOTATED_PERIOD_SEC" \
+  publish_object_overlay:="$ENABLE_OBJECT_OVERLAY" \
   yolo_model:="$YOLO_MODEL" sam2_model:="$SAM2_MODEL" object_device:="$OBJECT_DEVICE" \
   enable_motion_skills:="$ENABLE_MOTION_SKILLS" enable_front_flip:="$ENABLE_FRONT_FLIP" enable_llm_debate:="$ENABLE_LLM_DEBATE" \
   phone_port:="$PHONE_PORT" local_speaker_backend:="$LOCAL_SPEAKER_BACKEND"
