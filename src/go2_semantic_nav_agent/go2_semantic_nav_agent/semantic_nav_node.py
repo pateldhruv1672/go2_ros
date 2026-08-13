@@ -26,6 +26,7 @@ from action_msgs.msg import GoalStatus
 from builtin_interfaces.msg import Time as BuiltinTime
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
 from nav2_msgs.action import NavigateToPose
+from nav2_msgs.msg import SpeedLimit
 from lifecycle_msgs.msg import State as LifecycleState
 from lifecycle_msgs.srv import GetState
 from rclpy.action import ActionClient
@@ -195,6 +196,9 @@ class SemanticNavNode(Node):
         self.preview_pub = self.create_publisher(MarkerArray, '/semantic_nav/route_preview', marker_qos)
         self.initialpose_pub = self.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
         self.cmd_vel_pub = self.create_publisher(Twist, str(self.get_parameter('fallback_cmd_topic').value), cmd_qos)
+        self.speed_limit_pub = self.create_publisher(SpeedLimit, str(self.get_parameter('speed_limit_topic').value), 10)
+        self._last_nav_speed_limit = None
+        self._last_speed_limit_publish_ns = 0
 
         self.create_subscription(String, '/semantic_nav/command', self.cmd_cb, 10)
         self.create_subscription(PoseStamped, '/goal_pose', self.goal_cb, 10)
@@ -251,6 +255,9 @@ class SemanticNavNode(Node):
         self.declare_parameter('tour_mode', True)
         self.declare_parameter('tour_default_pause_sec', 4.0)
         self.declare_parameter('tour_auto_advance', True)
+        # SPARKY_TOUR_SPEED_LIMIT_V13_11
+        self.declare_parameter('tour_speed_limit_mps', 0.36)
+        self.declare_parameter('speed_limit_topic', '/speed_limit')
         self.declare_parameter('route_name', '')
         self.declare_parameter('auto_save_places', True)
         self.declare_parameter('auto_save_interval_sec', 5.0)
@@ -1678,6 +1685,22 @@ class SemanticNavNode(Node):
             return f'This is {stop.place_name.replace("_", " ")}.'
         return 'This is one of Sparky’s tour stops.'
 
+    def _publish_nav_speed_limit(self, speed_mps: float, reason: str = '', force: bool = False) -> None:
+        speed = max(0.0, float(speed_mps))
+        msg = SpeedLimit()
+        msg.percentage = False
+        msg.speed_limit = speed
+        self.speed_limit_pub.publish(msg)
+        self._last_speed_limit_publish_ns = self.get_clock().now().nanoseconds
+        changed = self._last_nav_speed_limit is None or abs(float(self._last_nav_speed_limit) - speed) > 1e-6
+        self._last_nav_speed_limit = speed
+        if force or changed:
+            label = 'unlimited' if speed <= 0.0 else f'{speed:.2f}mps'
+            self.publish_status(f'nav_speed_limit={label} reason={reason or "update"}')
+
+    def _tour_speed_limit(self) -> float:
+        return max(0.30, float(self.get_parameter('tour_speed_limit_mps').value))
+
     def _publish_tour_explanation(self, stop: RouteStop, prefix: str = 'tour') -> None:
         fact = self._tour_fact_for_stop(stop)
         speech = f'{prefix}: {stop.name.replace("_", " ")}. {fact}'
@@ -1707,6 +1730,7 @@ class SemanticNavNode(Node):
                 stop.status = 'pending'
             self._stop_announced.clear()
         self.route_store.save(self.route)
+        self._publish_nav_speed_limit(self._tour_speed_limit(), reason='tour_start', force=True)
         stop = self.current_route_stop()
         self.publish_status(f'tour_started route={self.route.name} stop={stop.name if stop else "-"}')
         self.publish_event(PatrolEvent(
@@ -1727,6 +1751,7 @@ class SemanticNavNode(Node):
 
     def pause_tour(self, speech: str = 'tour: Pausing here for a moment.') -> None:
         self.cancel_active_goal('tour_pause')
+        self._publish_nav_speed_limit(0.0, reason='tour_pause', force=True)
         self.route.state = 'paused'
         self._tour_pause_until_ns = 0
         self.route_store.save(self.route)
@@ -1746,6 +1771,7 @@ class SemanticNavNode(Node):
 
     def resume_tour(self, speech: str = 'tour: Resuming the tour.') -> None:
         self.route.state = 'touring'
+        self._publish_nav_speed_limit(self._tour_speed_limit(), reason='tour_resume', force=True)
         self.route_store.save(self.route)
         self.publish_event(PatrolEvent(
             location=self.pose_summary(),
@@ -1846,6 +1872,7 @@ class SemanticNavNode(Node):
 
     def on_route_complete(self) -> None:
         self.route.state = 'complete'
+        self._publish_nav_speed_limit(0.0, reason='tour_complete', force=True)
         self.route_store.save(self.route)
         self._goal_place = None
         self._active_goal_handle = None
@@ -1884,6 +1911,11 @@ class SemanticNavNode(Node):
         self.recover_from_failure(reason)
 
     def route_tick(self) -> None:
+        # SPARKY_TOUR_SPEED_LIMIT_KEEPALIVE_V13_11
+        now_ns = self.get_clock().now().nanoseconds
+        if self.route.mode == 'tour' and self.route.state in {'touring', 'moving_to_stop', 'tour_pause'}:
+            if now_ns - int(self._last_speed_limit_publish_ns or 0) >= int(1e9):
+                self._publish_nav_speed_limit(self._tour_speed_limit(), reason='tour_keepalive')
         if self._tour_pause_until_ns and self.get_clock().now().nanoseconds >= self._tour_pause_until_ns:
             self._tour_pause_until_ns = 0
             if self.route.state == 'tour_pause':

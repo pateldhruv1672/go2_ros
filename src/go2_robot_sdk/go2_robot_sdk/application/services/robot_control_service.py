@@ -2,9 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import json
-import os
 import logging
-import time
 
 
 from ...domain.interfaces import IRobotController
@@ -20,35 +18,20 @@ class RobotControlService:
 
     def __init__(self, controller: IRobotController):
         self.controller = controller
-        # SPARKY_LOCOMOTION_REARM_V13_3
-        self._last_nonzero_cmd_mono = {}
-        self._last_locomotion_arm_mono = {}
-        try:
-            self._locomotion_rearm_idle_sec = max(0.5, float(os.environ.get('GO2_LOCOMOTION_REARM_IDLE_SEC', '2.0')))
-        except Exception:
-            self._locomotion_rearm_idle_sec = 2.0
 
     def handle_cmd_vel(self, x: float, y: float, z: float, robot_id: str, obstacle_avoidance: bool = False) -> None:
-        """Process movement command"""
+        """Process movement command without changing robot posture or motion mode."""
+        # SPARKY_NAV_NO_HIDDEN_STAND_V13_12
+        # Twist means velocity only. Never call StandUp/BalanceStand/StandDown
+        # from this path; posture and mode transitions must be explicit actions.
         try:
             _ = gen_mov_command(
-                round(x, 2), 
-                round(y, 2), 
-                round(z, 2), 
+                round(x, 2),
+                round(y, 2),
+                round(z, 2),
                 obstacle_avoidance
             )
-            moving = abs(float(x)) > 1e-6 or abs(float(y)) > 1e-6 or abs(float(z)) > 1e-6
-            now_mono = time.monotonic()
-            if moving:
-                last_nonzero = float(self._last_nonzero_cmd_mono.get(robot_id, -1e9))
-                last_arm = float(self._last_locomotion_arm_mono.get(robot_id, -1e9))
-                idle_for = now_mono - last_nonzero
-                if idle_for >= self._locomotion_rearm_idle_sec and now_mono - last_arm >= self._locomotion_rearm_idle_sec:
-                    # Existing controller path sends Unitree StandUp then BalanceStand.
-                    self.controller.send_stand_up_command(robot_id)
-                    self._last_locomotion_arm_mono[robot_id] = now_mono
-                    logger.info('Re-armed Go2 locomotion posture before non-zero cmd_vel after %.2fs idle', idle_for)
-                self._last_nonzero_cmd_mono[robot_id] = now_mono
+            # Preserve the zero-Twist fix so a prior Move is actually cleared.
             self.controller.send_movement_command(robot_id, x, y, z)
         except Exception as e:
             logger.error(f"Error handling cmd_vel: {e}")
