@@ -207,7 +207,10 @@ class UnifiedIntentGateNode(Node):
         self.declare_parameter("agent_command_topic", "/go2_agent/user_command")
         self.declare_parameter("agent_query_topic", "/go2_agent/query")
         self.declare_parameter("vlm_query_topic", "/go2_vlm/query")
-        self.declare_parameter("tts_topic", "/go2_tts/say")
+        # SPARKY_SPEECH_SINGLE_ROUTE_V13_4
+        # All non-emergency speech goes through the speech arbiter. It is the
+        # only publisher allowed to feed /go2_tts/say.
+        self.declare_parameter("tts_topic", "/go2_speech/request")
         self.declare_parameter("cmd_vel_topic", "/cmd_vel_out")
         self.declare_parameter("nav_command_topic", "/semantic_nav/command")
         self.declare_parameter("motion_skill_topic", "/motion_skills/command")

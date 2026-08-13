@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import fcntl
 import os
 import re
 import shutil
@@ -103,6 +104,16 @@ class Go2TtsNode(Node):
 
         self.status_pub = self.create_publisher(String, "/go2_tts/status", 10)
         self._lock = threading.Lock()
+        # SPARKY_TTS_SINGLE_SPEAKER_OWNER_V13_3
+        # Only one TTS process may own the physical speaker.
+        self._speak_gate = threading.Lock()
+        self._speaker_lock_handle = open('/tmp/go2_sparky_tts_speaker.lock', 'a+')
+        try:
+            fcntl.flock(self._speaker_lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self._speaker_owner = True
+        except BlockingIOError:
+            self._speaker_owner = False
+            self.get_logger().warn('Another Sparky TTS process owns the physical speaker; this node will remain text/status-only.')
         self._proc: subprocess.Popen[str] | None = None
         self._recent_speech: dict[str, float] = {}
 
@@ -206,7 +217,14 @@ class Go2TtsNode(Node):
         if self._param_bool("tts_enabled") and self._param_bool(
             "local_speaker_enabled"
         ):
-            threading.Thread(target=self._speak_local, args=(text,), daemon=True).start()
+            threading.Thread(target=self._speak_local_serialized, args=(text,), daemon=True).start()
+
+    def _speak_local_serialized(self, text: str) -> None:
+        if not getattr(self, '_speaker_owner', True):
+            self.status_pub.publish(String(data=json.dumps({'ok': True, 'event': 'speaker_non_owner_drop', 'text_len': len(text)}, sort_keys=True)))
+            return
+        with self._speak_gate:
+            self._speak_local(text)
 
     def _select_backend(self) -> str | None:
         requested = str(self.get_parameter("local_speaker_backend").value).strip()

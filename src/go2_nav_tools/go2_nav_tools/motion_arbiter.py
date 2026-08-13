@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import math
+import sys
+import fcntl
 from typing import Optional
 
 import rclpy
@@ -148,6 +150,14 @@ class MotionArbiter(Node):
 
 
 def main(args=None):
+    # SPARKY_MOTION_ARBITER_SINGLETON_V13_4
+    # One and only one process may own /cmd_vel_nav2 + /cmd_vel_escape -> /cmd_vel_nav.
+    lock_handle = open('/tmp/go2_motion_arbiter.lock', 'a+')
+    try:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print('ERROR: another go2_motion_arbiter already owns the motion command path', file=sys.stderr)
+        return
     rclpy.init(args=args)
     node = MotionArbiter()
     try:
