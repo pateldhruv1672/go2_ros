@@ -38,7 +38,11 @@ class MotionArbiter(Node):
 
         self.declare_parameter('nav2_max_x', 0.75)
         self.declare_parameter('nav2_max_y', 0.0)
-        self.declare_parameter('nav2_max_theta', 0.90)
+        self.declare_parameter('nav2_max_theta', 0.85)
+        # SPARKY_CURVATURE_PRESERVING_FLOOR_V13_10
+        self.declare_parameter('nav2_actuator_floor_x', 0.35)
+        self.declare_parameter('nav2_tiny_x_deadband', 0.03)
+        self.declare_parameter('nav2_rotate_curvature_threshold', 2.50)
         self.declare_parameter('nav2_min_effective_x', 0.30)
         self.declare_parameter('nav2_zero_subfloor_x', False)
 
@@ -122,17 +126,42 @@ class MotionArbiter(Node):
         return 'none', Twist()
 
     def _clip_twist(self, source: str, msg: Twist) -> Twist:
-        # SPARKY_CONTROLLER_COMMAND_FIDELITY_V13_1
-        # Do not rewrite a DWB trajectory after it has been scored. The Go2
-        # executable floor belongs in the controller/physical calibration, not
-        # as a downstream component mutation that turns arcs into pure spins.
         out = Twist()
+
         max_x = float(self.get_parameter(f'{source}_max_x').value) if source != 'none' else 0.0
         max_y = float(self.get_parameter(f'{source}_max_y').value) if source != 'none' else 0.0
         max_theta = float(self.get_parameter(f'{source}_max_theta').value) if source != 'none' else 0.0
-        out.linear.x = clip(msg.linear.x, -max_x, max_x)
-        out.linear.y = clip(msg.linear.y, -max_y, max_y)
-        out.angular.z = clip(msg.angular.z, -max_theta, max_theta)
+
+        x = clip(msg.linear.x, -max_x, max_x)
+        y = clip(msg.linear.y, -max_y, max_y)
+        w = clip(msg.angular.z, -max_theta, max_theta)
+
+        if source == 'nav2':
+            floor_x = max(0.0, float(self.get_parameter('nav2_actuator_floor_x').value))
+            tiny_x = max(0.0, float(self.get_parameter('nav2_tiny_x_deadband').value))
+            rotate_threshold = max(0.1, float(self.get_parameter('nav2_rotate_curvature_threshold').value))
+            ax = abs(x)
+
+            # DWB can legally score tiny translational commands, but the physical
+            # Go2 only twitches there. Tiny x is treated as zero so it cannot buzz.
+            if 0.0 < ax <= tiny_x:
+                x = 0.0
+            elif tiny_x < ax < floor_x:
+                curvature = abs(w) / ax if ax > 1e-9 else math.inf
+                if curvature >= rotate_threshold:
+                    # This is essentially a rotate-in-place intent. Do not inject
+                    # forward translation simply to satisfy the actuator floor.
+                    x = 0.0
+                else:
+                    # Preserve the DWB arc shape as closely as possible while
+                    # lifting translation into the empirically executable range.
+                    scale = floor_x / ax
+                    x = math.copysign(floor_x, x)
+                    w = clip(w * scale, -max_theta, max_theta)
+
+        out.linear.x = x
+        out.linear.y = y
+        out.angular.z = w
         return out
 
     def _tick(self):

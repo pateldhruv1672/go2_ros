@@ -46,6 +46,9 @@ def create_command_structure(
     # Convert parameter to JSON string if it's a dict
     param_str = json.dumps(parameter) if isinstance(parameter, dict) else str(parameter)
 
+    # SPARKY_WEBRTC_RPC_REQ_V13_8
+    # rt/api/*/request commands are RPC requests, not ordinary topic messages.
+    # Current Unitree WebRTC uses data-channel type "req" and returns "res".
     return {
         "type": "msg",
         "topic": topic,

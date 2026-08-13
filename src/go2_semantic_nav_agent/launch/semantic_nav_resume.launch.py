@@ -141,10 +141,11 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     bt['bond_heartbeat_period'] = 0.10
 
     ctrl = params.setdefault('controller_server', {}).setdefault('ros__parameters', {})
-    ctrl['controller_frequency'] = float(os.environ.get('GO2_CONTROLLER_FREQUENCY', '5.0'))
-    # GO2_V11_6_1_CONTROL_RATE
-    # Conservative WebRTC diagnostic rate. Override with
-    # GO2_CONTROLLER_FREQUENCY after command/response timing is measured.
+    # SPARKY_ACTUATOR_MATCHED_NAV_V13_10
+    # SPARKY_FAST_NAV_PROFILE_V13_5
+    # Runtime-selectable actuator-aware fast profile. Defaults remain bounded
+    # below the Go2 driver's configured 0.75 m/s / 0.90 rad/s maxima.
+    ctrl['controller_frequency'] = float(os.environ.get('GO2_ACTUATOR_NAV_CONTROLLER_HZ', '15.0'))
     ctrl['costmap_update_timeout'] = 1.0
     ctrl['progress_checker_plugins'] = ['progress_checker']
     ctrl['current_progress_checker'] = 'progress_checker'
@@ -152,57 +153,69 @@ def _build_semantic_nav2_params(source_path: str, scan_topic: str, pointcloud_to
     ctrl['goal_checker_plugins'] = ['general_goal_checker']
     ctrl['current_goal_checker'] = 'general_goal_checker'
     ctrl['controller_plugins'] = ['FollowPath']
-    # GO2_V11_6_2_DWB_DIAGNOSTICS
-    follow = ctrl.setdefault('FollowPath', {})
-    follow['debug_trajectory_details'] = True
-    follow['publish_evaluation'] = True
-    follow['publish_local_plan'] = True
-    follow['publish_trajectories'] = True
-    follow['publish_cost_grid_pc'] = True
     ctrl['use_realtime_priority'] = False
     ctrl['enable_stamped_cmd_vel'] = False
+    ctrl['min_x_velocity_threshold'] = 0.001
+    ctrl['min_y_velocity_threshold'] = 0.001
+    ctrl['min_theta_velocity_threshold'] = 0.001
 
     progress = ctrl.setdefault('progress_checker', {})
     progress['plugin'] = 'nav2_controller::PoseProgressChecker'
-    progress['required_movement_radius'] = float(os.environ.get('GO2_NAV_PROGRESS_RADIUS_M', '0.05'))
-    progress['required_movement_angle'] = float(os.environ.get('GO2_NAV_PROGRESS_ANGLE_RAD', '0.08'))
-    progress['movement_time_allowance'] = float(os.environ.get('GO2_NAV_PROGRESS_TIMEOUT_SEC', '15.0'))
+    progress['required_movement_radius'] = float(os.environ.get('GO2_ACTUATOR_NAV_PROGRESS_RADIUS_M', '0.08'))
+    progress['required_movement_angle'] = float(os.environ.get('GO2_ACTUATOR_NAV_PROGRESS_ANGLE_RAD', '0.12'))
+    progress['movement_time_allowance'] = float(os.environ.get('GO2_ACTUATOR_NAV_PROGRESS_TIMEOUT_SEC', '8.0'))
 
     goal_checker = ctrl.setdefault('general_goal_checker', {})
     goal_checker['plugin'] = 'nav2_controller::SimpleGoalChecker'
-    goal_checker['xy_goal_tolerance'] = float(os.environ.get('GO2_NAV_GOAL_XY_TOLERANCE_M', '0.18'))
-    goal_checker['yaw_goal_tolerance'] = float(os.environ.get('GO2_NAV_GOAL_YAW_TOLERANCE_RAD', '0.30'))
+    goal_checker['xy_goal_tolerance'] = float(os.environ.get('GO2_ACTUATOR_NAV_XY_TOLERANCE', '0.25'))
+    goal_checker['yaw_goal_tolerance'] = float(os.environ.get('GO2_ACTUATOR_NAV_YAW_TOLERANCE', '0.50'))
     goal_checker['stateful'] = True
 
-    # GO2_V11_3_DWB_ACTUATOR_CONTRACT
-    # DWB knows the Go2's usable motion floor; the WebRTC adapter treats the same
-    # values as deadbands and never amplifies a smaller command. Keep this test
-    # envelope conservative until straight and turning path tracking are verified.
     follow = ctrl.setdefault('FollowPath', {})
+    follow['plugin'] = 'dwb_core::DWBLocalPlanner'
+    # Explicit rollout generator: score useful 0.35-0.45 m/s commands while
+    # respecting acceleration inside the simulated trajectory.
+    follow['trajectory_generator_name'] = 'dwb_plugins::StandardTrajectoryGenerator'
+    follow['debug_trajectory_details'] = False
     follow['min_vel_x'] = 0.0
     follow['min_vel_y'] = 0.0
-    follow['min_speed_xy'] = float(os.environ.get('GO2_NAV_MIN_SPEED_XY', '0.0'))
-    follow['min_speed_theta'] = float(os.environ.get('GO2_NAV_MIN_SPEED_THETA', '0.0'))
-    follow['max_vel_x'] = float(os.environ.get('GO2_NAV_MAX_X', '0.40'))
+    follow['max_vel_y'] = 0.0
+    follow['max_vel_x'] = float(os.environ.get('GO2_ACTUATOR_NAV_MAX_X', '0.45'))
     follow['max_speed_xy'] = follow['max_vel_x']
-    follow['max_vel_theta'] = float(os.environ.get('GO2_NAV_MAX_THETA', '0.30'))
-    follow['acc_lim_x'] = float(os.environ.get('GO2_NAV_ACC_X', '0.45'))
-    follow['acc_lim_theta'] = float(os.environ.get('GO2_NAV_ACC_THETA', '0.40'))
-    follow['decel_lim_x'] = -abs(float(os.environ.get('GO2_NAV_DECEL_X', '0.45')))
-    follow['decel_lim_theta'] = -abs(float(os.environ.get('GO2_NAV_DECEL_THETA', '0.50')))
-    follow['sim_time'] = float(os.environ.get('GO2_NAV_SIM_TIME', '1.1'))
-    follow['yaw_goal_tolerance'] = goal_checker['yaw_goal_tolerance']
-    follow['xy_goal_tolerance'] = goal_checker['xy_goal_tolerance']
-    follow['trans_stopped_velocity'] = 0.05
-    follow['theta_stopped_velocity'] = 0.08
-    # GO2_V11_6_ANGULAR_FIDELITY
-    # Do not force a minimum yaw command. The physical command path should
-    # preserve DWB's requested angular velocity instead of quantizing it.
-    follow['vtheta_samples'] = int(os.environ.get('GO2_NAV_VTHETA_SAMPLES', '31'))
-    follow['limit_vel_cmd_in_traj'] = True
-    follow['RotateToGoal.slowing_factor'] = float(os.environ.get('GO2_NAV_ROTATE_SLOWING_FACTOR', '8.0'))
-
-    # Keep FollowPath from base nav2_params.yaml. Do not override DWB with MPPI here.
+    follow['max_vel_theta'] = float(os.environ.get('GO2_ACTUATOR_NAV_MAX_THETA', '0.85'))
+    # Do not ask DWB to enforce the physical deadband. The motion arbiter below
+    # converts only translational commands into the Go2's executable envelope.
+    follow['min_speed_xy'] = 0.0
+    follow['min_speed_theta'] = 0.0
+    follow['acc_lim_x'] = float(os.environ.get('GO2_ACTUATOR_NAV_ACC_X', '0.70'))
+    follow['acc_lim_y'] = 0.0
+    follow['acc_lim_theta'] = float(os.environ.get('GO2_ACTUATOR_NAV_ACC_THETA', '1.60'))
+    follow['decel_lim_x'] = -abs(float(os.environ.get('GO2_ACTUATOR_NAV_DECEL_X', '0.90')))
+    follow['decel_lim_y'] = 0.0
+    follow['decel_lim_theta'] = -abs(float(os.environ.get('GO2_ACTUATOR_NAV_DECEL_THETA', '1.80')))
+    follow['vx_samples'] = int(os.environ.get('GO2_ACTUATOR_NAV_VX_SAMPLES', '16'))
+    follow['vy_samples'] = 1
+    follow['vtheta_samples'] = int(os.environ.get('GO2_ACTUATOR_NAV_VTHETA_SAMPLES', '28'))
+    follow['sim_time'] = float(os.environ.get('GO2_ACTUATOR_NAV_SIM_TIME', '1.40'))
+    follow['linear_granularity'] = 0.05
+    follow['angular_granularity'] = 0.025
+    follow['transform_tolerance'] = 0.5
+    follow['trans_stopped_velocity'] = 0.10
+    follow['theta_stopped_velocity'] = 0.10
+    follow['short_circuit_trajectory_evaluation'] = True
+    follow['stateful'] = True
+    follow['critics'] = ['RotateToGoal', 'Oscillation', 'BaseObstacle', 'GoalAlign', 'PathAlign', 'PathDist', 'GoalDist']
+    follow['BaseObstacle.scale'] = 0.6
+    follow['PathAlign.scale'] = 3.0
+    follow['PathAlign.forward_point_distance'] = 0.3
+    follow['PathDist.scale'] = 4.0
+    follow['GoalAlign.scale'] = 5.0
+    follow['GoalAlign.forward_point_distance'] = 0.3
+    follow['GoalDist.scale'] = 10.0
+    follow['RotateToGoal.scale'] = 18.0
+    follow['RotateToGoal.slowing_factor'] = 5.0
+    follow['RotateToGoal.lookahead_time'] = -1.0
+    follow['Oscillation.scale'] = 1.0
 
     local = params.setdefault('local_costmap', {}).setdefault('local_costmap', {}).setdefault('ros__parameters', {})
     local['update_frequency'] = 5.0

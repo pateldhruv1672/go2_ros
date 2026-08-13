@@ -12,6 +12,7 @@ Big thanks to @tfoldi (Földi Tamás) and @legion1581 (The RoboVerse Discord Gro
 import asyncio
 import json
 import logging
+import time
 import base64
 from typing import Callable, Optional, Any, Dict, Union
 from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamTrack
@@ -49,6 +50,7 @@ class Go2Connection:
         self.token = token
         self.robot_validation = "PENDING"
         self.validation_result = "PENDING"
+        self._rpc_response_last_log = {}
         
         # Callbacks
         self.on_validated = on_validated
@@ -107,6 +109,31 @@ class Go2Connection:
                 # Text message - likely JSON
                 try:
                     msgobj = json.loads(message)
+                    # SPARKY_WEBRTC_RPC_RESPONSE_V13_8
+                    # Log robot-side RPC acceptance/rejection. Move(1008) can reply
+                    # at control rate, so successful Move replies are throttled.
+                    if msgobj.get("type") == "res":
+                        data = msgobj.get("data") or {}
+                        header = data.get("header") or {}
+                        identity = header.get("identity") or {}
+                        status = header.get("status") or {}
+                        api_id = identity.get("api_id")
+                        req_id = identity.get("id")
+                        code = status.get("code")
+                        status_msg = status.get("message", status.get("msg", ""))
+                        topic = msgobj.get("topic", "")
+                        now_mono = time.monotonic()
+                        key = (topic, api_id, code)
+                        last = float(self._rpc_response_last_log.get(key, -1e9))
+                        if code not in (0, None) or api_id != 1008 or now_mono - last >= 1.0:
+                            level = logger.error if code not in (0, None) else logger.info
+                            level(
+                                "WEBRTC_RPC_RESPONSE topic=%s api_id=%s id=%s code=%s message=%s",
+                                topic, api_id, req_id, code, status_msg
+                            )
+                            self._rpc_response_last_log[key] = now_mono
+                    elif msgobj.get("type") == "err":
+                        logger.error("WEBRTC_RPC_ERROR payload=%s", msgobj)
                     if msgobj.get("type") == "validation":
                         self.validate_robot_conn(msgobj)
                 except json.JSONDecodeError:

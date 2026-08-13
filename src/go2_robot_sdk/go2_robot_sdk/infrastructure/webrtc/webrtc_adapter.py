@@ -97,10 +97,16 @@ class WebRTCAdapter(IRobotDataReceiver, IRobotController):
                     loop = self._get_or_create_event_loop()
                     if loop and loop.is_running():
                         # Schedule the coroutine in the existing loop
-                        asyncio.run_coroutine_threadsafe(
+                        future = asyncio.run_coroutine_threadsafe(
                             self._async_send_command(connection, command),
                             loop
                         )
+                        def _send_done(fut):
+                            try:
+                                fut.result()
+                            except Exception as exc:
+                                logger.error("transport_send_failed robot=%s error=%r", robot_id, exc)
+                        future.add_done_callback(_send_done)
                     else:
                         # Fallback to synchronous send
                         connection.data_channel.send(command)
@@ -120,25 +126,33 @@ class WebRTCAdapter(IRobotDataReceiver, IRobotController):
             return self.main_loop
 
     async def _async_send_command(self, connection, command: str):
-        """Async wrapper for sending commands"""
+        """Async wrapper for sending commands with real transport-state logging."""
+        if not hasattr(connection, 'data_channel') or not connection.data_channel:
+            raise RuntimeError('no data channel')
+        state = connection.data_channel.readyState
+        if state != 'open':
+            raise RuntimeError(f'data channel not open: {state}')
+        connection.data_channel.send(command)
         try:
-            if hasattr(connection, 'data_channel') and connection.data_channel:
-                connection.data_channel.send(command)
-        except Exception as e:
-            logger.error(f"Error in async send command: {e}")
+            obj = json.loads(command)
+            topic = obj.get('topic', '')
+            api_id = obj.get('data', {}).get('header', {}).get('identity', {}).get('api_id')
+        except Exception:
+            topic = ''
+            api_id = None
+        # Do not spam every Move packet at INFO; first-class failures are logged
+        # above, while debug confirms actual data_channel.send execution.
+        logger.debug("transport_send_ok state=open topic=%s api_id=%s", topic, api_id)
 
     @staticmethod
     def _apply_axis_gain(value: float, gain: float, minimum: float, maximum: float) -> float:
-        """Convert ROS Twist-scale values into bounded Go2 sport command values."""
+        """SPARKY_EXPLORE_MOTION_COMPAT_V13_9: preserve explore_mode actuator mapping."""
         if value == 0.0:
             return 0.0
         sign = 1.0 if value > 0.0 else -1.0
         scaled = abs(value) * gain
-        # IMPORTANT: `minimum` is an actuator deadband, not a command floor.
-        # Never turn a tiny DWB correction into a larger physical kick. DWB is
-        # configured to sample at/above the same physical minimum when moving.
-        if minimum > 0.0 and scaled < minimum:
-            return 0.0
+        if minimum > 0.0:
+            scaled = max(scaled, minimum)
         if maximum > 0.0:
             scaled = min(scaled, maximum)
         return sign * scaled

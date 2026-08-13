@@ -100,7 +100,8 @@ class Go2DriverNode(Node):
                 ('enable_video', True),
                 ('decode_lidar', True),
                 ('publish_raw_voxel', False),
-                ('obstacle_avoidance', True),
+                # SPARKY_OBSTACLE_AVOIDANCE_DEFAULT_OFF_V13_6
+                ('obstacle_avoidance', False),
                 ('cmd_vel_linear_gain', 4.0),
                 ('cmd_vel_angular_gain', 0.8),
                 ('cmd_vel_min_linear_x', 0.22),
@@ -399,8 +400,9 @@ class Go2DriverNode(Node):
         self.joy_state = msg
 
     def _on_robot_validated(self, robot_id: str) -> None:
-        """Callback after robot validation"""
-        self.get_logger().info(f"Robot {robot_id} validated and ready")
+        """Callback after robot validation."""
+        self.get_logger().info(f"Robot {robot_id} validated; preparing normal Sport locomotion mode")
+        self.webrtc_adapter.prepare_locomotion_mode(robot_id)
 
     def _on_robot_data_received(self, msg: Dict[str, Any], robot_id: str) -> None:
         """Callback for receiving data from robot"""
