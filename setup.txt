@@ -1,0 +1,7 @@
+export SPARKY_WEB_TOKEN="0000"
+export ROBOT_IP=192.168.12.1
+ros2 launch go2_semantic_nav_agent semantic_nav_tour_world.launch.py   session_name:="$SESSION"   rviz2:=true   restore_spawn_on_start:=true   enable_object_perception:=true   enable_sam2:=true   enable_vlm_backup:=false   enable_agentic_voice:=true   enable_tour_host:=true   enable_tts:=true   enable_motion_skills:=true
+source /opt/ros/jazzy/setup.bash
+source scripts/sparky_ros_env.sh
+scripts/run_sparky_resume_agentic_tour.sh
+cloudflared tunnel --url http://127.0.0.1:8765
