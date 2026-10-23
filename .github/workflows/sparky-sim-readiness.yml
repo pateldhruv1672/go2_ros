@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [ci/sparky-gz-transport-check]
-    paths: ['.github/workflows/sparky-sim-readiness.yml', 'experiments/sparky/**']
+    paths: ['.github/workflows/sparky-sim-readiness.yml']
 permissions:
   contents: write
 jobs:
