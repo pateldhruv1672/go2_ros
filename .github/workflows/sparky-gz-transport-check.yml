@@ -1,6 +1,9 @@
 name: Sparky Gazebo transport check
 on:
   workflow_dispatch:
+  push:
+    branches: [ci/sparky-gz-transport-check]
+    paths: ['.github/workflows/sparky-gz-transport-check.yml']
 permissions:
   contents: read
 jobs:
