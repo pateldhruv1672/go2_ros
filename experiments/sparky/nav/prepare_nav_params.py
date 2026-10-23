@@ -50,7 +50,7 @@ CONTROLLERS = {
           'regulated_linear_scaling_min_radius': 0.6, 'regulated_linear_scaling_min_speed': 0.1,
           'use_fixed_curvature_lookahead': True, 'curvature_lookahead_dist': 0.6,
           'use_rotate_to_heading': True, 'rotate_to_heading_min_angle': 0.6, 'max_angular_accel': 1.0, 'allow_reversing': False},
-  'mppi': {'plugin': 'nav2_mppi_controller::MPPIController', 'time_steps': 56, 'model_dt': 0.05, 'batch_size': 2000,
+  'mppi': {'plugin': 'nav2_mppi_controller::MPPIController', 'time_steps': 28, 'model_dt': 0.1, 'batch_size': 2000,
            'ax_max': 0.45, 'ax_min': -0.6, 'ay_max': 0.0, 'az_max': 1.0, 'vx_std': 0.2, 'vy_std': 0.0, 'wz_std': 0.4,
            'vx_max': 0.3, 'vx_min': 0.0, 'vy_max': 0.0, 'wz_max': 0.6, 'iteration_count': 1, 'prune_distance': 1.7,
            'transform_tolerance': 0.1, 'temperature': 0.3, 'gamma': 0.015, 'motion_model': 'DiffDrive', 'visualize': False,
