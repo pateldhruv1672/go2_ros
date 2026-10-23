@@ -1,0 +1,75 @@
+name: Sparky grid rerun RPP cells
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci/sparky-gz-transport-check]
+    paths: ['.github/workflows/sparky-nav-grid-rpp.yml']
+permissions:
+  contents: write
+env:
+  REPEATS: "3"
+jobs:
+  nav:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {planner: navfn, controller: rpp}
+          - {planner: smac2d, controller: rpp}
+          - {planner: smac2d, controller: rpp_retuned}
+          - {planner: smac2d_smoothed, controller: rpp}
+    env:
+      DELAYS: '0'
+      PLANNER: ${{ matrix.planner }}
+      CONTROLLER: ${{ matrix.controller }}
+      RESULT_BRANCH: ci-evidence/gridfix-${{ matrix.planner }}-${{ matrix.controller }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Gazebo Harmonic, ROS Jazzy, Nav2
+        timeout-minutes: 25
+        shell: bash
+        run: |
+          set -eo pipefail
+          mkdir -p evidence
+          sudo curl -fsSL https://packages.osrfoundation.org/gazebo.gpg -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable noble main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list
+          bash experiments/sparky/install_dependencies.sh > evidence/install.log 2>&1 || { tail -40 evidence/install.log; exit 1; }
+          sudo apt-get install -y ros-jazzy-pointcloud-to-laserscan ros-jazzy-rosbag2-storage-mcap ros-jazzy-nav2-simple-commander xvfb python3-pandas
+          dpkg-query -W -f='${Package}\t${Version}\n' 'ros-jazzy-nav2-*' 'ros-jazzy-rosbag2-storage-mcap' 'gz-sim8' 'libgz-sim8' > evidence/package-versions.tsv || true
+      - name: Prepare and build simulator
+        shell: bash
+        run: |
+          set -eo pipefail
+          git clone https://github.com/khaledgabr77/unitree_go2_ros2.git simulator-source
+          git -C simulator-source checkout --detach 55ff151632a0220bf3ae0c0772392615d86da7a8
+          git clone --branch teach_repair https://github.com/pateldhruv1672/go2_ros.git sparky-source
+          git -C sparky-source checkout --detach ca39e50ba126a142f8ae7d806f8006ceea1f733a
+          python3 experiments/sparky/export_config.py sparky-source --out evidence/configs
+          python3 experiments/sparky/prepare_simulator.py simulator-source "$PWD/sim_ws" --patch-out evidence/simulator-adapter.patch
+          bash experiments/sparky/build_simulator.sh "$PWD/sim_ws" > evidence/build.log 2>&1 || { tail -40 evidence/build.log; exit 1; }
+      - name: Run arms
+        shell: bash
+        run: |
+          set +e
+          export NAV_CFG="$PWD/evidence/configs/navfn_dwb_sim_candidate.yaml"
+          for d in $DELAYS; do for r in $(seq 1 $REPEATS); do
+            echo "=== arm delay=${d}ms rep=$r ==="
+            timeout 700 bash experiments/sparky/nav/run_arm.sh "$PWD/sim_ws" "$PWD/experiments/sparky" "$d" "$PWD/evidence/arms/${PLANNER}_${CONTROLLER}/rep$r" "$r"
+            cat "evidence/arms/${PLANNER}_${CONTROLLER}/rep$r/run_goal.exit" 2>/dev/null
+            tail -5 "evidence/arms/${PLANNER}_${CONTROLLER}/rep$r/run_goal.log" 2>/dev/null
+          done; done
+          exit 0
+      - name: Publish evidence to results branch
+        if: always()
+        shell: bash
+        run: |
+          set -e
+          tail -c 100000 evidence/build.log > evidence/build.tail.log || true; rm -f evidence/build.log evidence/install.log
+          find evidence -name '*.log' -size +3M -exec sh -c 'tail -c 2000000 "$1" > "$1.tail" && mv "$1.tail" "$1"' _ {} \;
+          du -sh evidence
+          d=$(mktemp -d); cp -r evidence "$d/"; cd "$d"
+          git init -q; git checkout -q -b results; git add -A
+          git -c user.name=ci -c user.email=ci@example.com commit -qm "nav evidence run ${{ github.run_id }} delays=$DELAYS"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" results:refs/heads/$RESULT_BRANCH
