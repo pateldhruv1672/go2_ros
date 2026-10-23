@@ -1,0 +1,36 @@
+Node not found
+String value is: dwb_core::DWBLocalPlanner
+String value is: nav2_navfn_planner::NavfnPlanner
+Parameter not set
+/amcl
+/base_to_footprint_ekf
+/behavior_server
+/bt_navigator
+/bt_navigator_navigate_through_poses_rclcpp_node
+/bt_navigator_navigate_to_pose_rclcpp_node
+/controller_manager
+/controller_server
+/foot_contacts_bridge
+/footprint_to_odom_ekf
+/gazebo_bridge
+/global_costmap/global_costmap
+/gz_ros_control
+/joint_group_effort_controller
+/joint_states_controller
+/lifecycle_manager_localization
+/lifecycle_manager_navigation
+/local_costmap/local_costmap
+/map_server
+/pc2scan
+/planner_server
+/quadruped_controller_node
+/robot_state_publisher
+/rosbag2_recorder
+/state_estimation_node
+/tf_delay_relay
+/transform_listener_impl_5581825ff520
+/transform_listener_impl_55e556433a20
+/transform_listener_impl_5607cbdb0c40
+/transform_listener_impl_5625f3097680
+/transform_listener_impl_563aea849b50
+/velodyne_bridge
