@@ -1,0 +1,37 @@
+String value is: nav2_mppi_controller::MPPIController
+String value is: nav2_smac_planner::SmacPlanner2D
+PLANNER=smac2d_smoothed CONTROLLER=mppi
+Parameter not set
+/amcl
+/base_to_footprint_ekf
+/behavior_server
+/bt_navigator
+/bt_navigator_navigate_through_poses_rclcpp_node
+/bt_navigator_navigate_to_pose_rclcpp_node
+/controller_manager
+/controller_server
+/foot_contacts_bridge
+/footprint_to_odom_ekf
+/gazebo_bridge
+/global_costmap/global_costmap
+/gz_ros_control
+/joint_group_effort_controller
+/joint_states_controller
+/lifecycle_manager_localization
+/lifecycle_manager_navigation
+/local_costmap/local_costmap
+/map_server
+/pc2scan
+/planner_server
+/quadruped_controller_node
+/robot_state_publisher
+/rosbag2_recorder
+/smoother_server
+/state_estimation_node
+/tf_delay_relay
+/transform_listener_impl_55613234a520
+/transform_listener_impl_5577327ab630
+/transform_listener_impl_557ccf547f40
+/transform_listener_impl_55a0cb9b6570
+/transform_listener_impl_55a1cef111b0
+/velodyne_bridge
