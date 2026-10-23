@@ -1,0 +1,94 @@
+{
+ "scenario": {
+  "name": "arena_box_avoid",
+  "start": {
+   "x": 0.0,
+   "y": 0.0,
+   "yaw": 0.0
+  },
+  "goal": {
+   "x": 5.0,
+   "y": 0.0,
+   "yaw": 0.0
+  },
+  "map": {
+   "resolution": 0.05,
+   "origin_x": -2.5,
+   "origin_y": -3.5,
+   "width_m": 10.0,
+   "height_m": 7.0
+  },
+  "rects": [
+   {
+    "name": "wall_n",
+    "cx": 2.5,
+    "cy": 3.1,
+    "sx": 8.4,
+    "sy": 0.2
+   },
+   {
+    "name": "wall_s",
+    "cx": 2.5,
+    "cy": -3.1,
+    "sx": 8.4,
+    "sy": 0.2
+   },
+   {
+    "name": "wall_w",
+    "cx": -1.6,
+    "cy": 0.0,
+    "sx": 0.2,
+    "sy": 6.4
+   },
+   {
+    "name": "wall_e",
+    "cx": 6.6,
+    "cy": 0.0,
+    "sx": 0.2,
+    "sy": 6.4
+   },
+   {
+    "name": "box_mid",
+    "cx": 2.5,
+    "cy": 0.0,
+    "sx": 0.6,
+    "sy": 0.6
+   }
+  ],
+  "note": "Mapped static obstacle. World SDF and occupancy map are generated from this one rect list."
+ },
+ "gates": {
+  "clock_advancing": {
+   "ok": true,
+   "sim_time": 5.001
+  },
+  "scan_flowing": {
+   "ok": true,
+   "count": 50
+  },
+  "active_lifecycle_manager_localization": {
+   "ok": true
+  },
+  "active_lifecycle_manager_navigation": {
+   "ok": true
+  },
+  "amcl_pose": {
+   "ok": true,
+   "count": 1
+  },
+  "tf_map_base": {
+   "ok": true
+  },
+  "action_server": {
+   "ok": true
+  },
+  "goal_accepted": {
+   "ok": true
+  }
+ },
+ "goal_sent_sim_time": 10.708,
+ "action_status": 4,
+ "error_code": 0,
+ "goal_end_sim_time": 73.597,
+ "status": "GOAL_SUCCEEDED"
+}
