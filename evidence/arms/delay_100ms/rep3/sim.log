@@ -1,0 +1,246 @@
+[INFO] [launch]: All log files can be found below /home/runner/.ros/log/2026-10-23-05-43-32-863843-runnervm8k3b6-28785
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [gazebo-1]: process started with pid [29008]
+[INFO] [robot_state_publisher-2]: process started with pid [29009]
+[INFO] [create-3]: process started with pid [29010]
+[INFO] [parameter_bridge-4]: process started with pid [29012]
+[INFO] [parameter_bridge-5]: process started with pid [29013]
+[INFO] [quadruped_controller_node-6]: process started with pid [29014]
+[INFO] [foot_contacts_bridge-7]: process started with pid [29015]
+[INFO] [state_estimation_node-8]: process started with pid [29016]
+[INFO] [ekf_node-9]: process started with pid [29017]
+[INFO] [ekf_node-10]: process started with pid [29018]
+[robot_state_publisher-2] [WARN] [1792734214.730939609] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[robot_state_publisher-2] [WARN] [1792734214.732108599] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[state_estimation_node-8] [WARN] [1792734214.777563790] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[state_estimation_node-8] [WARN] [1792734214.777590329] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[quadruped_controller_node-6] [WARN] [1792734214.778859929] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[quadruped_controller_node-6] [WARN] [1792734214.778873213] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[foot_contacts_bridge-7] [WARN] [1792734214.781871233] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[foot_contacts_bridge-7] [WARN] [1792734214.781889457] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[ekf_node-10] [WARN] [1792734214.832218247] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[ekf_node-10] [WARN] [1792734214.832241610] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[ekf_node-9] [WARN] [1792734214.841338612] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[ekf_node-9] [WARN] [1792734214.841359341] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[robot_state_publisher-2] [INFO] [1792734214.843870180] [robot_state_publisher]: Robot initialized
+[create-3] [WARN] [1792734214.851764357] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[create-3] [WARN] [1792734214.851791297] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[parameter_bridge-5] [WARN] [1792734214.878815489] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[parameter_bridge-5] [WARN] [1792734214.878837681] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[parameter_bridge-4] [WARN] [1792734214.907345910] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[parameter_bridge-4] [WARN] [1792734214.907370225] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[create-3] [INFO] [1792734215.816846983] [ros_gz_sim]: Requesting list of world names.
+[quadruped_controller_node-6] [INFO] [1792734215.854029564] [rclcpp]: Successfully parsed urdf file
+[parameter_bridge-5] [INFO] [1792734215.866981703] [velodyne_bridge]: Creating GZ->ROS Bridge: [/velodyne_points/points (gz.msgs.PointCloudPacked) -> /velodyne_points/points (sensor_msgs/msg/PointCloud2)] (Lazy 0)
+[state_estimation_node-8] [INFO] [1792734215.879704040] [rclcpp]: Successfully parsed urdf file
+[parameter_bridge-5] [INFO] [1792734215.889677524] [velodyne_bridge]: Creating ROS->GZ Bridge: [/velodyne_points/points (sensor_msgs/msg/PointCloud2) -> /velodyne_points/points (gz.msgs.PointCloudPacked)] (Lazy 0)
+[parameter_bridge-4] [INFO] [1792734215.895163148] [gazebo_bridge]: Creating GZ->ROS Bridge: [/clock (gz.msgs.Clock) -> /clock (rosgraph_msgs/msg/Clock)] (Lazy 0)
+[parameter_bridge-4] [INFO] [1792734215.902278213] [gazebo_bridge]: Creating GZ->ROS Bridge: [/imu/data (gz.msgs.IMU) -> /imu/data (sensor_msgs/msg/Imu)] (Lazy 0)
+[ekf_node-10] [INFO] [1792734215.905891995] [footprint_to_odom_ekf]: Waiting for clock to start...
+[parameter_bridge-4] [INFO] [1792734215.916814904] [gazebo_bridge]: Creating GZ->ROS Bridge: [/gps/fix (gz.msgs.NavSat) -> /gps/fix (sensor_msgs/msg/NavSatFix)] (Lazy 0)
+[parameter_bridge-4] [INFO] [1792734215.918205477] [gazebo_bridge]: Creating GZ->ROS Bridge: [/odom/ground_truth (gz.msgs.Odometry) -> /odom/ground_truth (nav_msgs/msg/Odometry)] (Lazy 0)
+[parameter_bridge-4] [INFO] [1792734215.931811432] [gazebo_bridge]: Creating GZ->ROS Bridge: [/lf_foot_contacts (gz.msgs.Contacts) -> /lf_foot_contacts (ros_gz_interfaces/msg/Contacts)] (Lazy 0)
+[parameter_bridge-4] [INFO] [1792734215.942247574] [gazebo_bridge]: Creating GZ->ROS Bridge: [/rf_foot_contacts (gz.msgs.Contacts) -> /rf_foot_contacts (ros_gz_interfaces/msg/Contacts)] (Lazy 0)
+[parameter_bridge-4] [INFO] [1792734215.947633124] [gazebo_bridge]: Creating GZ->ROS Bridge: [/lh_foot_contacts (gz.msgs.Contacts) -> /lh_foot_contacts (ros_gz_interfaces/msg/Contacts)] (Lazy 0)
+[parameter_bridge-4] [INFO] [1792734215.956133472] [gazebo_bridge]: Creating GZ->ROS Bridge: [/rh_foot_contacts (gz.msgs.Contacts) -> /rh_foot_contacts (ros_gz_interfaces/msg/Contacts)] (Lazy 0)
+[create-3] [INFO] [1792734216.027092759] [ros_gz_sim]: Waiting messages on topic [robot_description].
+[create-3] [INFO] [1792734216.039597103] [ros_gz_sim]: Entity creation successful.
+[INFO] [create-3]: process has finished cleanly [pid 29010]
+[ekf_node-9] [INFO] [1792734216.231337269] [base_to_footprint_ekf]: Waiting for clock to start...
+[gazebo-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="go2"]/link[@name="base_link"]/sensor[@name="navsat_sensor"]/gz_frame_id:<urdf-string>:L0]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[gazebo-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="go2"]/link[@name="base_link"]/sensor[@name="imu_sensor"]/gz_frame_id:<urdf-string>:L0]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[gazebo-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="go2"]/link[@name="base_link"]/sensor[@name="velodyne-VLP16"]/gz_frame_id:<urdf-string>:L0]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[gazebo-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="go2"]/link[@name="base_link"]/sensor[@name="velodyne-VLP16"]/lidar/frame_id:<urdf-string>:L0]: XML Element[frame_id], child of element[lidar], not defined in SDF. Copying[frame_id] as children of [lidar].
+[gazebo-1] [WARN] [1792734217.391132727] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[gazebo-1] [WARN] [1792734217.391169886] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[gazebo-1] [INFO] [1792734217.443171233] [gz_ros_control]: [gz_ros2_control] Fixed joint ['lf_foot_joint'] (Entity='101') is skipped.
+[gazebo-1] [INFO] [1792734217.443341881] [gz_ros_control]: [gz_ros2_control] Fixed joint ['lh_foot_joint'] (Entity='105') is skipped.
+[gazebo-1] [INFO] [1792734217.443362429] [gz_ros_control]: [gz_ros2_control] Fixed joint ['rf_foot_joint'] (Entity='109') is skipped.
+[gazebo-1] [INFO] [1792734217.443374632] [gz_ros_control]: [gz_ros2_control] Fixed joint ['rh_foot_joint'] (Entity='113') is skipped.
+[gazebo-1] [INFO] [1792734217.445056087] [gz_ros_control]: Loading controller_manager
+[gazebo-1] [INFO] [1792734217.479210109] [controller_manager]: Using ROS clock for triggering controller manager cycles.
+[gazebo-1] [WARN] [1792734217.479868116] [controller_manager]: The resource manager is not yet initialized, will wait for the robot description to initialize it..
+[gazebo-1] [INFO] [1792734217.493143047] [controller_manager]: Subscribing to '/robot_description' topic for robot description.
+[gazebo-1] [WARN] [1792734217.493218518] [gz_ros_control]: Waiting RM to load and initialize hardware...
+[gazebo-1] [INFO] [1792734217.631611348] [controller_manager]: Received robot description from topic.
+[gazebo-1] [INFO] [1792734217.631725861] [controller_manager]: Enforcing command limits is disabled. Command limits from URDF will be ignored.
+[gazebo-1] [INFO] [1792734217.645405850] [gz_ros_control]: The position_proportional_gain has been set to: 0.1
+[gazebo-1] [INFO] [1792734217.645514632] [gz_ros_control]: Loading joint: rf_hip_joint
+[gazebo-1] [INFO] [1792734217.645533888] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1792734217.645546762] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1792734217.645570487] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1792734217.645585044] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1792734217.645593129] [gz_ros_control]: 		 effort
+[gazebo-1] [INFO] [1792734217.645616132] [gz_ros_control]: Loading joint: rf_upper_leg_joint
+[gazebo-1] [INFO] [1792734217.645625900] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1792734217.645638223] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1792734217.645646328] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1792734217.645654584] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1792734217.645661897] [gz_ros_control]: 		 effort
+[gazebo-1] [INFO] [1792734217.645701832] [gz_ros_control]: Loading joint: rf_lower_leg_joint
+[gazebo-1] [INFO] [1792734217.645714595] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1792734217.645721999] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1792734217.645729824] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1792734217.645736987] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1792734217.645743339] [gz_ros_control]: 		 effort
+[gazebo-1] [INFO] [1792734217.645829530] [gz_ros_control]: Loading sensor: imu_sensor
+[gazebo-1] [INFO] [1792734217.645846531] [gz_ros_control]: 	State:
+[gazebo-1] [WARN] [1792734217.645855077] [gz_ros_control]: IMU sensor 'imu_sensor' not found in hardware_info, skipping.
+[gazebo-1] [INFO] [1792734217.645985931] [controller_manager]: Initialize hardware 'rf' 
+[gazebo-1] [WARN] [1792734217.646017650] [controller_manager.hardware_component.system.rf]: Executor is not available during hardware component initialization for 'rf'. Skipping node creation!
+[gazebo-1] [INFO] [1792734217.646251516] [controller_manager]: Successful initialization of hardware 'rf'
+[gazebo-1] [INFO] [1792734217.646458111] [gz_ros_control]: The position_proportional_gain has been set to: 0.1
+[gazebo-1] [INFO] [1792734217.646494640] [gz_ros_control]: Loading joint: lf_hip_joint
+[gazebo-1] [INFO] [1792734217.646506622] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1792734217.646514567] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1792734217.646522872] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1792734217.646531559] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1792734217.646539093] [gz_ros_control]: 		 effort
+[gazebo-1] [INFO] [1792734217.646559130] [gz_ros_control]: Loading joint: lf_upper_leg_joint
+[gazebo-1] [INFO] [1792734217.646568577] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1792734217.646576282] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1792734217.646584627] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1792734217.646592302] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1792734217.646598684] [gz_ros_control]: 		 effort
+[gazebo-1] [INFO] [1792734217.646615224] [gz_ros_control]: Loading joint: lf_lower_leg_joint
+[gazebo-1] [INFO] [1792734217.646622919] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1792734217.646629351] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1792734217.646662022] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1792734217.646671169] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1792734217.646677651] [gz_ros_control]: 		 effort
+[gazebo-1] [INFO] [1792734217.646697628] [gz_ros_control]: Loading sensor: imu_sensor
+[gazebo-1] [INFO] [1792734217.646707056] [gz_ros_control]: 	State:
+[gazebo-1] [WARN] [1792734217.646721843] [gz_ros_control]: IMU sensor 'imu_sensor' not found in hardware_info, skipping.
+[gazebo-1] [INFO] [1792734217.646750316] [controller_manager]: Initialize hardware 'lf' 
+[gazebo-1] [WARN] [1792734217.646763902] [controller_manager.hardware_component.system.lf]: Executor is not available during hardware component initialization for 'lf'. Skipping node creation!
+[gazebo-1] [INFO] [1792734217.646790992] [controller_manager]: Successful initialization of hardware 'lf'
+[gazebo-1] [INFO] [1792734217.646877864] [gz_ros_control]: The position_proportional_gain has been set to: 0.1
+[gazebo-1] [INFO] [1792734217.647122110] [gz_ros_control]: Loading joint: rh_hip_joint
+[gazebo-1] [INFO] [1792734217.647133631] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1792734217.647141015] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1792734217.647148689] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1792734217.647156664] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1792734217.647164088] [gz_ros_control]: 		 effort
+[gazebo-1] [INFO] [1792734217.647183634] [gz_ros_control]: Loading joint: rh_upper_leg_joint
+[gazebo-1] [INFO] [1792734217.647193322] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1792734217.647201147] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1792734217.647209382] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1792734217.647217117] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1792734217.647224300] [gz_ros_control]: 		 effort
+[gazebo-1] [INFO] [1792734217.647243476] [gz_ros_control]: Loading joint: rh_lower_leg_joint
+[gazebo-1] [INFO] [1792734217.647254006] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1792734217.647262091] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1792734217.647270637] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1792734217.647277950] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1792734217.647313667] [gz_ros_control]: 		 effort
+[gazebo-1] [INFO] [1792734217.647331760] [gz_ros_control]: Loading sensor: imu_sensor
+[gazebo-1] [INFO] [1792734217.647340988] [gz_ros_control]: 	State:
+[gazebo-1] [WARN] [1792734217.647348672] [gz_ros_control]: IMU sensor 'imu_sensor' not found in hardware_info, skipping.
+[gazebo-1] [INFO] [1792734217.647374801] [controller_manager]: Initialize hardware 'rh' 
+[gazebo-1] [WARN] [1792734217.647388997] [controller_manager.hardware_component.system.rh]: Executor is not available during hardware component initialization for 'rh'. Skipping node creation!
+[gazebo-1] [INFO] [1792734217.647415887] [controller_manager]: Successful initialization of hardware 'rh'
+[gazebo-1] [INFO] [1792734217.647515694] [gz_ros_control]: The position_proportional_gain has been set to: 0.1
+[gazebo-1] [INFO] [1792734217.647545970] [gz_ros_control]: Loading joint: lh_hip_joint
+[gazebo-1] [INFO] [1792734217.647556991] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1792734217.647564755] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1792734217.647572810] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1792734217.647581116] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1792734217.647588149] [gz_ros_control]: 		 effort
+[gazebo-1] [INFO] [1792734217.647607064] [gz_ros_control]: Loading joint: lh_upper_leg_joint
+[gazebo-1] [INFO] [1792734217.647617163] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1792734217.647624867] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1792734217.647632872] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1792734217.647640396] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1792734217.647647399] [gz_ros_control]: 		 effort
+[gazebo-1] [INFO] [1792734217.647666805] [gz_ros_control]: Loading joint: lh_lower_leg_joint
+[gazebo-1] [INFO] [1792734217.647676654] [gz_ros_control]: 	State:
+[gazebo-1] [INFO] [1792734217.647684358] [gz_ros_control]: 		 position
+[gazebo-1] [INFO] [1792734217.647692934] [gz_ros_control]: 		 velocity
+[gazebo-1] [INFO] [1792734217.647701159] [gz_ros_control]: 	Command:
+[gazebo-1] [INFO] [1792734217.647708162] [gz_ros_control]: 		 effort
+[gazebo-1] [INFO] [1792734217.647722529] [gz_ros_control]: Loading sensor: imu_sensor
+[gazebo-1] [INFO] [1792734217.647731786] [gz_ros_control]: 	State:
+[gazebo-1] [WARN] [1792734217.647739441] [gz_ros_control]: IMU sensor 'imu_sensor' not found in hardware_info, skipping.
+[gazebo-1] [INFO] [1792734217.647788111] [controller_manager]: Initialize hardware 'lh' 
+[gazebo-1] [WARN] [1792734217.647818849] [controller_manager.hardware_component.system.lh]: Executor is not available during hardware component initialization for 'lh'. Skipping node creation!
+[gazebo-1] [INFO] [1792734217.647847642] [controller_manager]: Successful initialization of hardware 'lh'
+[gazebo-1] [INFO] [1792734217.647951546] [controller_manager]: Activating component 'rh'.
+[gazebo-1] [INFO] [1792734217.647974679] [resource_manager]: 'configure' hardware 'rh' 
+[gazebo-1] [INFO] [1792734217.647983947] [gz_ros_control]: System Successfully configured!
+[gazebo-1] [INFO] [1792734217.647993935] [resource_manager]: Successful 'configure' of hardware 'rh'
+[gazebo-1] [INFO] [1792734217.648006769] [resource_manager]: 'activate' hardware 'rh' 
+[gazebo-1] [INFO] [1792734217.648031305] [resource_manager]: Successful 'activate' of hardware 'rh'
+[gazebo-1] [INFO] [1792734217.648210669] [controller_manager]: Activating component 'lf'.
+[gazebo-1] [INFO] [1792734217.648228743] [resource_manager]: 'configure' hardware 'lf' 
+[gazebo-1] [INFO] [1792734217.648233853] [gz_ros_control]: System Successfully configured!
+[gazebo-1] [INFO] [1792734217.648242679] [resource_manager]: Successful 'configure' of hardware 'lf'
+[gazebo-1] [INFO] [1792734217.648249061] [resource_manager]: 'activate' hardware 'lf' 
+[gazebo-1] [INFO] [1792734217.648255543] [resource_manager]: Successful 'activate' of hardware 'lf'
+[gazebo-1] [INFO] [1792734217.648348406] [controller_manager]: Activating component 'lh'.
+[gazebo-1] [INFO] [1792734217.648363474] [resource_manager]: 'configure' hardware 'lh' 
+[gazebo-1] [INFO] [1792734217.648368724] [gz_ros_control]: System Successfully configured!
+[gazebo-1] [INFO] [1792734217.648377060] [resource_manager]: Successful 'configure' of hardware 'lh'
+[gazebo-1] [INFO] [1792734217.648406154] [resource_manager]: 'activate' hardware 'lh' 
+[gazebo-1] [INFO] [1792734217.648413848] [resource_manager]: Successful 'activate' of hardware 'lh'
+[gazebo-1] [INFO] [1792734217.648435048] [controller_manager]: Activating component 'rf'.
+[gazebo-1] [INFO] [1792734217.648445086] [resource_manager]: 'configure' hardware 'rf' 
+[gazebo-1] [INFO] [1792734217.648449555] [gz_ros_control]: System Successfully configured!
+[gazebo-1] [INFO] [1792734217.648457329] [resource_manager]: Successful 'configure' of hardware 'rf'
+[gazebo-1] [INFO] [1792734217.648463942] [resource_manager]: 'activate' hardware 'rf' 
+[gazebo-1] [INFO] [1792734217.648469882] [resource_manager]: Successful 'activate' of hardware 'rf'
+[gazebo-1] [WARN] [1792734217.648492084] [controller_manager]: Component 'rh' does not have read or write statistics initialized, skipping registration.
+[gazebo-1] [WARN] [1792734217.648503004] [controller_manager]: Component 'lf' does not have read or write statistics initialized, skipping registration.
+[gazebo-1] [WARN] [1792734217.648510839] [controller_manager]: Component 'lh' does not have read or write statistics initialized, skipping registration.
+[gazebo-1] [WARN] [1792734217.648518333] [controller_manager]: Component 'rf' does not have read or write statistics initialized, skipping registration.
+[gazebo-1] [INFO] [1792734217.648530466] [controller_manager]: Resource Manager has been successfully initialized. Starting Controller Manager services...
+[gazebo-1] [WARN] [1792734219.552035364] [gz_ros_control]:  Desired controller update period (0.004 s) is slower than the gazebo simulation period (0.001 s).
+[INFO] [spawner-11]: process started with pid [29231]
+[spawner-11] [WARN] [1792734235.706662178] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[spawner-11] [WARN] [1792734235.706677758] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[gazebo-1] [INFO] [1792734235.991061561] [controller_manager]: Loading controller : 'joint_states_controller' of type 'joint_state_broadcaster/JointStateBroadcaster'
+[gazebo-1] [INFO] [1792734235.991892370] [controller_manager]: Loading controller 'joint_states_controller'
+[gazebo-1] [INFO] [1792734236.021262296] [controller_manager]: Controller 'joint_states_controller' node arguments: --ros-args --params-file /home/runner/work/go2_ros/go2_ros/sim_ws/install/unitree_go2_sim/share/unitree_go2_sim/config/ros_control/ros_control.yaml -p use_sim_time:=true --param use_sim_time:=true 
+[spawner-11] [INFO] [1792734236.235520267] [spawner_joint_states_controller]: Loaded joint_states_controller
+[gazebo-1] [INFO] [1792734236.240740437] [controller_manager]: Configuring controller: 'joint_states_controller'
+[gazebo-1] [INFO] [1792734236.241075141] [joint_states_controller]: 'joints' or 'interfaces' parameter is empty. All available state interfaces will be published
+[gazebo-1] [INFO] [1792734236.314859852] [controller_manager]: Activating controllers: [ joint_states_controller ]
+[gazebo-1] [INFO] [1792734236.319528927] [controller_manager]: Successfully switched controllers!
+[spawner-11] [INFO] [1792734236.330012391] [spawner_joint_states_controller]: Configured and activated joint_states_controller
+[INFO] [spawner-11]: process has finished cleanly [pid 29231]
+[INFO] [bash-12]: process started with pid [29253]
+[bash-12] Checking controller status:
+[bash-12] usage: ros2 [-h] [--use-python-default-buffering]
+[bash-12]             Call `ros2 <command> -h` for more detailed usage. ...
+[bash-12] ros2: error: argument Call `ros2 <command> -h` for more detailed usage.: invalid choice: 'control' (choose from 'action', 'bag', 'component', 'daemon', 'doctor', 'extension_points', 'extensions', 'interface', 'launch', 'lifecycle', 'multicast', 'node', 'param', 'pkg', 'plugin', 'run', 'security', 'service', 'topic', 'wtf')
+[ERROR] [bash-12]: process has died [pid 29253, exit code 2, cmd 'bash -c echo 'Checking controller status:' && ros2 control list_controllers'].
+[INFO] [spawner-13]: process started with pid [29256]
+[spawner-13] [WARN] [1792734245.872198446] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[spawner-13] [WARN] [1792734245.872217170] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[spawner-13] [INFO] [1792734246.148404088] [spawner_joint_group_effort_controller]: waiting for service /controller_manager/list_controllers to become available...
+[gazebo-1] [INFO] [1792734248.198023729] [controller_manager]: Loading controller : 'joint_group_effort_controller' of type 'joint_trajectory_controller/JointTrajectoryController'
+[gazebo-1] [INFO] [1792734248.198078612] [controller_manager]: Loading controller 'joint_group_effort_controller'
+[gazebo-1] [INFO] [1792734248.216728859] [controller_manager]: Controller 'joint_group_effort_controller' node arguments: --ros-args --params-file /home/runner/work/go2_ros/go2_ros/sim_ws/install/unitree_go2_sim/share/unitree_go2_sim/config/ros_control/ros_control.yaml -p use_sim_time:=true --param use_sim_time:=true 
+[spawner-13] [INFO] [1792734248.475090897] [spawner_joint_group_effort_controller]: Loaded joint_group_effort_controller
+[gazebo-1] [INFO] [1792734248.492114371] [controller_manager]: Configuring controller: 'joint_group_effort_controller'
+[gazebo-1] [INFO] [1792734248.493745933] [joint_group_effort_controller]: No specific joint names are used for command interfaces. Using 'joints' parameter.
+[gazebo-1] Using the legacy anti-windup technique is deprecated. This option will be removed by the ROS 2 Kilted Kaiju release.
+[gazebo-1] Using the legacy anti-windup technique is deprecated. This option will be removed by the ROS 2 Kilted Kaiju release.
+[gazebo-1] Using the legacy anti-windup technique is deprecated. This option will be removed by the ROS 2 Kilted Kaiju release.
+[gazebo-1] Using the legacy anti-windup technique is deprecated. This option will be removed by the ROS 2 Kilted Kaiju release.
+[gazebo-1] Using the legacy anti-windup technique is deprecated. This option will be removed by the ROS 2 Kilted Kaiju release.
+[gazebo-1] Using the legacy anti-windup technique is deprecated. This option will be removed by the ROS 2 Kilted Kaiju release.
+[gazebo-1] Using the legacy anti-windup technique is deprecated. This option will be removed by the ROS 2 Kilted Kaiju release.
+[gazebo-1] Using the legacy anti-windup technique is deprecated. This option will be removed by the ROS 2 Kilted Kaiju release.
+[gazebo-1] Using the legacy anti-windup technique is deprecated. This option will be removed by the ROS 2 Kilted Kaiju release.
+[gazebo-1] Using the legacy anti-windup technique is deprecated. This option will be removed by the ROS 2 Kilted Kaiju release.
+[gazebo-1] Using the legacy anti-windup technique is deprecated. This option will be removed by the ROS 2 Kilted Kaiju release.
+[gazebo-1] Using the legacy anti-windup technique is deprecated. This option will be removed by the ROS 2 Kilted Kaiju release.
+[gazebo-1] [INFO] [1792734248.495129293] [joint_group_effort_controller]: Command interfaces are [effort] and state interfaces are [position velocity].
+[gazebo-1] [INFO] [1792734248.496074987] [joint_group_effort_controller]: Using 'splines' interpolation method.
+[gazebo-1] [INFO] [1792734248.524053031] [joint_group_effort_controller]: Goals with partial set of joints are allowed
+[gazebo-1] [INFO] [1792734248.524089189] [joint_group_effort_controller]: Action status changes will be monitored at 20.00 Hz.
+[gazebo-1] [INFO] [1792734248.571517783] [joint_group_effort_controller]: No scaling interface set. This controller will not read speed scaling from the hardware.
+[gazebo-1] [INFO] [1792734248.591216651] [controller_manager]: Activating controllers: [ joint_group_effort_controller ]
+[gazebo-1] [INFO] [1792734248.600757974] [controller_manager]: Successfully switched controllers!
+[spawner-13] [INFO] [1792734248.611282681] [spawner_joint_group_effort_controller]: Configured and activated joint_group_effort_controller
+[INFO] [spawner-13]: process has finished cleanly [pid 29256]
