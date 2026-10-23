@@ -1,0 +1,40 @@
+controller_server FollowPath.plugin:
+[WARN] [1792733632.912965048] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1792733632.912995055] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+Node not found
+planner_server GridBased.plugin:
+[WARN] [1792733635.972404210] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1792733635.972455757] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+String value is: nav2_navfn_planner::NavfnPlanner
+/amcl
+/base_to_footprint_ekf
+/behavior_server
+/bt_navigator
+/bt_navigator_navigate_through_poses_rclcpp_node
+/bt_navigator_navigate_to_pose_rclcpp_node
+/controller_manager
+/controller_server
+/foot_contacts_bridge
+/footprint_to_odom_ekf
+/gazebo_bridge
+/global_costmap/global_costmap
+/gz_ros_control
+/joint_group_effort_controller
+/joint_states_controller
+/lifecycle_manager_localization
+/lifecycle_manager_navigation
+/local_costmap/local_costmap
+/map_server
+/pc2scan
+/planner_server
+/quadruped_controller_node
+/robot_state_publisher
+/rosbag2_recorder
+/state_estimation_node
+/tf_delay_relay
+/transform_listener_impl_562956b31540
+/transform_listener_impl_564b18c23ba0
+/transform_listener_impl_564bd1a93cf0
+/transform_listener_impl_564edf290c20
+/transform_listener_impl_564f5865e820
+/velodyne_bridge

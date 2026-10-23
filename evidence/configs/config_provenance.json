@@ -1,0 +1,23 @@
+{
+  "status": "CONFIGURATION_EXPORT_ONLY_NOT_A_NAVIGATION_RUN",
+  "repository": "https://github.com/pateldhruv1672/go2_ros",
+  "source_commit": "ca39e50ba126a142f8ae7d806f8006ceea1f733a",
+  "function": "src/go2_semantic_nav_agent/launch/semantic_nav_resume.launch.py:_build_semantic_nav2_params",
+  "source_sha256": {
+    "src/go2_semantic_nav_agent/launch/semantic_nav_resume.launch.py": "03dd4c0fdd2e968e2038e9e235d9170549feefd53568e3e21e726aa9da9fa5af",
+    "src/go2_robot_sdk/config/nav2_params.yaml": "8e871045953e7eee3af487caee5ad06e84d9465259134f669d25953afb043142",
+    "src/go2_semantic_nav_agent/config/amcl_params.yaml": "94074d3a5b099c1082a312b44f942f1141376d168fa69df46d6b1c2db9ac89f4"
+  },
+  "environment": "GO2_* cleared for export; source defaults used",
+  "package_discovery": "STVL unavailable; stvl_enabled=false",
+  "planner_configured": "nav2_navfn_planner::NavfnPlanner",
+  "controller_configured": "dwb_core::DWBLocalPlanner",
+  "controller_executed": null,
+  "simulation_changes": [
+    "AMCL taken from the separate amcl_params.yaml used by resume launch",
+    "use_sim_time=true on all parameter blocks",
+    "scan topics=/scan",
+    "collision monitor uses scan instead of pointcloud"
+  ],
+  "runtime_validated": false
+}
