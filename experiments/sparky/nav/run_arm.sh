@@ -13,7 +13,7 @@ sed -i 's/publish_tf: true/publish_tf: false/' "$EKF"; cp "$EKF" "$OUT/footprint
 ros2 launch unitree_go2_sim unitree_go2_launch.py rviz:=false gui:=false disable_camera:=true disable_d455:=true disable_lidar_l1:=true \
   world:="$WORLD/sparky_arena.sdf" > "$OUT/sim.log" 2>&1 &
 SIM=$!
-python3 "$EXP/nav/tf_delay_relay.py" "$DELAY" "$OUT/tf_delay_log.csv" > "$OUT/relay.log" 2>&1 &
+python3 "$EXP/nav/tf_delay_relay.py" "$DELAY" "$OUT/tf_delay_log.csv" "${TF_DELAY_MODE:-start}" > "$OUT/relay.log" 2>&1 &
 RELAY=$!
 ros2 launch "$EXP/nav/sparky_nav.launch.py" params:="$OUT/nav_params.yaml" > "$OUT/nav.log" 2>&1 &
 NAV=$!

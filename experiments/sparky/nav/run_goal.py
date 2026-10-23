@@ -13,6 +13,7 @@ from sensor_msgs.msg import LaserScan
 from rosgraph_msgs.msg import Clock
 from nav2_msgs.action import NavigateToPose
 from std_srvs.srv import Trigger
+from std_msgs.msg import Bool
 from tf2_ros import Buffer, TransformListener
 
 scn = json.loads(Path(sys.argv[1]).read_text()); out = Path(sys.argv[2]); out.mkdir(parents=True, exist_ok=True)
@@ -94,6 +95,9 @@ def main():
     g.pose.pose.position.x, g.pose.pose.position.y = gl['x'], gl['y']
     g.pose.pose.orientation.z, g.pose.pose.orientation.w = math.sin(gl['yaw']/2), math.cos(gl['yaw']/2)
     g.pose.header.stamp = n.get_clock().now().to_msg()
+    pub = n.create_publisher(Bool, '/tf_delay/active', QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL, reliability=ReliabilityPolicy.RELIABLE))
+    pub.publish(Bool(data=True)); manifest['fault_onset_sim_time'] = n.clock
+    spin_until(n, lambda: False, 0.5, 'fault onset latch')
     n.recording = True; t_goal = n.clock
     manifest['goal_sent_sim_time'] = t_goal
     fut = ac.send_goal_async(g); spin_until(n, fut.done, 30, 'goal accept')
