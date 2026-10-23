@@ -1,9 +1,6 @@
 name: Sparky Nav2 NavFn+DWB baseline and TF-delay arms
 on:
   workflow_dispatch:
-  push:
-    branches: [ci/sparky-gz-transport-check]
-    paths: ['.github/workflows/sparky-nav-baseline.yml', 'experiments/sparky/nav/**']
 permissions:
   contents: write
 env:
