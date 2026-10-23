@@ -1,0 +1,34 @@
+String value is: nav2_mppi_controller::MPPIController
+String value is: nav2_navfn_planner::NavfnPlanner
+PLANNER=navfn CONTROLLER=mppi
+Parameter not set
+/amcl
+/base_to_footprint_ekf
+/behavior_server
+/bt_navigator
+/controller_manager
+/controller_server
+/foot_contacts_bridge
+/footprint_to_odom_ekf
+/gazebo_bridge
+/global_costmap/global_costmap
+/gz_ros_control
+/joint_group_effort_controller
+/joint_states_controller
+/lifecycle_manager_localization
+/lifecycle_manager_navigation
+/local_costmap/local_costmap
+/map_server
+/pc2scan
+/planner_server
+/quadruped_controller_node
+/robot_state_publisher
+/rosbag2_recorder
+/smoother_server
+/state_estimation_node
+/tf_delay_relay
+/transform_listener_impl_55ce01ed8e10
+/transform_listener_impl_5601c31b5150
+/transform_listener_impl_5609e457e670
+/transform_listener_impl_561c26c2fcf0
+/velodyne_bridge

@@ -1,0 +1,137 @@
+[INFO] [launch]: All log files can be found below /home/runner/.ros/log/2026-10-23-06-00-19-942603-runnervm8k3b6-27928
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [pointcloud_to_laserscan_node-1]: process started with pid [27949]
+[INFO] [map_server-2]: process started with pid [27950]
+[INFO] [amcl-3]: process started with pid [27951]
+[INFO] [controller_server-4]: process started with pid [27952]
+[INFO] [planner_server-5]: process started with pid [27953]
+[INFO] [behavior_server-6]: process started with pid [27954]
+[INFO] [smoother_server-7]: process started with pid [27955]
+[INFO] [bt_navigator-8]: process started with pid [27956]
+[INFO] [lifecycle_manager-9]: process started with pid [27958]
+[INFO] [lifecycle_manager-10]: process started with pid [27960]
+[pointcloud_to_laserscan_node-1] [WARN] [1792735220.095119446] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[pointcloud_to_laserscan_node-1] [WARN] [1792735220.095143252] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[amcl-3] [WARN] [1792735220.166902626] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[amcl-3] [WARN] [1792735220.169618099] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[lifecycle_manager-10] [WARN] [1792735220.187363960] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[lifecycle_manager-10] [WARN] [1792735220.187388077] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[controller_server-4] [WARN] [1792735220.190319674] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[controller_server-4] [WARN] [1792735220.190334866] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[bt_navigator-8] [WARN] [1792735220.191979233] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[bt_navigator-8] [WARN] [1792735220.192001055] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[smoother_server-7] [WARN] [1792735220.192003374] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[smoother_server-7] [WARN] [1792735220.192017976] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[planner_server-5] [WARN] [1792735220.192546479] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[planner_server-5] [WARN] [1792735220.192561321] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[behavior_server-6] [WARN] [1792735220.198723077] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[behavior_server-6] [WARN] [1792735220.207980893] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[lifecycle_manager-9] [WARN] [1792735220.214934322] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[lifecycle_manager-9] [WARN] [1792735220.214954342] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[amcl-3] [INFO] [1792735220.244235094] [amcl]: 
+[amcl-3] 	amcl lifecycle node launched. 
+[amcl-3] 	Waiting on external lifecycle transitions to activate
+[amcl-3] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[amcl-3] [INFO] [1792735220.246453021] [amcl]: Creating
+[map_server-2] [WARN] [1792735220.251940546] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[map_server-2] [WARN] [1792735220.251961888] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[lifecycle_manager-10] [INFO] [1792735220.275609506] [lifecycle_manager_navigation]: Creating
+[lifecycle_manager-10] [INFO] [1792735220.283405189] [lifecycle_manager_navigation]: [34m[1mCreating and initializing lifecycle service clients[0m[0m
+[controller_server-4] [INFO] [1792735220.348366522] [controller_server]: 
+[controller_server-4] 	controller_server lifecycle node launched. 
+[controller_server-4] 	Waiting on external lifecycle transitions to activate
+[controller_server-4] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[bt_navigator-8] [INFO] [1792735220.353286006] [bt_navigator]: 
+[bt_navigator-8] 	bt_navigator lifecycle node launched. 
+[bt_navigator-8] 	Waiting on external lifecycle transitions to activate
+[bt_navigator-8] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[controller_server-4] [INFO] [1792735220.361306080] [controller_server]: Creating controller server
+[bt_navigator-8] [INFO] [1792735220.364053556] [bt_navigator]: Creating
+[behavior_server-6] [INFO] [1792735220.380041570] [behavior_server]: 
+[behavior_server-6] 	behavior_server lifecycle node launched. 
+[behavior_server-6] 	Waiting on external lifecycle transitions to activate
+[behavior_server-6] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-5] [INFO] [1792735220.388803257] [planner_server]: 
+[planner_server-5] 	planner_server lifecycle node launched. 
+[planner_server-5] 	Waiting on external lifecycle transitions to activate
+[planner_server-5] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[lifecycle_manager-9] [INFO] [1792735220.391112200] [lifecycle_manager_localization]: Creating
+[smoother_server-7] [INFO] [1792735220.400909174] [smoother_server]: 
+[smoother_server-7] 	smoother_server lifecycle node launched. 
+[smoother_server-7] 	Waiting on external lifecycle transitions to activate
+[smoother_server-7] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-5] [INFO] [1792735220.403351057] [planner_server]: Creating
+[smoother_server-7] [INFO] [1792735220.404292288] [smoother_server]: Creating smoother server
+[lifecycle_manager-9] [INFO] [1792735220.418187734] [lifecycle_manager_localization]: [34m[1mCreating and initializing lifecycle service clients[0m[0m
+[controller_server-4] [INFO] [1792735220.427628344] [local_costmap.local_costmap]: 
+[controller_server-4] 	local_costmap lifecycle node launched. 
+[controller_server-4] 	Waiting on external lifecycle transitions to activate
+[controller_server-4] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[controller_server-4] [INFO] [1792735220.429770998] [local_costmap.local_costmap]: Creating Costmap
+[lifecycle_manager-9] [INFO] [1792735220.448754060] [lifecycle_manager_localization]: [34m[1mStarting managed nodes bringup...[0m[0m
+[lifecycle_manager-10] [INFO] [1792735220.449244691] [lifecycle_manager_navigation]: [34m[1mStarting managed nodes bringup...[0m[0m
+[lifecycle_manager-10] [INFO] [1792735220.449285682] [lifecycle_manager_navigation]: [34m[1mConfiguring controller_server[0m[0m
+[lifecycle_manager-9] [INFO] [1792735220.450085807] [lifecycle_manager_localization]: [34m[1mConfiguring map_server[0m[0m
+[controller_server-4] [INFO] [1792735220.450195893] [controller_server]: Configuring controller interface
+[controller_server-4] [INFO] [1792735220.450219798] [controller_server]: getting progress checker plugins..
+[controller_server-4] [INFO] [1792735220.450331616] [controller_server]: getting goal checker plugins..
+[controller_server-4] [INFO] [1792735220.450372668] [controller_server]: Controller frequency set to 10.0000Hz
+[controller_server-4] [INFO] [1792735220.450398727] [local_costmap.local_costmap]: Configuring
+[map_server-2] [INFO] [1792735220.453371400] [map_server]: 
+[map_server-2] 	map_server lifecycle node launched. 
+[map_server-2] 	Waiting on external lifecycle transitions to activate
+[map_server-2] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[map_server-2] [INFO] [1792735220.453471981] [map_server]: Creating
+[map_server-2] [INFO] [1792735220.453761725] [map_server]: Configuring
+[map_server-2] [INFO] [1792735220.453804179] [map_io]: Loading yaml file: /home/runner/work/go2_ros/go2_ros/evidence/arms/navfn_mppi/rep2/world/arena.yaml
+[map_server-2] [INFO] [1792735220.454800874] [map_io]: resolution: 0.05
+[map_server-2] [INFO] [1792735220.454815095] [map_io]: origin[0]: -2.5
+[map_server-2] [INFO] [1792735220.454821215] [map_io]: origin[1]: -3.5
+[map_server-2] [INFO] [1792735220.454825180] [map_io]: origin[2]: 0
+[map_server-2] [INFO] [1792735220.454829697] [map_io]: free_thresh: 0.25
+[map_server-2] [INFO] [1792735220.454834064] [map_io]: occupied_thresh: 0.65
+[map_server-2] [INFO] [1792735220.454839392] [map_io]: mode: trinary
+[map_server-2] [INFO] [1792735220.454844980] [map_io]: negate: 0
+[map_server-2] [INFO] [1792735220.456216267] [map_io]: Loading image_file: /home/runner/work/go2_ros/go2_ros/evidence/arms/navfn_mppi/rep2/world/arena.pgm
+[map_server-2] [INFO] [1792735220.457879462] [map_io]: Read map /home/runner/work/go2_ros/go2_ros/evidence/arms/navfn_mppi/rep2/world/arena.pgm: 200 X 140 map @ 0.05 m/cell
+[controller_server-4] [INFO] [1792735220.479115708] [local_costmap.local_costmap]: Using plugin "obstacle_layer"
+[planner_server-5] [INFO] [1792735220.479392118] [global_costmap.global_costmap]: 
+[planner_server-5] 	global_costmap lifecycle node launched. 
+[planner_server-5] 	Waiting on external lifecycle transitions to activate
+[planner_server-5] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-5] [INFO] [1792735220.480523044] [global_costmap.global_costmap]: Creating Costmap
+[controller_server-4] [INFO] [1792735220.489255276] [local_costmap.local_costmap]: Subscribed to Topics: scan
+[lifecycle_manager-9] [INFO] [1792735220.494397108] [lifecycle_manager_localization]: [34m[1mConfiguring amcl[0m[0m
+[amcl-3] [INFO] [1792735220.494756613] [amcl]: Configuring
+[amcl-3] [INFO] [1792735220.494849412] [amcl]: initTransforms
+[pointcloud_to_laserscan_node-1] [INFO] [1792735220.497439832] [pc2scan]: Got a subscriber to laserscan, starting pointcloud subscriber
+[controller_server-4] [INFO] [1792735220.498846302] [local_costmap.local_costmap]: Initialized plugin "obstacle_layer"
+[controller_server-4] [INFO] [1792735220.499893432] [local_costmap.local_costmap]: Using plugin "inflation_layer"
+[controller_server-4] [INFO] [1792735220.501184709] [local_costmap.local_costmap]: Initialized plugin "inflation_layer"
+[amcl-3] [INFO] [1792735220.514553565] [amcl]: initPubSub
+[amcl-3] [INFO] [1792735220.543454473] [amcl]: Subscribed to map topic.
+[controller_server-4] [INFO] [1792735220.554141957] [controller_server]: Created progress_checker : progress_checker of type nav2_controller::PoseProgressChecker
+[controller_server-4] [INFO] [1792735220.556067596] [controller_server]: Controller Server has progress_checker  progress checkers available.
+[controller_server-4] [INFO] [1792735220.557169458] [controller_server]: Created goal checker : general_goal_checker of type nav2_controller::SimpleGoalChecker
+[controller_server-4] [INFO] [1792735220.559076379] [controller_server]: Controller Server has general_goal_checker  goal checkers available.
+[lifecycle_manager-9] [INFO] [1792735220.559099883] [lifecycle_manager_localization]: [34m[1mActivating map_server[0m[0m
+[map_server-2] [INFO] [1792735220.559649022] [map_server]: Activating
+[map_server-2] [INFO] [1792735220.559887290] [map_server]: Creating bond (map_server) to lifecycle manager.
+[amcl-3] [INFO] [1792735220.560970309] [amcl]: Received a 200 X 140 map @ 0.050 m/pix
+[controller_server-4] [INFO] [1792735220.564561415] [controller_server]: Created controller : FollowPath of type nav2_mppi_controller::MPPIController
+[controller_server-4] [ERROR] [1792735220.566877309] [controller_server]: Caught exception in callback for transition 10
+[controller_server-4] [ERROR] [1792735220.566925211] [controller_server]: Original error: Controller period more then model dt, set it equal to model dt
+[controller_server-4] [WARN] [1792735220.566951490] [controller_server]: Callback returned ERROR during the transition: configure
+[controller_server-4] [FATAL] [1792735220.566961725] [controller_server]: Lifecycle node controller_server does not have error state implemented
+[lifecycle_manager-9] [INFO] [1792735220.568517408] [lifecycle_manager_localization]: [34m[1mActivating amcl[0m[0m
+[amcl-3] [INFO] [1792735220.568733462] [amcl]: Activating
+[amcl-3] [INFO] [1792735220.568773312] [amcl]: initialPoseReceived
+[amcl-3] [INFO] [1792735220.568849306] [amcl]: Setting pose (0.000000): 0.000 0.000 0.000
+[amcl-3] [INFO] [1792735220.569345861] [amcl]: Creating bond (amcl) to lifecycle manager.
+[lifecycle_manager-10] [ERROR] [1792735220.571668389] [lifecycle_manager_navigation]: Failed to change state for node: controller_server
+[lifecycle_manager-10] [ERROR] [1792735220.571725655] [lifecycle_manager_navigation]: Failed to bring up all requested nodes. Aborting bringup.
+[lifecycle_manager-9] [INFO] [1792735220.576042134] [lifecycle_manager_localization]: [34m[1mManaged nodes are active[0m[0m
+[amcl-3] [INFO] [1792735227.012104198] [amcl]: createLaserObject
+[controller_server-4] [WARN] [1792735488.075810214] [rclcpp]: Failed to get parameters: current_goal_checker
+[amcl-3] [INFO] [1792735492.668965486] [amcl]: Message Filter dropping message: frame 'base_link' at time 250.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792735495.195459439] [amcl]: Message Filter dropping message: frame 'base_link' at time 252.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
