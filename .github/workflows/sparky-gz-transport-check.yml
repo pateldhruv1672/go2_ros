@@ -1,0 +1,43 @@
+name: Sparky Gazebo transport check
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gz-clock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Gazebo Harmonic
+        shell: bash
+        run: |
+          set -eo pipefail
+          mkdir -p evidence
+          sudo apt-get update
+          sudo apt-get install -y curl lsb-release gnupg
+          sudo curl https://packages.osrfoundation.org/gazebo.gpg --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list
+          sudo apt-get update
+          sudo apt-get install -y gz-harmonic
+          gz sim --versions | tee evidence/gz-version.txt
+          uname -a | tee evidence/uname.txt
+          ip addr 2>&1 | tee evidence/ip-addr.txt || true
+      - name: Headless gz sim and /clock
+        shell: bash
+        run: |
+          set -o pipefail
+          export GZ_IP=127.0.0.1
+          gz sim -s -r -v 4 empty.sdf > evidence/gz-sim.log 2>&1 &
+          sleep 8
+          timeout 10 gz topic -e -t /clock 2>&1 | tee evidence/clock.txt || true
+          pkill -INT -f "gz sim" || true
+          n=$(grep -c "sec:" evidence/clock.txt || true)
+          echo "clock messages with sec: $n" | tee evidence/result.txt
+          [ "$n" -gt 5 ]
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gz-transport-check-${{ github.run_id }}
+          path: evidence/
