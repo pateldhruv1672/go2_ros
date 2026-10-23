@@ -1,0 +1,35 @@
+Node not found
+String value is: nav2_mppi_controller::MPPIController
+String value is: nav2_smac_planner::SmacPlanner2D
+PLANNER=smac2d_smoothed CONTROLLER=mppi
+Parameter not set
+/amcl
+/base_to_footprint_ekf
+/behavior_server
+/bt_navigator
+/controller_manager
+/controller_server
+/foot_contacts_bridge
+/footprint_to_odom_ekf
+/gazebo_bridge
+/global_costmap/global_costmap
+/gz_ros_control
+/joint_group_effort_controller
+/joint_states_controller
+/lifecycle_manager_localization
+/lifecycle_manager_navigation
+/local_costmap/local_costmap
+/map_server
+/pc2scan
+/planner_server
+/quadruped_controller_node
+/robot_state_publisher
+/rosbag2_recorder
+/smoother_server
+/state_estimation_node
+/tf_delay_relay
+/transform_listener_impl_55a21b68f530
+/transform_listener_impl_55a6dbfd0610
+/transform_listener_impl_55e0d22d0490
+/transform_listener_impl_56167bf8c440
+/velodyne_bridge
