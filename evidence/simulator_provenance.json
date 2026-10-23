@@ -1,0 +1,22 @@
+{
+  "repository": "https://github.com/khaledgabr77/unitree_go2_ros2",
+  "source_commit": "55ff151632a0220bf3ae0c0772392615d86da7a8",
+  "copy": "/home/runner/work/go2_ros/go2_ros/sim_ws/src/unitree_go2_ros2",
+  "patch": "simulator-adapter.patch",
+  "status": "PREPARED_NOT_RUNTIME_VALIDATED",
+  "replaced": [
+    "WebRTC transport",
+    "physical Go2 gait controller",
+    "physical sensor/odometry feeds"
+  ],
+  "replacement": [
+    "CHAMP gait + ros2_control",
+    "Gazebo articulated Go2",
+    "simulated sensors + CHAMP EKFs"
+  ],
+  "not_claimed": [
+    "Unitree onboard gait equivalence",
+    "real robot validation",
+    "Nav2 execution"
+  ]
+}

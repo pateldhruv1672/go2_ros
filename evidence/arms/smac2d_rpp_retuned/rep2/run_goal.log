@@ -1,0 +1,11 @@
+[WARN] [1792738228.828712446] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1792738228.828735209] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+GATE clock_advancing True {'sim_time': 5.001}
+GATE scan_flowing True {'count': 50}
+GATE active_lifecycle_manager_localization True {}
+GATE active_lifecycle_manager_navigation True {}
+GATE amcl_pose True {'count': 1}
+GATE tf_map_base True {}
+GATE action_server True {}
+[ERROR] [1792738259.902385904] [sparky_recorder]: TIMEOUT waiting for fault onset latch
+GATE goal_accepted True {}

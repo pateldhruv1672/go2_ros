@@ -1,0 +1,21 @@
+[WARN] [ros2bag]: Positional "topics" argument deprecated. Please use optional "--topics" argument instead.
+[WARN] [1792738122.443667805] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1792738122.443687732] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1792738122.468754666] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1792738122.468765635] [rosbag2_recorder]: Event publisher thread: Started
+[INFO] [1792738122.475770874] [rosbag2_recorder]: Starting recording to '/home/runner/work/go2_ros/go2_ros/evidence/arms/smac2d_rpp_retuned/rep1/bag'
+[INFO] [1792738122.477960778] [rosbag2_recorder]: Listening for topics...
+[INFO] [1792738122.477987378] [rosbag2_recorder]: Recording...
+[INFO] [1792738122.478007789] [rosbag2_recorder]: Topics discovery started.
+[INFO] [1792738122.915327102] [rosbag2_recorder]: Subscribed to topic '/cmd_vel'
+[INFO] [1792738123.113624429] [rosbag2_recorder]: Subscribed to topic '/tf'
+[INFO] [1792738123.114696912] [rosbag2_recorder]: Subscribed to topic '/tf_static'
+[INFO] [1792738123.309027591] [rosbag2_recorder]: Subscribed to topic '/clock'
+[INFO] [1792738123.394806741] [rosbag2_recorder]: Subscribed to topic '/odom/ground_truth'
+[INFO] [1792738125.096883863] [rosbag2_recorder]: Subscribed to topic '/scan'
+[INFO] [1792738125.146467280] [rosbag2_recorder]: Subscribed to topic '/plan'
+[INFO] [1792738125.154638133] [rosbag2_recorder]: Subscribed to topic '/amcl_pose'
+[INFO] [1792738129.110747395] [rosbag2_recorder]: Subscribed to topic '/odom'
+[INFO] [1792738146.399922045] [rosbag2_recorder]: Subscribed to topic '/joint_states'
+[INFO] [1792738146.399982488] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[INFO] [1792738146.399995373] [rosbag2_recorder]: Topics discovery stopped.
