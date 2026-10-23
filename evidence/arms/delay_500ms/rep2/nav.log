@@ -1,0 +1,367 @@
+[INFO] [launch]: All log files can be found below /home/runner/.ros/log/2026-10-23-05-39-36-651582-runnervm8k3b6-27945
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [pointcloud_to_laserscan_node-1]: process started with pid [27966]
+[INFO] [map_server-2]: process started with pid [27967]
+[INFO] [amcl-3]: process started with pid [27968]
+[INFO] [controller_server-4]: process started with pid [27969]
+[INFO] [planner_server-5]: process started with pid [27970]
+[INFO] [behavior_server-6]: process started with pid [27971]
+[INFO] [bt_navigator-7]: process started with pid [27972]
+[INFO] [lifecycle_manager-8]: process started with pid [27973]
+[INFO] [lifecycle_manager-9]: process started with pid [27974]
+[controller_server-4] [WARN] [1792733976.796119031] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[controller_server-4] [WARN] [1792733976.796142407] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[pointcloud_to_laserscan_node-1] [WARN] [1792733976.802046357] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[pointcloud_to_laserscan_node-1] [WARN] [1792733976.802067099] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[planner_server-5] [WARN] [1792733976.811880722] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[planner_server-5] [WARN] [1792733976.817487874] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[amcl-3] [WARN] [1792733976.825819963] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[amcl-3] [WARN] [1792733976.825837739] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[behavior_server-6] [WARN] [1792733976.828372719] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[behavior_server-6] [WARN] [1792733976.828389284] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[controller_server-4] [INFO] [1792733976.828442449] [controller_server]: 
+[controller_server-4] 	controller_server lifecycle node launched. 
+[controller_server-4] 	Waiting on external lifecycle transitions to activate
+[controller_server-4] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[map_server-2] [WARN] [1792733976.823736534] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[map_server-2] [WARN] [1792733976.829108150] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[lifecycle_manager-9] [WARN] [1792733976.830177717] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[lifecycle_manager-9] [WARN] [1792733976.830190606] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[controller_server-4] [INFO] [1792733976.833431217] [controller_server]: Creating controller server
+[lifecycle_manager-8] [WARN] [1792733976.845262844] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[lifecycle_manager-8] [WARN] [1792733976.845288533] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[bt_navigator-7] [WARN] [1792733976.849138059] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[bt_navigator-7] [WARN] [1792733976.851873312] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[controller_server-4] [INFO] [1792733976.861652402] [local_costmap.local_costmap]: 
+[controller_server-4] 	local_costmap lifecycle node launched. 
+[controller_server-4] 	Waiting on external lifecycle transitions to activate
+[controller_server-4] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[controller_server-4] [INFO] [1792733976.863988242] [local_costmap.local_costmap]: Creating Costmap
+[lifecycle_manager-9] [INFO] [1792733976.961934450] [lifecycle_manager_navigation]: Creating
+[planner_server-5] [INFO] [1792733976.970995485] [planner_server]: 
+[planner_server-5] 	planner_server lifecycle node launched. 
+[planner_server-5] 	Waiting on external lifecycle transitions to activate
+[planner_server-5] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[behavior_server-6] [INFO] [1792733976.973604241] [behavior_server]: 
+[behavior_server-6] 	behavior_server lifecycle node launched. 
+[behavior_server-6] 	Waiting on external lifecycle transitions to activate
+[behavior_server-6] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[lifecycle_manager-8] [INFO] [1792733976.976231801] [lifecycle_manager_localization]: Creating
+[planner_server-5] [INFO] [1792733976.980098699] [planner_server]: Creating
+[lifecycle_manager-9] [INFO] [1792733976.981219678] [lifecycle_manager_navigation]: [34m[1mCreating and initializing lifecycle service clients[0m[0m
+[amcl-3] [INFO] [1792733976.990895422] [amcl]: 
+[amcl-3] 	amcl lifecycle node launched. 
+[amcl-3] 	Waiting on external lifecycle transitions to activate
+[amcl-3] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[lifecycle_manager-8] [INFO] [1792733976.991232536] [lifecycle_manager_localization]: [34m[1mCreating and initializing lifecycle service clients[0m[0m
+[amcl-3] [INFO] [1792733976.993833170] [amcl]: Creating
+[bt_navigator-7] [INFO] [1792733977.004718803] [bt_navigator]: 
+[bt_navigator-7] 	bt_navigator lifecycle node launched. 
+[bt_navigator-7] 	Waiting on external lifecycle transitions to activate
+[bt_navigator-7] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[map_server-2] [INFO] [1792733977.004968485] [map_server]: 
+[map_server-2] 	map_server lifecycle node launched. 
+[map_server-2] 	Waiting on external lifecycle transitions to activate
+[map_server-2] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[map_server-2] [INFO] [1792733977.005267827] [map_server]: Creating
+[bt_navigator-7] [INFO] [1792733977.006614818] [bt_navigator]: Creating
+[planner_server-5] [INFO] [1792733977.023634552] [global_costmap.global_costmap]: 
+[planner_server-5] 	global_costmap lifecycle node launched. 
+[planner_server-5] 	Waiting on external lifecycle transitions to activate
+[planner_server-5] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-5] [INFO] [1792733977.024550436] [global_costmap.global_costmap]: Creating Costmap
+[lifecycle_manager-8] [INFO] [1792733977.140405633] [lifecycle_manager_localization]: [34m[1mStarting managed nodes bringup...[0m[0m
+[lifecycle_manager-8] [INFO] [1792733977.140497892] [lifecycle_manager_localization]: [34m[1mConfiguring map_server[0m[0m
+[map_server-2] [INFO] [1792733977.142162091] [map_server]: Configuring
+[map_server-2] [INFO] [1792733977.142243975] [map_io]: Loading yaml file: /home/runner/work/go2_ros/go2_ros/evidence/arms/delay_500ms/rep2/world/arena.yaml
+[map_server-2] [INFO] [1792733977.142516206] [map_io]: resolution: 0.05
+[map_server-2] [INFO] [1792733977.142525970] [map_io]: origin[0]: -2.5
+[map_server-2] [INFO] [1792733977.142530517] [map_io]: origin[1]: -3.5
+[map_server-2] [INFO] [1792733977.142533872] [map_io]: origin[2]: 0
+[map_server-2] [INFO] [1792733977.142537788] [map_io]: free_thresh: 0.25
+[map_server-2] [INFO] [1792733977.142541214] [map_io]: occupied_thresh: 0.65
+[map_server-2] [INFO] [1792733977.142546351] [map_io]: mode: trinary
+[map_server-2] [INFO] [1792733977.143861909] [map_io]: negate: 0
+[map_server-2] [INFO] [1792733977.144890162] [map_io]: Loading image_file: /home/runner/work/go2_ros/go2_ros/evidence/arms/delay_500ms/rep2/world/arena.pgm
+[map_server-2] [INFO] [1792733977.145964805] [map_io]: Read map /home/runner/work/go2_ros/go2_ros/evidence/arms/delay_500ms/rep2/world/arena.pgm: 200 X 140 map @ 0.05 m/cell
+[lifecycle_manager-9] [INFO] [1792733977.147516865] [lifecycle_manager_navigation]: [34m[1mStarting managed nodes bringup...[0m[0m
+[lifecycle_manager-9] [INFO] [1792733977.147556385] [lifecycle_manager_navigation]: [34m[1mConfiguring controller_server[0m[0m
+[controller_server-4] [INFO] [1792733977.148283813] [controller_server]: Configuring controller interface
+[controller_server-4] [INFO] [1792733977.148312537] [controller_server]: getting progress checker plugins..
+[controller_server-4] [INFO] [1792733977.148476644] [controller_server]: getting goal checker plugins..
+[controller_server-4] [INFO] [1792733977.148692746] [controller_server]: Controller frequency set to 10.0000Hz
+[controller_server-4] [INFO] [1792733977.148743523] [local_costmap.local_costmap]: Configuring
+[controller_server-4] [INFO] [1792733977.162435502] [local_costmap.local_costmap]: Using plugin "obstacle_layer"
+[controller_server-4] [INFO] [1792733977.166188752] [local_costmap.local_costmap]: Subscribed to Topics: scan
+[lifecycle_manager-8] [INFO] [1792733977.168190456] [lifecycle_manager_localization]: [34m[1mConfiguring amcl[0m[0m
+[amcl-3] [INFO] [1792733977.169223921] [amcl]: Configuring
+[amcl-3] [INFO] [1792733977.169306166] [amcl]: initTransforms
+[pointcloud_to_laserscan_node-1] [INFO] [1792733977.171499284] [pc2scan]: Got a subscriber to laserscan, starting pointcloud subscriber
+[controller_server-4] [INFO] [1792733977.174954493] [local_costmap.local_costmap]: Initialized plugin "obstacle_layer"
+[controller_server-4] [INFO] [1792733977.174987423] [local_costmap.local_costmap]: Using plugin "inflation_layer"
+[controller_server-4] [INFO] [1792733977.175726490] [local_costmap.local_costmap]: Initialized plugin "inflation_layer"
+[amcl-3] [INFO] [1792733977.190738272] [amcl]: initPubSub
+[controller_server-4] [INFO] [1792733977.209224733] [controller_server]: Created progress_checker : progress_checker of type nav2_controller::PoseProgressChecker
+[controller_server-4] [INFO] [1792733977.210203571] [controller_server]: Controller Server has progress_checker  progress checkers available.
+[controller_server-4] [INFO] [1792733977.211215860] [controller_server]: Created goal checker : general_goal_checker of type nav2_controller::SimpleGoalChecker
+[controller_server-4] [INFO] [1792733977.212462474] [controller_server]: Controller Server has general_goal_checker  goal checkers available.
+[controller_server-4] [INFO] [1792733977.215985676] [controller_server]: Created controller : FollowPath of type dwb_core::DWBLocalPlanner
+[amcl-3] [INFO] [1792733977.217280247] [amcl]: Subscribed to map topic.
+[controller_server-4] [INFO] [1792733977.218071837] [controller_server]: Setting transform_tolerance to 0.500000
+[lifecycle_manager-8] [INFO] [1792733977.234597853] [lifecycle_manager_localization]: [34m[1mActivating map_server[0m[0m
+[map_server-2] [INFO] [1792733977.234796918] [map_server]: Activating
+[map_server-2] [INFO] [1792733977.235029379] [map_server]: Creating bond (map_server) to lifecycle manager.
+[amcl-3] [INFO] [1792733977.235344325] [amcl]: Received a 200 X 140 map @ 0.050 m/pix
+[controller_server-4] [INFO] [1792733977.236446635] [controller_server]: Using critic "RotateToGoal" (dwb_critics::RotateToGoalCritic)
+[controller_server-4] [INFO] [1792733977.237542991] [controller_server]: Critic plugin initialized
+[controller_server-4] [INFO] [1792733977.237922995] [controller_server]: Using critic "Oscillation" (dwb_critics::OscillationCritic)
+[controller_server-4] [INFO] [1792733977.238157309] [controller_server]: Critic plugin initialized
+[controller_server-4] [INFO] [1792733977.238212983] [controller_server]: Using critic "BaseObstacle" (dwb_critics::BaseObstacleCritic)
+[controller_server-4] [INFO] [1792733977.238292293] [controller_server]: Critic plugin initialized
+[controller_server-4] [INFO] [1792733977.238340756] [controller_server]: Using critic "GoalAlign" (dwb_critics::GoalAlignCritic)
+[controller_server-4] [INFO] [1792733977.238521980] [controller_server]: Critic plugin initialized
+[controller_server-4] [INFO] [1792733977.238569021] [controller_server]: Using critic "PathAlign" (dwb_critics::PathAlignCritic)
+[controller_server-4] [INFO] [1792733977.238720770] [controller_server]: Critic plugin initialized
+[controller_server-4] [INFO] [1792733977.238761722] [controller_server]: Using critic "PathDist" (dwb_critics::PathDistCritic)
+[controller_server-4] [INFO] [1792733977.238876566] [controller_server]: Critic plugin initialized
+[controller_server-4] [INFO] [1792733977.238919881] [controller_server]: Using critic "GoalDist" (dwb_critics::GoalDistCritic)
+[controller_server-4] [INFO] [1792733977.240407929] [controller_server]: Critic plugin initialized
+[controller_server-4] [INFO] [1792733977.240433428] [controller_server]: Controller Server has FollowPath  controllers available.
+[lifecycle_manager-8] [INFO] [1792733977.249255485] [lifecycle_manager_localization]: [34m[1mActivating amcl[0m[0m
+[amcl-3] [INFO] [1792733977.249519589] [amcl]: Activating
+[amcl-3] [INFO] [1792733977.249562994] [amcl]: initialPoseReceived
+[amcl-3] [INFO] [1792733977.249646140] [amcl]: Setting pose (0.000000): 0.000 0.000 0.000
+[amcl-3] [INFO] [1792733977.252121870] [amcl]: Creating bond (amcl) to lifecycle manager.
+[lifecycle_manager-9] [INFO] [1792733977.252628650] [lifecycle_manager_navigation]: [34m[1mConfiguring planner_server[0m[0m
+[planner_server-5] [INFO] [1792733977.253852354] [planner_server]: Configuring
+[planner_server-5] [INFO] [1792733977.253897312] [global_costmap.global_costmap]: Configuring
+[lifecycle_manager-8] [INFO] [1792733977.259202602] [lifecycle_manager_localization]: [34m[1mManaged nodes are active[0m[0m
+[planner_server-5] [INFO] [1792733977.267687864] [global_costmap.global_costmap]: Using plugin "static_layer"
+[planner_server-5] [INFO] [1792733977.272874610] [global_costmap.global_costmap]: Subscribing to the map topic (/map) with transient local durability
+[planner_server-5] [INFO] [1792733977.275839188] [global_costmap.global_costmap]: Initialized plugin "static_layer"
+[planner_server-5] [INFO] [1792733977.275876094] [global_costmap.global_costmap]: Using plugin "inflation_layer"
+[planner_server-5] [INFO] [1792733977.276339294] [global_costmap.global_costmap]: Initialized plugin "inflation_layer"
+[planner_server-5] [INFO] [1792733977.307371812] [planner_server]: Created global planner plugin GridBased of type nav2_navfn_planner::NavfnPlanner
+[planner_server-5] [INFO] [1792733977.307422329] [planner_server]: Configuring plugin GridBased of type NavfnPlanner
+[planner_server-5] [INFO] [1792733977.307670363] [planner_server]: Planner Server has GridBased  planners available.
+[planner_server-5] [INFO] [1792733977.308273184] [global_costmap.global_costmap]: StaticLayer: Resizing costmap to 200 X 140 at 0.050000 m/pix
+[lifecycle_manager-9] [INFO] [1792733977.326056573] [lifecycle_manager_navigation]: [34m[1mConfiguring behavior_server[0m[0m
+[behavior_server-6] [INFO] [1792733977.326398735] [behavior_server]: Configuring
+[behavior_server-6] [INFO] [1792733977.335094351] [behavior_server]: Creating behavior plugin spin of type nav2_behaviors::Spin
+[behavior_server-6] [INFO] [1792733977.337594598] [behavior_server]: Creating behavior plugin backup of type nav2_behaviors::BackUp
+[behavior_server-6] [INFO] [1792733977.338924016] [behavior_server]: Creating behavior plugin drive_on_heading of type nav2_behaviors::DriveOnHeading
+[behavior_server-6] [INFO] [1792733977.339849855] [behavior_server]: Creating behavior plugin assisted_teleop of type nav2_behaviors::AssistedTeleop
+[behavior_server-6] [INFO] [1792733977.342489352] [behavior_server]: Creating behavior plugin wait of type nav2_behaviors::Wait
+[behavior_server-6] [INFO] [1792733977.362098104] [behavior_server]: Configuring spin
+[behavior_server-6] [INFO] [1792733977.379322884] [behavior_server]: Configuring backup
+[behavior_server-6] [INFO] [1792733977.389978020] [behavior_server]: Configuring drive_on_heading
+[behavior_server-6] [INFO] [1792733977.399733137] [behavior_server]: Configuring assisted_teleop
+[behavior_server-6] [INFO] [1792733977.414809421] [behavior_server]: Configuring wait
+[lifecycle_manager-9] [INFO] [1792733977.424163537] [lifecycle_manager_navigation]: [34m[1mConfiguring bt_navigator[0m[0m
+[bt_navigator-7] [INFO] [1792733977.424493185] [bt_navigator]: Configuring
+[bt_navigator-7] [INFO] [1792733977.437320162] [bt_navigator]: Creating navigator id navigate_to_pose of type nav2_bt_navigator::NavigateToPoseNavigator
+[bt_navigator-7] [INFO] [1792733977.537834663] [bt_navigator]: Creating navigator id navigate_through_poses of type nav2_bt_navigator::NavigateThroughPosesNavigator
+[lifecycle_manager-9] [INFO] [1792733977.571696546] [lifecycle_manager_navigation]: [34m[1mActivating controller_server[0m[0m
+[controller_server-4] [INFO] [1792733977.572236421] [controller_server]: Activating
+[controller_server-4] [INFO] [1792733977.572278865] [local_costmap.local_costmap]: Activating
+[controller_server-4] [INFO] [1792733977.572288870] [local_costmap.local_costmap]: Checking transform
+[controller_server-4] [INFO] [1792733977.572339647] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792733978.074424563] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792733978.572390518] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792733979.072387491] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792733979.572386977] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792733980.072386273] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792733980.574446763] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792733981.072390935] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792733981.572384904] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792733982.072387795] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792733982.572388233] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792733983.072663071] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792733983.572397737] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792733983.849149658] [amcl]: createLaserObject
+[controller_server-4] [INFO] [1792733984.073045694] [local_costmap.local_costmap]: start
+[controller_server-4] [INFO] [1792733984.179274917] [controller_server]: Creating bond (controller_server) to lifecycle manager.
+[lifecycle_manager-9] [INFO] [1792733984.186147609] [lifecycle_manager_navigation]: [34m[1mActivating planner_server[0m[0m
+[planner_server-5] [INFO] [1792733984.186573148] [planner_server]: Activating
+[planner_server-5] [INFO] [1792733984.186613519] [global_costmap.global_costmap]: Activating
+[planner_server-5] [INFO] [1792733984.186623403] [global_costmap.global_costmap]: Checking transform
+[planner_server-5] [INFO] [1792733984.186775573] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Lookup would require extrapolation into the past.  Requested time 0.510000 but the earliest data is at time 0.700000, when looking up transform from frame [base_link] to frame [map]
+[planner_server-5] [INFO] [1792733984.686925477] [global_costmap.global_costmap]: start
+[planner_server-5] [INFO] [1792733984.737215176] [planner_server]: Activating plugin GridBased of type NavfnPlanner
+[planner_server-5] [INFO] [1792733984.740656114] [planner_server]: Creating bond (planner_server) to lifecycle manager.
+[lifecycle_manager-9] [INFO] [1792733984.748783536] [lifecycle_manager_navigation]: [34m[1mActivating behavior_server[0m[0m
+[behavior_server-6] [INFO] [1792733984.749109218] [behavior_server]: Activating
+[behavior_server-6] [INFO] [1792733984.749137661] [behavior_server]: Activating spin
+[behavior_server-6] [INFO] [1792733984.749150721] [behavior_server]: Activating backup
+[behavior_server-6] [INFO] [1792733984.749160115] [behavior_server]: Activating drive_on_heading
+[behavior_server-6] [INFO] [1792733984.749169609] [behavior_server]: Activating assisted_teleop
+[behavior_server-6] [INFO] [1792733984.749179144] [behavior_server]: Activating wait
+[behavior_server-6] [INFO] [1792733984.749191943] [behavior_server]: Creating bond (behavior_server) to lifecycle manager.
+[lifecycle_manager-9] [INFO] [1792733984.755076593] [lifecycle_manager_navigation]: [34m[1mActivating bt_navigator[0m[0m
+[bt_navigator-7] [INFO] [1792733984.755448980] [bt_navigator]: Activating
+[bt_navigator-7] [INFO] [1792733984.950897782] [bt_navigator]: Creating bond (bt_navigator) to lifecycle manager.
+[lifecycle_manager-9] [INFO] [1792733984.958773054] [lifecycle_manager_navigation]: [34m[1mManaged nodes are active[0m[0m
+[amcl-3] [INFO] [1792733985.894882017] [amcl]: Message Filter dropping message: frame 'base_link' at time 2.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792733985.896718902] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 2.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792733988.556062558] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 4.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792733988.556073699] [amcl]: Message Filter dropping message: frame 'base_link' at time 4.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792733991.296672396] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 7.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792733991.392695923] [amcl]: Message Filter dropping message: frame 'base_link' at time 7.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792733993.982386777] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 9.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792733994.081196119] [amcl]: Message Filter dropping message: frame 'base_link' at time 9.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792733996.661059313] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 12.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792733996.770203094] [amcl]: Message Filter dropping message: frame 'base_link' at time 12.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792733999.454131224] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 14.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792733999.567890843] [amcl]: Message Filter dropping message: frame 'base_link' at time 14.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[bt_navigator-7] [INFO] [1792734001.032119956] [bt_navigator]: Begin navigating from current location (0.00, -0.00) to (5.00, 0.00)
+[controller_server-4] [INFO] [1792734001.054299565] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-4] [WARN] [1792734001.054587020] [controller_server]: No goal checker was specified in parameter 'current_goal_checker'. Server will use only plugin loaded general_goal_checker . This warning will appear once.
+[controller_server-4] [WARN] [1792734001.054605868] [controller_server]: No progress checker was specified in parameter 'current_progress_checker'. Server will use only plugin loaded progress_checker . This warning will appear once.
+[controller_server-4] [ERROR] [1792734001.054968276] [tf_help]: Transform data too old when converting from map to odom
+[controller_server-4] [ERROR] [1792734001.054994245] [tf_help]: Data time: 16s 644000000ns, Transform time: 16s 0ns
+[controller_server-4] [ERROR] [1792734001.055044981] [controller_server]: Failed to transform end pose to global frame
+[controller_server-4] [WARN] [1792734001.055112654] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-4] [INFO] [1792734001.063589068] [local_costmap.local_costmap]: Received request to clear entirely the local_costmap
+[controller_server-4] [INFO] [1792734001.064289271] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-4] [ERROR] [1792734001.074650367] [tf_help]: Transform data too old when converting from map to odom
+[controller_server-4] [ERROR] [1792734001.074677638] [tf_help]: Data time: 16s 644000000ns, Transform time: 16s 0ns
+[controller_server-4] [ERROR] [1792734001.074697038] [controller_server]: Failed to transform end pose to global frame
+[controller_server-4] [WARN] [1792734001.074753914] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-4] [INFO] [1792734001.093710550] [local_costmap.local_costmap]: Received request to clear entirely the local_costmap
+[planner_server-5] [INFO] [1792734001.095188096] [global_costmap.global_costmap]: Received request to clear entirely the global_costmap
+[controller_server-4] [INFO] [1792734001.097586825] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-4] [ERROR] [1792734001.178333340] [tf_help]: Transform data too old when converting from map to odom
+[controller_server-4] [ERROR] [1792734001.178397117] [tf_help]: Data time: 16s 644000000ns, Transform time: 16s 0ns
+[controller_server-4] [ERROR] [1792734001.178417708] [controller_server]: Failed to transform end pose to global frame
+[controller_server-4] [WARN] [1792734001.178480242] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-4] [INFO] [1792734001.194327194] [local_costmap.local_costmap]: Received request to clear entirely the local_costmap
+[controller_server-4] [INFO] [1792734001.196906492] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-4] [INFO] [1792734002.293980970] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 17.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734002.405705696] [amcl]: Message Filter dropping message: frame 'base_link' at time 17.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [ERROR] [1792734002.497247728] [tf_help]: Transform data too old when converting from odom to map
+[controller_server-4] [ERROR] [1792734002.497553731] [tf_help]: Data time: 17s 466000000ns, Transform time: 16s 900000000ns
+[controller_server-4] [ERROR] [1792734002.497664027] [controller_server]: Unable to transform robot pose into global plan's frame
+[controller_server-4] [WARN] [1792734002.497746822] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[behavior_server-6] [INFO] [1792734002.515799048] [behavior_server]: Running spin
+[behavior_server-6] [INFO] [1792734002.515999921] [behavior_server]: Turning 1.57 for spin behavior.
+[controller_server-4] [INFO] [1792734005.025681065] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 19.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734005.143829584] [amcl]: Message Filter dropping message: frame 'base_link' at time 19.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734007.824863204] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 22.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734007.940588099] [amcl]: Message Filter dropping message: frame 'base_link' at time 22.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734010.772186319] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 25.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734010.773589702] [amcl]: Message Filter dropping message: frame 'base_link' at time 25.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734013.382778248] [amcl]: Message Filter dropping message: frame 'base_link' at time 27.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734013.383309346] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 27.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[behavior_server-6] [WARN] [1792734013.516480910] [behavior_server]: Exceeded time allowance before reaching the Spin goal - Exiting Spin
+[behavior_server-6] [WARN] [1792734013.516527079] [behavior_server]: spin failed
+[behavior_server-6] [WARN] [1792734013.516540209] [behavior_server]: [spin] [ActionServer] Aborting handle.
+[behavior_server-6] [INFO] [1792734013.533513100] [behavior_server]: Running wait
+[controller_server-4] [INFO] [1792734016.148462464] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 30.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734016.252026076] [amcl]: Message Filter dropping message: frame 'base_link' at time 30.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734018.847500502] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 32.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[behavior_server-6] [INFO] [1792734018.933733870] [behavior_server]: wait completed successfully
+[controller_server-4] [INFO] [1792734018.964459859] [controller_server]: Received a goal, begin computing control effort.
+[amcl-3] [INFO] [1792734019.161738360] [amcl]: Message Filter dropping message: frame 'base_link' at time 32.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734021.567861189] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 35.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734021.884929088] [amcl]: Message Filter dropping message: frame 'base_link' at time 35.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [ERROR] [1792734022.365045682] [tf_help]: Transform data too old when converting from odom to map
+[controller_server-4] [ERROR] [1792734022.365112192] [tf_help]: Data time: 35s 965000000ns, Transform time: 35s 400000000ns
+[controller_server-4] [ERROR] [1792734022.365151782] [controller_server]: Unable to transform robot pose into global plan's frame
+[controller_server-4] [WARN] [1792734022.365231472] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-4] [INFO] [1792734022.383467648] [local_costmap.local_costmap]: Received request to clear entirely the local_costmap
+[controller_server-4] [INFO] [1792734022.384224702] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-4] [ERROR] [1792734022.474682200] [tf_help]: Transform data too old when converting from odom to map
+[controller_server-4] [ERROR] [1792734022.474748711] [tf_help]: Data time: 36s 60000000ns, Transform time: 35s 400000000ns
+[controller_server-4] [ERROR] [1792734022.474785356] [controller_server]: Unable to transform robot pose into global plan's frame
+[controller_server-4] [WARN] [1792734022.474844315] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[behavior_server-6] [INFO] [1792734022.493763141] [behavior_server]: Running backup
+[controller_server-4] [INFO] [1792734024.186080632] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 37.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734024.605328538] [amcl]: Message Filter dropping message: frame 'base_link' at time 38.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[behavior_server-6] [INFO] [1792734026.695232549] [behavior_server]: backup completed successfully
+[controller_server-4] [INFO] [1792734026.716499340] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-4] [INFO] [1792734026.932804852] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 40.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734027.330315529] [amcl]: Message Filter dropping message: frame 'base_link' at time 40.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734029.686427953] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 42.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734030.222683002] [amcl]: Message Filter dropping message: frame 'base_link' at time 43.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734030.316834815] [controller_server]: Passing new path to controller.
+[controller_server-4] [ERROR] [1792734032.017043682] [tf_help]: Transform data too old when converting from odom to map
+[controller_server-4] [ERROR] [1792734032.017136282] [tf_help]: Data time: 45s 19000000ns, Transform time: 44s 500000000ns
+[controller_server-4] [ERROR] [1792734032.017184405] [controller_server]: Unable to transform robot pose into global plan's frame
+[controller_server-4] [WARN] [1792734032.017262212] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-4] [INFO] [1792734032.034517945] [local_costmap.local_costmap]: Received request to clear entirely the local_costmap
+[controller_server-4] [INFO] [1792734032.038794505] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-4] [ERROR] [1792734032.081802443] [tf_help]: Transform data too old when converting from odom to map
+[controller_server-4] [ERROR] [1792734032.081962986] [tf_help]: Data time: 45s 76000000ns, Transform time: 44s 500000000ns
+[controller_server-4] [ERROR] [1792734032.082134214] [controller_server]: Unable to transform robot pose into global plan's frame
+[controller_server-4] [WARN] [1792734032.082224541] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-4] [INFO] [1792734032.096630543] [local_costmap.local_costmap]: Received request to clear entirely the local_costmap
+[planner_server-5] [INFO] [1792734032.097634154] [global_costmap.global_costmap]: Received request to clear entirely the global_costmap
+[controller_server-4] [INFO] [1792734032.099349180] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-4] [INFO] [1792734032.529079328] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 45.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734033.047257119] [amcl]: Message Filter dropping message: frame 'base_link' at time 46.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [ERROR] [1792734033.200107021] [tf_help]: Transform data too old when converting from odom to map
+[controller_server-4] [ERROR] [1792734033.200193131] [tf_help]: Data time: 46s 120000000ns, Transform time: 45s 600000000ns
+[controller_server-4] [ERROR] [1792734033.200580256] [controller_server]: Unable to transform robot pose into global plan's frame
+[controller_server-4] [WARN] [1792734033.200661008] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-4] [INFO] [1792734033.213208658] [local_costmap.local_costmap]: Received request to clear entirely the local_costmap
+[controller_server-4] [INFO] [1792734033.215000159] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-4] [ERROR] [1792734033.275369366] [tf_help]: Transform data too old when converting from odom to map
+[controller_server-4] [ERROR] [1792734033.276113490] [tf_help]: Data time: 46s 200000000ns, Transform time: 45s 600000000ns
+[controller_server-4] [ERROR] [1792734033.276178068] [controller_server]: Unable to transform robot pose into global plan's frame
+[controller_server-4] [WARN] [1792734033.276248203] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[behavior_server-6] [INFO] [1792734033.294437015] [behavior_server]: Running spin
+[behavior_server-6] [INFO] [1792734033.294515093] [behavior_server]: Turning 1.57 for spin behavior.
+[controller_server-4] [INFO] [1792734035.227661050] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 48.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734035.760982517] [amcl]: Message Filter dropping message: frame 'base_link' at time 48.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734037.993509456] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 50.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734038.619823641] [amcl]: Message Filter dropping message: frame 'base_link' at time 51.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734040.728492439] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 53.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734041.268573573] [amcl]: Message Filter dropping message: frame 'base_link' at time 53.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[behavior_server-6] [INFO] [1792734041.894965855] [behavior_server]: spin completed successfully
+[controller_server-4] [INFO] [1792734041.933918906] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-4] [ERROR] [1792734043.234496373] [tf_help]: Transform data too old when converting from odom to map
+[controller_server-4] [ERROR] [1792734043.234554902] [tf_help]: Data time: 55s 554000000ns, Transform time: 55s 0ns
+[controller_server-4] [ERROR] [1792734043.234593110] [controller_server]: Unable to transform robot pose into global plan's frame
+[controller_server-4] [WARN] [1792734043.235204673] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-4] [INFO] [1792734043.253692911] [local_costmap.local_costmap]: Received request to clear entirely the local_costmap
+[controller_server-4] [INFO] [1792734043.254736483] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-4] [ERROR] [1792734043.275557769] [tf_help]: Transform data too old when converting from odom to map
+[controller_server-4] [ERROR] [1792734043.276049352] [tf_help]: Data time: 55s 594000000ns, Transform time: 55s 0ns
+[controller_server-4] [ERROR] [1792734043.276146979] [controller_server]: Unable to transform robot pose into global plan's frame
+[controller_server-4] [WARN] [1792734043.276217265] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[behavior_server-6] [INFO] [1792734043.293927077] [behavior_server]: Running wait
+[controller_server-4] [INFO] [1792734043.491493398] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 55.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734043.920050528] [amcl]: Message Filter dropping message: frame 'base_link' at time 56.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734046.244900027] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 58.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734046.667546058] [amcl]: Message Filter dropping message: frame 'base_link' at time 58.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[behavior_server-6] [INFO] [1792734048.695208229] [behavior_server]: wait completed successfully
+[controller_server-4] [INFO] [1792734048.715135656] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-4] [INFO] [1792734048.887263299] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 60.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734049.305090107] [amcl]: Message Filter dropping message: frame 'base_link' at time 61.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [ERROR] [1792734049.516563443] [tf_help]: Transform data too old when converting from odom to map
+[controller_server-4] [ERROR] [1792734049.516645347] [tf_help]: Data time: 61s 490000000ns, Transform time: 60s 900000000ns
+[controller_server-4] [ERROR] [1792734049.516711537] [controller_server]: Unable to transform robot pose into global plan's frame
+[controller_server-4] [WARN] [1792734049.516808764] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-4] [INFO] [1792734049.534181315] [local_costmap.local_costmap]: Received request to clear entirely the local_costmap
+[controller_server-4] [INFO] [1792734049.537224386] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-4] [ERROR] [1792734049.577897744] [tf_help]: Transform data too old when converting from odom to map
+[controller_server-4] [ERROR] [1792734049.577986508] [tf_help]: Data time: 61s 547000000ns, Transform time: 60s 900000000ns
+[controller_server-4] [ERROR] [1792734049.578043054] [controller_server]: Unable to transform robot pose into global plan's frame
+[controller_server-4] [WARN] [1792734049.578116985] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[bt_navigator-7] [WARN] [1792734049.603046222] [bt_navigator]: [navigate_to_pose] [ActionServer] Aborting handle.
+[bt_navigator-7] [ERROR] [1792734049.603261056] [bt_navigator]: Goal failed
+[controller_server-4] [INFO] [1792734051.776217362] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 63.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734052.172178255] [amcl]: Message Filter dropping message: frame 'base_link' at time 63.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734054.455187300] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 66.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734054.893989826] [amcl]: Message Filter dropping message: frame 'base_link' at time 66.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734057.223188506] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 68.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734057.742948332] [amcl]: Message Filter dropping message: frame 'base_link' at time 69.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734060.024835754] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 71.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734060.682078626] [amcl]: Message Filter dropping message: frame 'base_link' at time 71.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [WARN] [1792734061.645855241] [rclcpp]: Failed to get parameters: current_goal_checker
+[controller_server-4] [INFO] [1792734062.788763559] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 73.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734063.622994929] [amcl]: Message Filter dropping message: frame 'base_link' at time 74.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734065.374175605] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 76.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734066.229682940] [amcl]: Message Filter dropping message: frame 'base_link' at time 76.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734068.040065220] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 78.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734068.845508139] [amcl]: Message Filter dropping message: frame 'base_link' at time 79.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
