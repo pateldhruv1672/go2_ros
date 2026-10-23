@@ -1,0 +1,14 @@
+{
+ "planner": "navfn",
+ "controller": "dwb",
+ "changes": [
+  "bt_navigator.default_nav_to_pose_bt_xml: resolved find-pkg-share",
+  "bt_navigator.default_nav_through_poses_bt_xml: resolved find-pkg-share",
+  "bt_navigator.follow_point_bt_xml: resolved find-pkg-share",
+  "bt_navigator.odometry_calibration_bt_xml: resolved find-pkg-share",
+  "amcl.set_initial_pose=true at scenario start",
+  "map_server.yaml_filename=/home/runner/work/go2_ros/go2_ros/evidence/arms/navfn_dwb/rep3/world/arena.yaml",
+  "planner_server.GridBased := navfn",
+  "controller_server.FollowPath kept as exported repository DWB"
+ ]
+}
