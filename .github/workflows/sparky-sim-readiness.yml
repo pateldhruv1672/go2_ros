@@ -1,0 +1,59 @@
+name: Sparky simulator readiness
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci/sparky-gz-transport-check]
+    paths: ['.github/workflows/sparky-sim-readiness.yml', 'experiments/sparky/**']
+permissions:
+  contents: write
+jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Gazebo Harmonic, ROS Jazzy, Nav2
+        shell: bash
+        run: |
+          set -eo pipefail
+          mkdir -p evidence
+          sudo curl -fsSL https://packages.osrfoundation.org/gazebo.gpg -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable noble main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list
+          bash experiments/sparky/install_dependencies.sh > evidence/install.log 2>&1 || { tail -40 evidence/install.log; exit 1; }
+          tail -n +1 evidence/install.log | grep -E '^(ros-jazzy|gz)' > evidence/package-versions.tsv || true
+      - name: Fetch pinned sources and prepare simulator
+        shell: bash
+        run: |
+          set -eo pipefail
+          git clone https://github.com/khaledgabr77/unitree_go2_ros2.git simulator-source
+          git -C simulator-source checkout --detach 55ff151632a0220bf3ae0c0772392615d86da7a8
+          git clone --branch teach_repair https://github.com/pateldhruv1672/go2_ros.git sparky-source
+          git -C sparky-source checkout --detach ca39e50ba126a142f8ae7d806f8006ceea1f733a
+          python3 experiments/sparky/export_config.py sparky-source --out evidence/configs
+          python3 experiments/sparky/prepare_simulator.py simulator-source "$PWD/sim_ws" --patch-out evidence/simulator-adapter.patch
+      - name: Build simulator
+        shell: bash
+        run: |
+          set -o pipefail
+          bash experiments/sparky/build_simulator.sh "$PWD/sim_ws" > evidence/build.log 2>&1; rc=$?
+          tail -60 evidence/build.log; exit $rc
+      - name: Run simulator smoke (real Gazebo + ROS message flow)
+        shell: bash
+        run: |
+          set +e
+          timeout --signal=INT --kill-after=20s 150s bash experiments/sparky/run_simulator_smoke.sh "$PWD/sim_ws" "$PWD/evidence/smoke" > evidence/smoke.log 2>&1
+          echo $? > evidence/smoke.exit
+          cat evidence/smoke/smoke_status.json || true
+          exit 0
+      - name: Publish evidence to results branch
+        if: always()
+        shell: bash
+        run: |
+          set -e
+          rm -rf evidence/smoke/rosbag evidence/smoke/observations.jsonl.bak
+          tail -c 200000 evidence/build.log > evidence/build.tail.log 2>/dev/null || true; rm -f evidence/build.log
+          tail -c 200000 evidence/install.log > evidence/install.tail.log 2>/dev/null || true; rm -f evidence/install.log
+          d=$(mktemp -d); cp -r evidence "$d/"; cd "$d"
+          git init -q; git checkout -q -b results; git add -A
+          git -c user.name=ci -c user.email=ci@example.com commit -qm "sim readiness evidence run ${{ github.run_id }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" results:refs/heads/ci-evidence/sim-readiness
