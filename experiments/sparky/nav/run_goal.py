@@ -26,7 +26,7 @@ class Rec(Node):
         super().__init__('sparky_recorder', parameter_overrides=[Parameter('use_sim_time', value=True)])
         self.f = {k: open(out / f'{k}.csv', 'w', newline='') for k in ['ground_truth', 'est_odom', 'cmd_vel', 'amcl']}
         self.w = {k: csv.writer(v) for k, v in self.f.items()}
-        for k in ['ground_truth', 'est_odom']: self.w[k].writerow(['stamp', 'x', 'y', 'yaw', 'vx', 'wz'])
+        for k in ['ground_truth', 'est_odom']: self.w[k].writerow(['stamp', 'x', 'y', 'yaw', 'vx', 'wz', 'z', 'roll', 'pitch'])
         self.w['cmd_vel'].writerow(['sim_time', 'vx', 'wz'])
         self.w['amcl'].writerow(['stamp', 'x', 'y', 'yaw'])
         self.plans = open(out / 'plans.jsonl', 'w')
@@ -36,7 +36,7 @@ class Rec(Node):
         self.create_subscription(Clock, '/clock', self.on_clock, qos_profile_sensor_data)
         self.create_subscription(Odometry, '/odom/ground_truth', lambda m: self.odom('ground_truth', m), qos_profile_sensor_data)
         self.create_subscription(Odometry, '/odom', lambda m: self.odom('est_odom', m), qos_profile_sensor_data)
-        self.create_subscription(Twist, '/cmd_vel/smooth', self.on_cmd, 50)
+        self.create_subscription(Twist, '/cmd_vel', self.on_cmd, 50)
         self.create_subscription(LaserScan, '/scan', lambda m: self.counts.__setitem__('scan', self.counts['scan'] + 1), qos_profile_sensor_data)
         self.create_subscription(PathMsg, '/plan', self.on_plan, 10)
         self.amcl_n = 0
@@ -46,7 +46,7 @@ class Rec(Node):
     def odom(self, k, m):
         self.counts[k] += 1
         if self.recording:
-            p = m.pose.pose; self.w[k].writerow([f'{st(m.header):.4f}', p.position.x, p.position.y, yaw_of(p.orientation), m.twist.twist.linear.x, m.twist.twist.angular.z])
+            p = m.pose.pose; self.w[k].writerow([f'{st(m.header):.4f}', p.position.x, p.position.y, yaw_of(p.orientation), m.twist.twist.linear.x, m.twist.twist.angular.z, p.position.z, math.atan2(2*(p.orientation.w*p.orientation.x+p.orientation.y*p.orientation.z), 1-2*(p.orientation.x**2+p.orientation.y**2)), math.asin(max(-1,min(1,2*(p.orientation.w*p.orientation.y-p.orientation.z*p.orientation.x))))])
     def on_cmd(self, m):
         if self.recording: self.w['cmd_vel'].writerow([f'{self.clock:.4f}', m.linear.x, m.angular.z])
     def on_amcl(self, m):

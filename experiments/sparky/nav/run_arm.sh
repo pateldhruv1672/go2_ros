@@ -20,7 +20,7 @@ NAV=$!
 cleanup() { kill -INT $BAG 2>/dev/null; sleep 3; kill -INT $NAV $RELAY $SIM 2>/dev/null; sleep 5; kill -9 $NAV $RELAY $SIM 2>/dev/null; pkill -9 -f "gz sim" 2>/dev/null; true; }
 trap cleanup EXIT
 STORAGE=mcap; ros2 bag record -s mcap --help >/dev/null 2>&1 || STORAGE=sqlite3
-ros2 bag record -s $STORAGE -o "$OUT/bag" /clock /odom /odom/ground_truth /tf /tf_static /scan /plan /cmd_vel/smooth /amcl_pose /joint_states > "$OUT/bag.log" 2>&1 &
+ros2 bag record -s $STORAGE -o "$OUT/bag" /clock /odom /odom/ground_truth /tf /tf_static /scan /plan /cmd_vel /amcl_pose /joint_states > "$OUT/bag.log" 2>&1 &
 BAG=$!
 python3 "$EXP/nav/run_goal.py" "$EXP/nav/scenario.json" "$OUT/run" 150 > "$OUT/run_goal.log" 2>&1
 RC=$?
