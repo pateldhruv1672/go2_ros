@@ -20,9 +20,10 @@ def generate_launch_description():
         nav('nav2_controller', 'controller_server', 'controller_server'),
         nav('nav2_planner', 'planner_server', 'planner_server'),
         nav('nav2_behaviors', 'behavior_server', 'behavior_server'),
+        nav('nav2_smoother', 'smoother_server', 'smoother_server'),
         nav('nav2_bt_navigator', 'bt_navigator', 'bt_navigator'),
         Node(package='nav2_lifecycle_manager', executable='lifecycle_manager', name='lifecycle_manager_localization', output='screen',
              parameters=[sim, {'autostart': True, 'node_names': ['map_server', 'amcl'], 'bond_timeout': 0.0}]),
         Node(package='nav2_lifecycle_manager', executable='lifecycle_manager', name='lifecycle_manager_navigation', output='screen',
-             parameters=[sim, {'autostart': True, 'node_names': ['controller_server', 'planner_server', 'behavior_server', 'bt_navigator'], 'bond_timeout': 0.0}]),
+             parameters=[sim, {'autostart': True, 'node_names': ['controller_server', 'smoother_server', 'planner_server', 'behavior_server', 'bt_navigator'], 'bond_timeout': 0.0}]),
     ])

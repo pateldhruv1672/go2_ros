@@ -6,7 +6,7 @@ mkdir -p "$OUT"
 source /opt/ros/jazzy/setup.bash; source "$SIM_WS/install/setup.bash"
 export ROS_DOMAIN_ID=$((50 + REP)) ROS_LOCALHOST_ONLY=1 LIBGL_ALWAYS_SOFTWARE=1 GZ_IP=127.0.0.1 GZ_PARTITION=arm$$
 WORLD=$OUT/world; python3 "$EXP/nav/make_world.py" "$EXP/nav/scenario.json" "$SIM_WS/src/unitree_go2_ros2/unitree_go2_description/worlds/default.sdf" "$WORLD" > "$OUT/world.log" 2>&1
-python3 "$EXP/nav/prepare_nav_params.py" "$NAV_CFG" "$WORLD/arena.yaml" "$EXP/nav/scenario.json" "$OUT/nav_params.yaml" > "$OUT/params.log" 2>&1
+python3 "$EXP/nav/prepare_nav_params.py" "$NAV_CFG" "$WORLD/arena.yaml" "$EXP/nav/scenario.json" "$OUT/nav_params.yaml" "${PLANNER:-navfn}" "${CONTROLLER:-dwb}" > "$OUT/params.log" 2>&1
 # Disable the EKF's own odom->base_footprint TF (the relay re-publishes it, with the arm's delay). Record this change.
 EKF=$(ros2 pkg prefix champ_base)/share/champ_base/config/ekf/footprint_to_odom.yaml
 sed -i 's/publish_tf: true/publish_tf: false/' "$EKF"; cp "$EKF" "$OUT/footprint_to_odom.effective.yaml"
@@ -27,5 +27,5 @@ RC=$?
 # plugin proof from the live system, before teardown
 { for i in 1 2 3 4 5; do ros2 param get /controller_server FollowPath.plugin 2>&1 | grep -v WARN && break; sleep 2; done
   for i in 1 2 3 4 5; do ros2 param get /planner_server GridBased.plugin 2>&1 | grep -v WARN && break; sleep 2; done
-  ros2 param get /controller_server current_goal_checker 2>&1 | grep -v WARN; ros2 node list; } > "$OUT/loaded_plugins.txt" 2>&1
+  echo "PLANNER=${PLANNER:-navfn} CONTROLLER=${CONTROLLER:-dwb}"; ros2 param get /controller_server current_goal_checker 2>&1 | grep -v WARN; ros2 node list; } > "$OUT/loaded_plugins.txt" 2>&1
 echo $RC > "$OUT/run_goal.exit"; exit 0

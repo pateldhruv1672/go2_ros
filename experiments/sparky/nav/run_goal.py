@@ -64,7 +64,7 @@ def spin_until(node, cond, timeout_wall, label):
     node.get_logger().error('TIMEOUT waiting for ' + label); return False
 
 def main():
-    rclpy.init(); n = Rec(); manifest = {'scenario': scn, 'gates': {}}
+    rclpy.init(); n = Rec(); import os; manifest = {'scenario': scn, 'gates': {}, 'planner': os.environ.get('PLANNER', 'navfn'), 'controller': os.environ.get('CONTROLLER', 'dwb')}
     def gate(name, ok, **kw): manifest['gates'][name] = {'ok': bool(ok), **kw}; print('GATE', name, ok, kw, flush=True); return ok
     def finish(status):
         manifest['status'] = status; (out / 'run_manifest.json').write_text(json.dumps(manifest, indent=1))
