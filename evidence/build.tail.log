@@ -1,0 +1,143 @@
+Starting >>> champ_msgs
+Starting >>> champ
+--- stderr: champ
+CMake Deprecation Warning at CMakeLists.txt:2 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+---
+Finished <<< champ [6.63s]
+Starting >>> unitree_go2_description
+--- stderr: unitree_go2_description
+CMake Deprecation Warning at CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+---
+Finished <<< unitree_go2_description [1.71s]
+--- stderr: champ_msgs
+CMake Deprecation Warning at CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+---
+Finished <<< champ_msgs [20.4s]
+Starting >>> unitree_application
+Starting >>> champ_base
+--- stderr: unitree_application
+CMake Deprecation Warning at CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+---
+Finished <<< unitree_application [20.1s]
+Starting >>> unitree_go2_sim
+--- stderr: unitree_go2_sim
+CMake Deprecation Warning at CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+---
+Finished <<< unitree_go2_sim [3.14s]
+--- stderr: champ_base
+CMake Deprecation Warning at CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+In file included from /usr/include/c++/13/bits/stl_uninitialized.h:63,
+                 from /usr/include/c++/13/memory:69,
+                 from /opt/ros/jazzy/include/rclcpp/rclcpp/rclcpp.hpp:173,
+                 from /home/runner/work/go2_ros/go2_ros/sim_ws/src/unitree_go2_ros2/champ_base/include/quadruped_controller.h:31,
+                 from /home/runner/work/go2_ros/go2_ros/sim_ws/src/unitree_go2_ros2/champ_base/src/quadruped_controller.cpp:29:
+In static member function ‘static _Up* std::__copy_move<_IsMove, true, std::random_access_iterator_tag>::__copy_m(_Tp*, _Tp*, _Up*) [with _Tp = long unsigned int; _Up = long unsigned int; bool _IsMove = false]’,
+    inlined from ‘_OI std::__copy_move_a2(_II, _II, _OI) [with bool _IsMove = false; _II = long unsigned int*; _OI = long unsigned int*]’ at /usr/include/c++/13/bits/stl_algobase.h:506:30,
+    inlined from ‘_OI std::__copy_move_a1(_II, _II, _OI) [with bool _IsMove = false; _II = long unsigned int*; _OI = long unsigned int*]’ at /usr/include/c++/13/bits/stl_algobase.h:533:42,
+    inlined from ‘_OI std::__copy_move_a(_II, _II, _OI) [with bool _IsMove = false; _II = long unsigned int*; _OI = long unsigned int*]’ at /usr/include/c++/13/bits/stl_algobase.h:540:31,
+    inlined from ‘_OI std::copy(_II, _II, _OI) [with _II = long unsigned int*; _OI = long unsigned int*]’ at /usr/include/c++/13/bits/stl_algobase.h:633:7,
+    inlined from ‘std::vector<bool, _Alloc>::iterator std::vector<bool, _Alloc>::_M_copy_aligned(const_iterator, const_iterator, iterator) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/stl_bvector.h:1342:28,
+    inlined from ‘void std::vector<bool, _Alloc>::_M_fill_insert(iterator, size_type, bool) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/vector.tcc:879:34,
+    inlined from ‘std::vector<bool, _Alloc>::iterator std::vector<bool, _Alloc>::insert(const_iterator, size_type, const bool&) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/stl_bvector.h:1242:16,
+    inlined from ‘void std::vector<bool, _Alloc>::resize(size_type, bool) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/stl_bvector.h:1288:10,
+    inlined from ‘void QuadrupedController::publishFootContacts_(bool*)’ at /home/runner/work/go2_ros/go2_ros/sim_ws/src/unitree_go2_ros2/champ_base/src/quadruped_controller.cpp:194:37:
+/usr/include/c++/13/bits/stl_algobase.h:437:30: warning: ‘void* __builtin_memmove(void*, const void*, long unsigned int)’ writing between 9 and 9223372036854775807 bytes into a region of size 8 overflows the destination [-Wstringop-overflow=]
+  437 |             __builtin_memmove(__result, __first, sizeof(_Tp) * _Num);
+      |             ~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/include/x86_64-linux-gnu/c++/13/bits/c++allocator.h:33,
+                 from /usr/include/c++/13/bits/allocator.h:46,
+                 from /usr/include/c++/13/memory:65:
+In member function ‘_Tp* std::__new_allocator<_Tp>::allocate(size_type, const void*) [with _Tp = long unsigned int]’,
+    inlined from ‘static _Tp* std::allocator_traits<std::allocator<_Tp1> >::allocate(allocator_type&, size_type) [with _Tp = long unsigned int]’ at /usr/include/c++/13/bits/alloc_traits.h:482:28,
+    inlined from ‘std::_Bvector_base<_Alloc>::_Bit_pointer std::_Bvector_base<_Alloc>::_M_allocate(std::size_t) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/stl_bvector.h:679:48,
+    inlined from ‘void std::vector<bool, _Alloc>::_M_fill_insert(iterator, size_type, bool) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/vector.tcc:877:40,
+    inlined from ‘std::vector<bool, _Alloc>::iterator std::vector<bool, _Alloc>::insert(const_iterator, size_type, const bool&) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/stl_bvector.h:1242:16,
+    inlined from ‘void std::vector<bool, _Alloc>::resize(size_type, bool) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/stl_bvector.h:1288:10,
+    inlined from ‘void QuadrupedController::publishFootContacts_(bool*)’ at /home/runner/work/go2_ros/go2_ros/sim_ws/src/unitree_go2_ros2/champ_base/src/quadruped_controller.cpp:194:37:
+/usr/include/c++/13/bits/new_allocator.h:151:55: note: destination object of size 8 allocated by ‘operator new’
+  151 |         return static_cast<_Tp*>(_GLIBCXX_OPERATOR_NEW(__n * sizeof(_Tp)));
+      |                                                       ^
+In file included from /usr/include/c++/13/bits/stl_uninitialized.h:63,
+                 from /usr/include/c++/13/memory:69,
+                 from /opt/ros/jazzy/include/rclcpp/rclcpp/rclcpp.hpp:173,
+                 from /home/runner/work/go2_ros/go2_ros/sim_ws/src/unitree_go2_ros2/champ_base/include/message_relay.h:31,
+                 from /home/runner/work/go2_ros/go2_ros/sim_ws/src/unitree_go2_ros2/champ_base/src/message_relay.cpp:28:
+In static member function ‘static _Up* std::__copy_move<_IsMove, true, std::random_access_iterator_tag>::__copy_m(_Tp*, _Tp*, _Up*) [with _Tp = long unsigned int; _Up = long unsigned int; bool _IsMove = false]’,
+    inlined from ‘_OI std::__copy_move_a2(_II, _II, _OI) [with bool _IsMove = false; _II = long unsigned int*; _OI = long unsigned int*]’ at /usr/include/c++/13/bits/stl_algobase.h:506:30,
+    inlined from ‘_OI std::__copy_move_a1(_II, _II, _OI) [with bool _IsMove = false; _II = long unsigned int*; _OI = long unsigned int*]’ at /usr/include/c++/13/bits/stl_algobase.h:533:42,
+    inlined from ‘_OI std::__copy_move_a(_II, _II, _OI) [with bool _IsMove = false; _II = long unsigned int*; _OI = long unsigned int*]’ at /usr/include/c++/13/bits/stl_algobase.h:540:31,
+    inlined from ‘_OI std::copy(_II, _II, _OI) [with _II = long unsigned int*; _OI = long unsigned int*]’ at /usr/include/c++/13/bits/stl_algobase.h:633:7,
+    inlined from ‘std::vector<bool, _Alloc>::iterator std::vector<bool, _Alloc>::_M_copy_aligned(const_iterator, const_iterator, iterator) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/stl_bvector.h:1342:28,
+    inlined from ‘void std::vector<bool, _Alloc>::_M_fill_insert(iterator, size_type, bool) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/vector.tcc:879:34,
+    inlined from ‘std::vector<bool, _Alloc>::iterator std::vector<bool, _Alloc>::insert(const_iterator, size_type, const bool&) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/stl_bvector.h:1242:16,
+    inlined from ‘void std::vector<bool, _Alloc>::resize(size_type, bool) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/stl_bvector.h:1288:10,
+    inlined from ‘void MessageRelay::footContactCallback_(champ_msgs::msg::Contacts_<std::allocator<void> >::SharedPtr)’ at /home/runner/work/go2_ros/go2_ros/sim_ws/src/unitree_go2_ros2/champ_base/src/message_relay.cpp:167:33:
+/usr/include/c++/13/bits/stl_algobase.h:437:30: warning: ‘void* __builtin_memmove(void*, const void*, long unsigned int)’ writing between 9 and 9223372036854775807 bytes into a region of size 8 overflows the destination [-Wstringop-overflow=]
+  437 |             __builtin_memmove(__result, __first, sizeof(_Tp) * _Num);
+      |             ~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/include/x86_64-linux-gnu/c++/13/bits/c++allocator.h:33,
+                 from /usr/include/c++/13/bits/allocator.h:46,
+                 from /usr/include/c++/13/memory:65:
+In member function ‘_Tp* std::__new_allocator<_Tp>::allocate(size_type, const void*) [with _Tp = long unsigned int]’,
+    inlined from ‘static _Tp* std::allocator_traits<std::allocator<_Tp1> >::allocate(allocator_type&, size_type) [with _Tp = long unsigned int]’ at /usr/include/c++/13/bits/alloc_traits.h:482:28,
+    inlined from ‘std::_Bvector_base<_Alloc>::_Bit_pointer std::_Bvector_base<_Alloc>::_M_allocate(std::size_t) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/stl_bvector.h:679:48,
+    inlined from ‘void std::vector<bool, _Alloc>::_M_fill_insert(iterator, size_type, bool) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/vector.tcc:877:40,
+    inlined from ‘std::vector<bool, _Alloc>::iterator std::vector<bool, _Alloc>::insert(const_iterator, size_type, const bool&) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/stl_bvector.h:1242:16,
+    inlined from ‘void std::vector<bool, _Alloc>::resize(size_type, bool) [with _Alloc = std::allocator<bool>]’ at /usr/include/c++/13/bits/stl_bvector.h:1288:10,
+    inlined from ‘void MessageRelay::footContactCallback_(champ_msgs::msg::Contacts_<std::allocator<void> >::SharedPtr)’ at /home/runner/work/go2_ros/go2_ros/sim_ws/src/unitree_go2_ros2/champ_base/src/message_relay.cpp:167:33:
+/usr/include/c++/13/bits/new_allocator.h:151:55: note: destination object of size 8 allocated by ‘operator new’
+  151 |         return static_cast<_Tp*>(_GLIBCXX_OPERATOR_NEW(__n * sizeof(_Tp)));
+      |                                                       ^
+---
+Finished <<< champ_base [43.8s]
+
+Summary: 6 packages finished [1min 5s]
+  6 packages had stderr output: champ champ_base champ_msgs unitree_application unitree_go2_description unitree_go2_sim
