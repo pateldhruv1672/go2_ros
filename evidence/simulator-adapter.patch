@@ -1,0 +1,66 @@
+--- a/unitree_go2_sim/launch/unitree_go2_launch.py
++++ b/unitree_go2_sim/launch/unitree_go2_launch.py
+@@ -208,7 +208,7 @@
+         PythonLaunchDescriptionSource(
+             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')),
+         launch_arguments={
+-            'gz_args': [LaunchConfiguration('world'), ' -r']  # Add -r flag to start unpaused
++            'gz_args': [LaunchConfiguration('world'), ' -r -s --headless-rendering']  # Add -r flag to start unpaused
+         }.items(),
+     )
+     
+--- a/unitree_go2_sim/launch/unitree_go2_launch.py
++++ b/unitree_go2_sim/launch/unitree_go2_launch.py
+@@ -374,7 +374,7 @@
+             footprint_to_odom_ekf,
+             
+             # Static TF publisher for frame connections
+-            map_to_odom_tf_node,
++            # map_to_odom_tf_node omitted: AMCL owns this transform.
+             
+             # Controller spawners that handle the complete lifecycle
+             controller_spawner_js,
+--- a/champ_base/config/ekf/base_to_footprint.yaml
++++ b/champ_base/config/ekf/base_to_footprint.yaml
+@@ -3,7 +3,7 @@
+     frequency: 50.0
+     publish_tf: true
+     transform_timeout: 0.01
+-    transform_time_offset: 0.045
++    transform_time_offset: 0.0
+     two_d_mode: false
+ 
+     #x     , y     , z,
+--- a/champ_base/config/ekf/footprint_to_odom.yaml
++++ b/champ_base/config/ekf/footprint_to_odom.yaml
+@@ -3,7 +3,7 @@
+     frequency: 50.0
+     publish_tf: true
+     transform_timeout: 0.01
+-    transform_time_offset: 0.050
++    transform_time_offset: 0.0
+     two_d_mode: true
+ 
+     #x     , y     , z,
+--- a/unitree_go2_sim/config/gait/gait.yaml
++++ b/unitree_go2_sim/config/gait/gait.yaml
+@@ -6,7 +6,7 @@
+       odom_scaler: 0.9
+       max_linear_velocity_x : 0.3
+       max_linear_velocity_y : 0.25
+-      max_angular_velocity_z : 0.5
++      max_angular_velocity_z : 0.6
+       com_x_translation: 0.0
+       swing_height : 0.04
+       stance_depth : 0.01
+--- a/unitree_go2_sim/package.xml
++++ b/unitree_go2_sim/package.xml
+@@ -10,7 +10,7 @@
+   <buildtool_depend>ament_cmake</buildtool_depend>
+   <build_depend>launch_ros</build_depend>
+ 
+-  <exec_depend>unitree_applications</exec_depend>
++  <exec_depend>unitree_application</exec_depend>
+   <exec_depend>ros_gz_sim</exec_depend>
+   <exec_depend>ros_gz_bridge</exec_depend>
+   <exec_depend>gz_ros2_control</exec_depend>
