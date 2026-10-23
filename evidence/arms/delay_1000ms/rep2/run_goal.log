@@ -1,0 +1,6 @@
+[WARN] [1792734249.198039956] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1792734249.198060070] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+GATE clock_advancing True {'sim_time': 5.001}
+GATE scan_flowing True {'count': 50}
+GATE active_lifecycle_manager_localization True {}
+GATE active_lifecycle_manager_navigation False {}

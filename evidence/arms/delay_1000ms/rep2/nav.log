@@ -1,0 +1,526 @@
+[INFO] [launch]: All log files can be found below /home/runner/.ros/log/2026-10-23-05-44-07-888050-runnervm8k3b6-28240
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [pointcloud_to_laserscan_node-1]: process started with pid [28261]
+[INFO] [map_server-2]: process started with pid [28262]
+[INFO] [amcl-3]: process started with pid [28263]
+[INFO] [controller_server-4]: process started with pid [28264]
+[INFO] [planner_server-5]: process started with pid [28265]
+[INFO] [behavior_server-6]: process started with pid [28266]
+[INFO] [bt_navigator-7]: process started with pid [28267]
+[INFO] [lifecycle_manager-8]: process started with pid [28268]
+[INFO] [lifecycle_manager-9]: process started with pid [28269]
+[pointcloud_to_laserscan_node-1] [WARN] [1792734248.043013970] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[pointcloud_to_laserscan_node-1] [WARN] [1792734248.045878759] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[amcl-3] [WARN] [1792734248.077368568] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[amcl-3] [WARN] [1792734248.077383958] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[lifecycle_manager-9] [WARN] [1792734248.077333116] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[lifecycle_manager-9] [WARN] [1792734248.080563204] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[controller_server-4] [WARN] [1792734248.102415979] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[controller_server-4] [WARN] [1792734248.104362200] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[planner_server-5] [WARN] [1792734248.110562029] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[planner_server-5] [WARN] [1792734248.110580896] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[behavior_server-6] [WARN] [1792734248.113196735] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[behavior_server-6] [WARN] [1792734248.113216641] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[amcl-3] [INFO] [1792734248.126574961] [amcl]: 
+[amcl-3] 	amcl lifecycle node launched. 
+[amcl-3] 	Waiting on external lifecycle transitions to activate
+[amcl-3] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[amcl-3] [INFO] [1792734248.127371117] [amcl]: Creating
+[lifecycle_manager-8] [WARN] [1792734248.134520544] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[lifecycle_manager-8] [WARN] [1792734248.134539150] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[bt_navigator-7] [WARN] [1792734248.146361881] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[bt_navigator-7] [WARN] [1792734248.146381074] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[lifecycle_manager-9] [INFO] [1792734248.151284104] [lifecycle_manager_navigation]: Creating
+[map_server-2] [WARN] [1792734248.153039637] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[map_server-2] [WARN] [1792734248.153827122] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[lifecycle_manager-9] [INFO] [1792734248.169354486] [lifecycle_manager_navigation]: [34m[1mCreating and initializing lifecycle service clients[0m[0m
+[controller_server-4] [INFO] [1792734248.183598008] [controller_server]: 
+[controller_server-4] 	controller_server lifecycle node launched. 
+[controller_server-4] 	Waiting on external lifecycle transitions to activate
+[controller_server-4] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[controller_server-4] [INFO] [1792734248.207031953] [controller_server]: Creating controller server
+[behavior_server-6] [INFO] [1792734248.217722136] [behavior_server]: 
+[behavior_server-6] 	behavior_server lifecycle node launched. 
+[behavior_server-6] 	Waiting on external lifecycle transitions to activate
+[behavior_server-6] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-5] [INFO] [1792734248.224314637] [planner_server]: 
+[planner_server-5] 	planner_server lifecycle node launched. 
+[planner_server-5] 	Waiting on external lifecycle transitions to activate
+[planner_server-5] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-5] [INFO] [1792734248.226236101] [planner_server]: Creating
+[controller_server-4] [INFO] [1792734248.254570633] [local_costmap.local_costmap]: 
+[controller_server-4] 	local_costmap lifecycle node launched. 
+[controller_server-4] 	Waiting on external lifecycle transitions to activate
+[controller_server-4] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[controller_server-4] [INFO] [1792734248.257948090] [local_costmap.local_costmap]: Creating Costmap
+[planner_server-5] [INFO] [1792734248.272622511] [global_costmap.global_costmap]: 
+[planner_server-5] 	global_costmap lifecycle node launched. 
+[planner_server-5] 	Waiting on external lifecycle transitions to activate
+[planner_server-5] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-5] [INFO] [1792734248.273056654] [global_costmap.global_costmap]: Creating Costmap
+[bt_navigator-7] [INFO] [1792734248.274181841] [bt_navigator]: 
+[bt_navigator-7] 	bt_navigator lifecycle node launched. 
+[bt_navigator-7] 	Waiting on external lifecycle transitions to activate
+[bt_navigator-7] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[bt_navigator-7] [INFO] [1792734248.275695612] [bt_navigator]: Creating
+[lifecycle_manager-8] [INFO] [1792734248.279383515] [lifecycle_manager_localization]: Creating
+[map_server-2] [INFO] [1792734248.281282955] [map_server]: 
+[map_server-2] 	map_server lifecycle node launched. 
+[map_server-2] 	Waiting on external lifecycle transitions to activate
+[map_server-2] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[map_server-2] [INFO] [1792734248.281377783] [map_server]: Creating
+[lifecycle_manager-8] [INFO] [1792734248.299276327] [lifecycle_manager_localization]: [34m[1mCreating and initializing lifecycle service clients[0m[0m
+[lifecycle_manager-9] [INFO] [1792734248.323682234] [lifecycle_manager_navigation]: [34m[1mStarting managed nodes bringup...[0m[0m
+[lifecycle_manager-9] [INFO] [1792734248.323733904] [lifecycle_manager_navigation]: [34m[1mConfiguring controller_server[0m[0m
+[controller_server-4] [INFO] [1792734248.327204235] [controller_server]: Configuring controller interface
+[controller_server-4] [INFO] [1792734248.327231946] [controller_server]: getting progress checker plugins..
+[controller_server-4] [INFO] [1792734248.328405880] [controller_server]: getting goal checker plugins..
+[controller_server-4] [INFO] [1792734248.328889200] [controller_server]: Controller frequency set to 10.0000Hz
+[controller_server-4] [INFO] [1792734248.328939648] [local_costmap.local_costmap]: Configuring
+[controller_server-4] [INFO] [1792734248.347351223] [local_costmap.local_costmap]: Using plugin "obstacle_layer"
+[controller_server-4] [INFO] [1792734248.354389211] [local_costmap.local_costmap]: Subscribed to Topics: scan
+[lifecycle_manager-8] [INFO] [1792734248.365662965] [lifecycle_manager_localization]: [34m[1mStarting managed nodes bringup...[0m[0m
+[lifecycle_manager-8] [INFO] [1792734248.365702825] [lifecycle_manager_localization]: [34m[1mConfiguring map_server[0m[0m
+[pointcloud_to_laserscan_node-1] [INFO] [1792734248.367837651] [pc2scan]: Got a subscriber to laserscan, starting pointcloud subscriber
+[controller_server-4] [INFO] [1792734248.371342223] [local_costmap.local_costmap]: Initialized plugin "obstacle_layer"
+[controller_server-4] [INFO] [1792734248.371371036] [local_costmap.local_costmap]: Using plugin "inflation_layer"
+[controller_server-4] [INFO] [1792734248.373231289] [local_costmap.local_costmap]: Initialized plugin "inflation_layer"
+[controller_server-4] [INFO] [1792734248.407602124] [controller_server]: Created progress_checker : progress_checker of type nav2_controller::PoseProgressChecker
+[controller_server-4] [INFO] [1792734248.410351828] [controller_server]: Controller Server has progress_checker  progress checkers available.
+[controller_server-4] [INFO] [1792734248.411279412] [controller_server]: Created goal checker : general_goal_checker of type nav2_controller::SimpleGoalChecker
+[controller_server-4] [INFO] [1792734248.413461981] [controller_server]: Controller Server has general_goal_checker  goal checkers available.
+[controller_server-4] [INFO] [1792734248.416511526] [controller_server]: Created controller : FollowPath of type dwb_core::DWBLocalPlanner
+[controller_server-4] [INFO] [1792734248.422797786] [controller_server]: Setting transform_tolerance to 0.500000
+[controller_server-4] [INFO] [1792734248.441240520] [controller_server]: Using critic "RotateToGoal" (dwb_critics::RotateToGoalCritic)
+[controller_server-4] [INFO] [1792734248.444604263] [controller_server]: Critic plugin initialized
+[controller_server-4] [INFO] [1792734248.444706969] [controller_server]: Using critic "Oscillation" (dwb_critics::OscillationCritic)
+[controller_server-4] [INFO] [1792734248.444883766] [controller_server]: Critic plugin initialized
+[controller_server-4] [INFO] [1792734248.444961112] [controller_server]: Using critic "BaseObstacle" (dwb_critics::BaseObstacleCritic)
+[controller_server-4] [INFO] [1792734248.445028749] [controller_server]: Critic plugin initialized
+[controller_server-4] [INFO] [1792734248.445091042] [controller_server]: Using critic "GoalAlign" (dwb_critics::GoalAlignCritic)
+[controller_server-4] [INFO] [1792734248.445291463] [controller_server]: Critic plugin initialized
+[controller_server-4] [INFO] [1792734248.445336305] [controller_server]: Using critic "PathAlign" (dwb_critics::PathAlignCritic)
+[controller_server-4] [INFO] [1792734248.445540194] [controller_server]: Critic plugin initialized
+[controller_server-4] [INFO] [1792734248.445606480] [controller_server]: Using critic "PathDist" (dwb_critics::PathDistCritic)
+[controller_server-4] [INFO] [1792734248.445777145] [controller_server]: Critic plugin initialized
+[controller_server-4] [INFO] [1792734248.447105993] [controller_server]: Using critic "GoalDist" (dwb_critics::GoalDistCritic)
+[controller_server-4] [INFO] [1792734248.447686200] [controller_server]: Critic plugin initialized
+[controller_server-4] [INFO] [1792734248.447710132] [controller_server]: Controller Server has FollowPath  controllers available.
+[lifecycle_manager-9] [INFO] [1792734248.460826333] [lifecycle_manager_navigation]: [34m[1mConfiguring planner_server[0m[0m
+[planner_server-5] [INFO] [1792734248.461605815] [planner_server]: Configuring
+[planner_server-5] [INFO] [1792734248.461644639] [global_costmap.global_costmap]: Configuring
+[pointcloud_to_laserscan_node-1] [INFO] [1792734248.470807749] [pc2scan]: No subscribers to laserscan, shutting down pointcloud subscriber
+[planner_server-5] [INFO] [1792734248.481423218] [global_costmap.global_costmap]: Using plugin "static_layer"
+[planner_server-5] [INFO] [1792734248.486107257] [global_costmap.global_costmap]: Subscribing to the map topic (/map) with transient local durability
+[planner_server-5] [INFO] [1792734248.490269968] [global_costmap.global_costmap]: Initialized plugin "static_layer"
+[planner_server-5] [INFO] [1792734248.490296959] [global_costmap.global_costmap]: Using plugin "inflation_layer"
+[planner_server-5] [INFO] [1792734248.491597394] [global_costmap.global_costmap]: Initialized plugin "inflation_layer"
+[map_server-2] [INFO] [1792734248.520046600] [map_server]: Configuring
+[map_server-2] [INFO] [1792734248.520120385] [map_io]: Loading yaml file: /home/runner/work/go2_ros/go2_ros/evidence/arms/delay_1000ms/rep2/world/arena.yaml
+[map_server-2] [INFO] [1792734248.520970421] [map_io]: resolution: 0.05
+[map_server-2] [INFO] [1792734248.520993791] [map_io]: origin[0]: -2.5
+[map_server-2] [INFO] [1792734248.520999442] [map_io]: origin[1]: -3.5
+[map_server-2] [INFO] [1792734248.521003319] [map_io]: origin[2]: 0
+[map_server-2] [INFO] [1792734248.521007521] [map_io]: free_thresh: 0.25
+[map_server-2] [INFO] [1792734248.521011200] [map_io]: occupied_thresh: 0.65
+[map_server-2] [INFO] [1792734248.521016857] [map_io]: mode: trinary
+[map_server-2] [INFO] [1792734248.521021749] [map_io]: negate: 0
+[map_server-2] [INFO] [1792734248.521200726] [map_io]: Loading image_file: /home/runner/work/go2_ros/go2_ros/evidence/arms/delay_1000ms/rep2/world/arena.pgm
+[map_server-2] [INFO] [1792734248.521939520] [map_io]: Read map /home/runner/work/go2_ros/go2_ros/evidence/arms/delay_1000ms/rep2/world/arena.pgm: 200 X 140 map @ 0.05 m/cell
+[planner_server-5] [INFO] [1792734248.527499286] [planner_server]: Created global planner plugin GridBased of type nav2_navfn_planner::NavfnPlanner
+[planner_server-5] [INFO] [1792734248.527536736] [planner_server]: Configuring plugin GridBased of type NavfnPlanner
+[planner_server-5] [INFO] [1792734248.527807873] [planner_server]: Planner Server has GridBased  planners available.
+[lifecycle_manager-9] [INFO] [1792734248.544784834] [lifecycle_manager_navigation]: [34m[1mConfiguring behavior_server[0m[0m
+[behavior_server-6] [INFO] [1792734248.545646888] [behavior_server]: Configuring
+[lifecycle_manager-8] [INFO] [1792734248.546542810] [lifecycle_manager_localization]: [34m[1mConfiguring amcl[0m[0m
+[amcl-3] [INFO] [1792734248.547688866] [amcl]: Configuring
+[amcl-3] [INFO] [1792734248.547778691] [amcl]: initTransforms
+[behavior_server-6] [INFO] [1792734248.558381215] [behavior_server]: Creating behavior plugin spin of type nav2_behaviors::Spin
+[behavior_server-6] [INFO] [1792734248.561498986] [behavior_server]: Creating behavior plugin backup of type nav2_behaviors::BackUp
+[behavior_server-6] [INFO] [1792734248.564906245] [behavior_server]: Creating behavior plugin drive_on_heading of type nav2_behaviors::DriveOnHeading
+[behavior_server-6] [INFO] [1792734248.567323792] [behavior_server]: Creating behavior plugin assisted_teleop of type nav2_behaviors::AssistedTeleop
+[behavior_server-6] [INFO] [1792734248.570755254] [behavior_server]: Creating behavior plugin wait of type nav2_behaviors::Wait
+[pointcloud_to_laserscan_node-1] [INFO] [1792734248.571879743] [pc2scan]: Got a subscriber to laserscan, starting pointcloud subscriber
+[amcl-3] [INFO] [1792734248.572126141] [amcl]: initPubSub
+[behavior_server-6] [INFO] [1792734248.585030455] [behavior_server]: Configuring spin
+[amcl-3] [INFO] [1792734248.597467429] [amcl]: Subscribed to map topic.
+[behavior_server-6] [INFO] [1792734248.604921462] [behavior_server]: Configuring backup
+[lifecycle_manager-8] [INFO] [1792734248.611652864] [lifecycle_manager_localization]: [34m[1mActivating map_server[0m[0m
+[map_server-2] [INFO] [1792734248.611838390] [map_server]: Activating
+[map_server-2] [INFO] [1792734248.613893544] [map_server]: Creating bond (map_server) to lifecycle manager.
+[amcl-3] [INFO] [1792734248.615017051] [amcl]: Received a 200 X 140 map @ 0.050 m/pix
+[planner_server-5] [INFO] [1792734248.616318497] [global_costmap.global_costmap]: StaticLayer: Resizing costmap to 200 X 140 at 0.050000 m/pix
+[lifecycle_manager-8] [INFO] [1792734248.618139267] [lifecycle_manager_localization]: [34m[1mActivating amcl[0m[0m
+[amcl-3] [INFO] [1792734248.618318278] [amcl]: Activating
+[amcl-3] [INFO] [1792734248.618341808] [amcl]: initialPoseReceived
+[amcl-3] [INFO] [1792734248.618403179] [amcl]: Setting pose (0.000000): 0.000 0.000 0.000
+[amcl-3] [INFO] [1792734248.618952075] [amcl]: Creating bond (amcl) to lifecycle manager.
+[behavior_server-6] [INFO] [1792734248.620325739] [behavior_server]: Configuring drive_on_heading
+[lifecycle_manager-8] [INFO] [1792734248.626719685] [lifecycle_manager_localization]: [34m[1mManaged nodes are active[0m[0m
+[behavior_server-6] [INFO] [1792734248.633490467] [behavior_server]: Configuring assisted_teleop
+[behavior_server-6] [INFO] [1792734248.646292531] [behavior_server]: Configuring wait
+[lifecycle_manager-9] [INFO] [1792734248.657394668] [lifecycle_manager_navigation]: [34m[1mConfiguring bt_navigator[0m[0m
+[bt_navigator-7] [INFO] [1792734248.657642057] [bt_navigator]: Configuring
+[bt_navigator-7] [INFO] [1792734248.667998992] [bt_navigator]: Creating navigator id navigate_to_pose of type nav2_bt_navigator::NavigateToPoseNavigator
+[bt_navigator-7] [INFO] [1792734248.795369341] [bt_navigator]: Creating navigator id navigate_through_poses of type nav2_bt_navigator::NavigateThroughPosesNavigator
+[lifecycle_manager-9] [INFO] [1792734248.843232881] [lifecycle_manager_navigation]: [34m[1mActivating controller_server[0m[0m
+[controller_server-4] [INFO] [1792734248.844872520] [controller_server]: Activating
+[controller_server-4] [INFO] [1792734248.844924033] [local_costmap.local_costmap]: Activating
+[controller_server-4] [INFO] [1792734248.844934485] [local_costmap.local_costmap]: Checking transform
+[controller_server-4] [INFO] [1792734248.844981626] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734249.345044528] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734249.845051557] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734250.345032562] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734250.845033647] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734251.345034043] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734251.845031790] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734252.345248133] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734252.845028536] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734253.345027871] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734253.845025948] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734254.345674338] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734254.845036031] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734255.345078349] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734255.845232993] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734256.345038685] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734256.845286395] [local_costmap.local_costmap]: start
+[controller_server-4] [INFO] [1792734256.955048687] [controller_server]: Creating bond (controller_server) to lifecycle manager.
+[lifecycle_manager-9] [INFO] [1792734256.966089484] [lifecycle_manager_navigation]: [34m[1mActivating planner_server[0m[0m
+[planner_server-5] [INFO] [1792734256.967312791] [planner_server]: Activating
+[planner_server-5] [INFO] [1792734256.967362801] [global_costmap.global_costmap]: Activating
+[planner_server-5] [INFO] [1792734256.967373457] [global_costmap.global_costmap]: Checking transform
+[planner_server-5] [INFO] [1792734256.967417810] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734257.467650265] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734257.967554264] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734258.467961513] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792734258.853719882] [amcl]: Message Filter dropping message: frame 'base_link' at time 2.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734258.855890280] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 2.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734258.967508743] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734259.467474600] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734259.967481390] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734260.467999381] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734260.967509013] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734261.467473509] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734261.967528667] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734262.467467714] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792734262.597746068] [amcl]: Message Filter dropping message: frame 'base_link' at time 4.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734262.597878596] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 4.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734262.967470402] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734263.467492026] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734263.967472597] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734264.467755013] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734264.967546983] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734265.467761064] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734265.967915629] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792734266.252358715] [amcl]: Message Filter dropping message: frame 'base_link' at time 7.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734266.252357788] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 7.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734266.467466286] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734266.967772890] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734267.467443322] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734267.967449260] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734268.467454637] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734268.967496284] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734269.467532193] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792734269.587839416] [amcl]: Message Filter dropping message: frame 'base_link' at time 9.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734269.588187436] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 9.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734269.967470758] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734270.468110145] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734270.967471942] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734271.467766244] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734271.967637028] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734272.468190589] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734272.967468929] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792734273.248871541] [amcl]: Message Filter dropping message: frame 'base_link' at time 12.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734273.248958771] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 12.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734273.467470449] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734273.967474964] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734274.467614269] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734274.967609340] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734275.467437527] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734275.967467678] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734276.467507978] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734276.901559844] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 14.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734276.902950749] [amcl]: Message Filter dropping message: frame 'base_link' at time 14.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734276.968154416] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734277.467530234] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734277.967465606] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734278.467481382] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734278.967595070] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734279.467471146] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734279.967471826] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734280.469303251] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734280.702470658] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 17.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734280.825100612] [amcl]: Message Filter dropping message: frame 'base_link' at time 17.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734280.967471446] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734281.467478956] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734281.967487718] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734282.468449413] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734282.967572350] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734283.467531611] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734283.843450392] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 19.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734283.964910261] [amcl]: Message Filter dropping message: frame 'base_link' at time 19.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734283.967467431] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734284.467596703] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734284.968286164] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734285.467469635] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734285.967507945] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734286.467508940] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734286.967677338] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734287.093326893] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 22.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734287.212082681] [amcl]: Message Filter dropping message: frame 'base_link' at time 22.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734287.467490593] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734287.968217578] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734288.467601617] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734288.967469619] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734289.467450273] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734289.967496088] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734290.463539136] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 24.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734290.467480210] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792734290.600565829] [amcl]: Message Filter dropping message: frame 'base_link' at time 25.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734290.967467898] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734291.468380925] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734291.967620761] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734292.467519022] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734292.967541841] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734293.467570566] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734293.646333395] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 27.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734293.904163959] [amcl]: Message Filter dropping message: frame 'base_link' at time 27.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734293.967591577] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734294.467469410] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734294.967469230] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734295.467665594] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734295.967464998] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734296.467551827] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734296.967991816] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734296.992769152] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 29.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734297.263601445] [amcl]: Message Filter dropping message: frame 'base_link' at time 30.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734297.467477615] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734297.967468967] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734298.467568794] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734298.967576532] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734299.467491557] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734299.967804712] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734300.384296207] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 32.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734300.467470768] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792734300.517586861] [amcl]: Message Filter dropping message: frame 'base_link' at time 32.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734300.967469365] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734301.467470568] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734301.967474909] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734302.467464368] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734302.967463536] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734303.467470291] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734303.770735700] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 35.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734303.967715513] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792734304.013613355] [amcl]: Message Filter dropping message: frame 'base_link' at time 35.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734304.467711186] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734304.967464762] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734305.467643247] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734305.967612214] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734306.467607504] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734306.967564965] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734306.986320872] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 37.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734307.261271455] [amcl]: Message Filter dropping message: frame 'base_link' at time 37.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734307.467797998] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734307.967545378] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734308.467469106] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734308.967695099] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734309.467463491] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734309.967469812] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734310.467696244] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734310.492269925] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 40.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734310.616196678] [amcl]: Message Filter dropping message: frame 'base_link' at time 40.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734310.967483659] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734311.467606738] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734311.967583006] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734312.467662573] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734312.967445846] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734313.467477971] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734313.870392712] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 42.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734313.967476930] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792734314.028364752] [amcl]: Message Filter dropping message: frame 'base_link' at time 42.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734314.467736344] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734314.967815565] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734315.467469836] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734315.967707054] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734316.467957720] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734316.967496143] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734317.177346052] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 45.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734317.418418744] [amcl]: Message Filter dropping message: frame 'base_link' at time 45.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734317.467471721] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734317.967662734] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734318.467466710] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734318.967523135] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734319.468244036] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734319.967633124] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734320.467565787] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734320.675780094] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 47.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734320.943574307] [amcl]: Message Filter dropping message: frame 'base_link' at time 48.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734320.967465319] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734321.468112080] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734321.967617884] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734322.467543272] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734322.967500908] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734323.467476284] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734323.901889910] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 50.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734323.967480541] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792734324.163742282] [amcl]: Message Filter dropping message: frame 'base_link' at time 50.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734324.467506137] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734324.967576348] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734325.467755350] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734325.967482171] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734326.467532817] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734326.968217084] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[controller_server-4] [INFO] [1792734327.441390426] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 52.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734327.467569432] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792734327.578223239] [amcl]: Message Filter dropping message: frame 'base_link' at time 53.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734327.967468648] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734328.467502729] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734328.967796432] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734329.467553917] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734329.967471861] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734330.467519952] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792734330.847140051] [amcl]: Message Filter dropping message: frame 'base_link' at time 55.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734330.850273493] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 55.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734330.967681754] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734331.468554032] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734331.967468544] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734332.467476967] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734332.967670245] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734333.467542120] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734333.967651435] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792734334.214423233] [amcl]: Message Filter dropping message: frame 'base_link' at time 58.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734334.215395191] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 58.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734334.467524610] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734334.967487858] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734335.467528719] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734335.967486479] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734336.467487011] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734336.967474911] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [INFO] [1792734337.467473095] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[amcl-3] [INFO] [1792734337.596033301] [amcl]: Message Filter dropping message: frame 'base_link' at time 60.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734337.597093249] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 60.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-5] [INFO] [1792734337.967589858] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+[planner_server-5] [ERROR] [1792734337.967648306] [global_costmap.global_costmap]: Failed to activate global_costmap because transform from base_link to map did not become available before timeout
+[lifecycle_manager-9] [ERROR] [1792734337.971191337] [lifecycle_manager_navigation]: Failed to change state for node: planner_server
+[lifecycle_manager-9] [ERROR] [1792734337.973058973] [lifecycle_manager_navigation]: Failed to bring up all requested nodes. Aborting bringup.
+[amcl-3] [INFO] [1792734340.663347544] [amcl]: Message Filter dropping message: frame 'base_link' at time 63.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734340.663690855] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 63.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734343.780783029] [amcl]: Message Filter dropping message: frame 'base_link' at time 65.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734343.780947044] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 65.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734346.789927664] [amcl]: Message Filter dropping message: frame 'base_link' at time 68.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734346.790222777] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 68.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734349.931124909] [amcl]: Message Filter dropping message: frame 'base_link' at time 70.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734349.931318978] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 70.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734353.025684107] [amcl]: Message Filter dropping message: frame 'base_link' at time 73.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734353.026717394] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 73.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734356.015918211] [amcl]: Message Filter dropping message: frame 'base_link' at time 75.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734356.016044503] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 75.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734359.112709138] [amcl]: Message Filter dropping message: frame 'base_link' at time 78.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734359.114832237] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 78.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734362.218363824] [amcl]: Message Filter dropping message: frame 'base_link' at time 81.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734362.220585472] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 81.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734365.339039278] [amcl]: Message Filter dropping message: frame 'base_link' at time 83.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734365.340347811] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 83.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734368.424459334] [amcl]: Message Filter dropping message: frame 'base_link' at time 86.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734368.424708596] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 86.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734371.400605405] [amcl]: Message Filter dropping message: frame 'base_link' at time 88.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734371.401038073] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 88.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734374.509215340] [amcl]: Message Filter dropping message: frame 'base_link' at time 91.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734374.509735149] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 91.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734377.607700550] [amcl]: Message Filter dropping message: frame 'base_link' at time 94.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734377.607708103] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 94.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734380.605658130] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 96.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734380.719908858] [amcl]: Message Filter dropping message: frame 'base_link' at time 96.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734383.684896861] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 99.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734383.811275322] [amcl]: Message Filter dropping message: frame 'base_link' at time 99.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734386.642290049] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 101.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734386.888668015] [amcl]: Message Filter dropping message: frame 'base_link' at time 101.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734389.630223578] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 104.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734389.874341802] [amcl]: Message Filter dropping message: frame 'base_link' at time 104.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734392.606734541] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 106.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734392.965331169] [amcl]: Message Filter dropping message: frame 'base_link' at time 106.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734395.567225209] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 109.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734396.039721593] [amcl]: Message Filter dropping message: frame 'base_link' at time 109.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734398.673428770] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 111.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734399.030584129] [amcl]: Message Filter dropping message: frame 'base_link' at time 112.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734401.664079297] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 114.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734402.137530184] [amcl]: Message Filter dropping message: frame 'base_link' at time 114.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734404.776705858] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 116.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734405.266634992] [amcl]: Message Filter dropping message: frame 'base_link' at time 117.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734407.756659400] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 119.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734408.353713983] [amcl]: Message Filter dropping message: frame 'base_link' at time 119.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734410.732743069] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 121.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734411.314368016] [amcl]: Message Filter dropping message: frame 'base_link' at time 122.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734413.795993697] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 124.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734414.262584225] [amcl]: Message Filter dropping message: frame 'base_link' at time 124.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734416.876021882] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 127.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734417.239264466] [amcl]: Message Filter dropping message: frame 'base_link' at time 127.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734419.847275977] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 129.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734420.213224466] [amcl]: Message Filter dropping message: frame 'base_link' at time 129.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734422.835508952] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 132.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734423.199077624] [amcl]: Message Filter dropping message: frame 'base_link' at time 132.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734425.919320139] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 134.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734426.275297096] [amcl]: Message Filter dropping message: frame 'base_link' at time 134.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734429.027623177] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 137.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734429.260203175] [amcl]: Message Filter dropping message: frame 'base_link' at time 137.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734432.117197002] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 139.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734432.236029555] [amcl]: Message Filter dropping message: frame 'base_link' at time 139.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734435.217056732] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 142.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734435.328962098] [amcl]: Message Filter dropping message: frame 'base_link' at time 142.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734438.311712293] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 145.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734438.311828819] [amcl]: Message Filter dropping message: frame 'base_link' at time 145.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734441.372156434] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 147.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734441.373028852] [amcl]: Message Filter dropping message: frame 'base_link' at time 147.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734444.336088940] [amcl]: Message Filter dropping message: frame 'base_link' at time 150.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734444.336157189] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 150.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734447.316989731] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 152.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734447.318027683] [amcl]: Message Filter dropping message: frame 'base_link' at time 152.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734450.405440085] [amcl]: Message Filter dropping message: frame 'base_link' at time 155.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734450.408123038] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 155.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734453.485828786] [amcl]: Message Filter dropping message: frame 'base_link' at time 157.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734453.486233766] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 157.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734456.577699985] [amcl]: Message Filter dropping message: frame 'base_link' at time 160.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734456.578036617] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 160.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734459.551872873] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 162.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734459.551944849] [amcl]: Message Filter dropping message: frame 'base_link' at time 162.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734462.660604065] [amcl]: Message Filter dropping message: frame 'base_link' at time 165.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734462.661005233] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 165.500 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734465.641276713] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 168.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734465.641577571] [amcl]: Message Filter dropping message: frame 'base_link' at time 168.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734468.742314010] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 170.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734468.742367199] [amcl]: Message Filter dropping message: frame 'base_link' at time 170.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734471.750704945] [amcl]: Message Filter dropping message: frame 'base_link' at time 173.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734471.750797754] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 173.100 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734474.886513154] [amcl]: Message Filter dropping message: frame 'base_link' at time 175.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734474.886904350] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 175.700 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734477.873372496] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 178.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734477.875406791] [amcl]: Message Filter dropping message: frame 'base_link' at time 178.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734480.987546510] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 180.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734480.987666135] [amcl]: Message Filter dropping message: frame 'base_link' at time 180.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734484.082212009] [amcl]: Message Filter dropping message: frame 'base_link' at time 183.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734484.082516004] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 183.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734487.177878967] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 186.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734487.178134063] [amcl]: Message Filter dropping message: frame 'base_link' at time 186.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734490.293230438] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 188.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734490.293436251] [amcl]: Message Filter dropping message: frame 'base_link' at time 188.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734493.395240914] [amcl]: Message Filter dropping message: frame 'base_link' at time 191.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734493.396865402] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 191.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734496.472647324] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 193.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734496.472776847] [amcl]: Message Filter dropping message: frame 'base_link' at time 193.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734499.538618111] [amcl]: Message Filter dropping message: frame 'base_link' at time 196.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734499.538785234] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 196.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734502.630699264] [amcl]: Message Filter dropping message: frame 'base_link' at time 199.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734502.631570815] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 199.000 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734506.158146698] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 201.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734506.158957204] [amcl]: Message Filter dropping message: frame 'base_link' at time 201.600 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734509.317690609] [amcl]: Message Filter dropping message: frame 'base_link' at time 204.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734509.317741986] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 204.200 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734512.978379885] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 206.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734512.979678858] [amcl]: Message Filter dropping message: frame 'base_link' at time 206.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [WARN] [1792734515.840823931] [rclcpp]: Failed to get parameters: current_goal_checker
+[amcl-3] [INFO] [1792734516.351718107] [amcl]: Message Filter dropping message: frame 'base_link' at time 209.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734516.353166787] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 209.300 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734519.496750270] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 211.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734519.497653856] [amcl]: Message Filter dropping message: frame 'base_link' at time 211.900 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[controller_server-4] [INFO] [1792734522.258950548] [local_costmap.local_costmap]: Message Filter dropping message: frame 'base_link' at time 214.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[amcl-3] [INFO] [1792734522.258960390] [amcl]: Message Filter dropping message: frame 'base_link' at time 214.400 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
