@@ -1,0 +1,38 @@
+Node not found
+String value is: nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController
+String value is: nav2_navfn_planner::NavfnPlanner
+PLANNER=navfn CONTROLLER=rpp_retuned
+Parameter not set
+/amcl
+/base_to_footprint_ekf
+/behavior_server
+/bt_navigator
+/bt_navigator_navigate_through_poses_rclcpp_node
+/bt_navigator_navigate_to_pose_rclcpp_node
+/controller_manager
+/controller_server
+/foot_contacts_bridge
+/footprint_to_odom_ekf
+/gazebo_bridge
+/global_costmap/global_costmap
+/gz_ros_control
+/joint_group_effort_controller
+/joint_states_controller
+/lifecycle_manager_localization
+/lifecycle_manager_navigation
+/local_costmap/local_costmap
+/map_server
+/pc2scan
+/planner_server
+/quadruped_controller_node
+/robot_state_publisher
+/rosbag2_recorder
+/smoother_server
+/state_estimation_node
+/tf_delay_relay
+/transform_listener_impl_55cb606589f0
+/transform_listener_impl_55e156b68eb0
+/transform_listener_impl_55f18e29c9b0
+/transform_listener_impl_560e8139b0c0
+/transform_listener_impl_562dc0aad6a0
+/velodyne_bridge
