@@ -1,0 +1,3 @@
+[WARN] [1792737272.900862233] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1792737272.900889274] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[INFO] [1792737299.900301015] [tf_delay_relay]: tf delay active=True delay=0.0
