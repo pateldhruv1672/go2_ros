@@ -7,13 +7,18 @@ on:
 permissions:
   contents: write
 env:
-  DELAYS: "0"
-  REPEATS: "1"
-  RESULT_BRANCH: ci-evidence/nav-baseline
+  REPEATS: "3"
 jobs:
   nav:
     runs-on: ubuntu-24.04
     timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      matrix:
+        delay: [0, 100, 300, 500, 1000]
+    env:
+      DELAYS: ${{ matrix.delay }}
+      RESULT_BRANCH: ci-evidence/nav-delay-${{ matrix.delay }}
     steps:
       - uses: actions/checkout@v4
       - name: Install Gazebo Harmonic, ROS Jazzy, Nav2
@@ -44,7 +49,7 @@ jobs:
           export NAV_CFG="$PWD/evidence/configs/navfn_dwb_sim_candidate.yaml"
           for d in $DELAYS; do for r in $(seq 1 $REPEATS); do
             echo "=== arm delay=${d}ms rep=$r ==="
-            timeout 900 bash experiments/sparky/nav/run_arm.sh "$PWD/sim_ws" "$PWD/experiments/sparky" "$d" "$PWD/evidence/arms/delay_${d}ms/rep$r" "$r"
+            timeout 700 bash experiments/sparky/nav/run_arm.sh "$PWD/sim_ws" "$PWD/experiments/sparky" "$d" "$PWD/evidence/arms/delay_${d}ms/rep$r" "$r"
             cat "evidence/arms/delay_${d}ms/rep$r/run_goal.exit" 2>/dev/null
             tail -5 "evidence/arms/delay_${d}ms/rep$r/run_goal.log" 2>/dev/null
           done; done

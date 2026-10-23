@@ -20,12 +20,12 @@ NAV=$!
 cleanup() { kill -INT $BAG 2>/dev/null; sleep 3; kill -INT $NAV $RELAY $SIM 2>/dev/null; sleep 5; kill -9 $NAV $RELAY $SIM 2>/dev/null; pkill -9 -f "gz sim" 2>/dev/null; true; }
 trap cleanup EXIT
 STORAGE=mcap; ros2 bag record -s mcap --help >/dev/null 2>&1 || STORAGE=sqlite3
-ros2 bag record -s $STORAGE -o "$OUT/bag" /clock /odom /odom/ground_truth /tf /tf_static /scan /plan /cmd_vel /amcl_pose /joint_states > "$OUT/bag.log" 2>&1 &
+ros2 bag record -s $STORAGE --compression-mode file --compression-format zstd -o "$OUT/bag" /clock /odom /odom/ground_truth /tf /tf_static /scan /plan /cmd_vel /amcl_pose /joint_states > "$OUT/bag.log" 2>&1 &
 BAG=$!
-python3 "$EXP/nav/run_goal.py" "$EXP/nav/scenario.json" "$OUT/run" 150 > "$OUT/run_goal.log" 2>&1
+python3 "$EXP/nav/run_goal.py" "$EXP/nav/scenario.json" "$OUT/run" 90 > "$OUT/run_goal.log" 2>&1
 RC=$?
 # plugin proof from the live system, before teardown
-{ echo "controller_server FollowPath.plugin:"; ros2 param get /controller_server FollowPath.plugin
-  echo "planner_server GridBased.plugin:"; ros2 param get /planner_server GridBased.plugin
-  ros2 node list; } > "$OUT/loaded_plugins.txt" 2>&1
+{ for i in 1 2 3 4 5; do ros2 param get /controller_server FollowPath.plugin 2>&1 | grep -v WARN && break; sleep 2; done
+  for i in 1 2 3 4 5; do ros2 param get /planner_server GridBased.plugin 2>&1 | grep -v WARN && break; sleep 2; done
+  ros2 param get /controller_server current_goal_checker 2>&1 | grep -v WARN; ros2 node list; } > "$OUT/loaded_plugins.txt" 2>&1
 echo $RC > "$OUT/run_goal.exit"; exit 0
